@@ -7,45 +7,61 @@ POST /blackboard
 200 /blackboard/123
 GET /blackboard/123
 {
-    "@id": "http://translator.ncats.io/blackboard/1",
-    "@type": "knowledge-graph",
+    "id": 123,
+    "type": "knowledge-graph",
     "query": {
 	"term": "asthma"
     }
     "nodes": [
 	{
-	    "@id": "http://disease-ontology.org/term/DOID:1234",
-	    "@type": "disease",
-	    "@ks": "https://pharos.nih.gov/idg/diseases/Asthma",
+	    "id": 1,
+	    "type": "disease",
+	    "ks": "https://pharos.nih.gov/idg/diseases/Asthma",
 	    "name": "asthma"
 	},
 	{
-	    "@id": "https://uniprot.org/Q969D9",
-	    "@type": "target",
-	    "@ks": "https://pharos.nih.gov/idg/targets/Q969D9",
-	    "name": "Thymic stromal lymphopoietin",
+	    "id": 2,
+	    "type": "target",
+	    "ks": "https://pharos.nih.gov/idg/targets/P07550",
+	    "name": "Beta-2 adrenergic receptor",
 	    "synonyms": [
-		"TSLP"
+		"ADRB2",
+		"P07550"
 	    ]
 	},
 	{
-	    "@id": "https://",
-	    "@type": "drug",
-	    "@ks": "https://pharos.nih.gov/idg/ligands/salbutamol"
-	    "name": "albuterol"
+	    "id": 3,
+	    "type": "drug",
+	    "ks": "https://pharos.nih.gov/idg/ligands/salbutamol"
+	    "name": "Salbutamol"
 	}
     ],
     "edges": [
 	{
-	    "@type": "",
-	    "source": "",
-	    "target": "",
-	    "evidence": {
-		"@type": "",
-		"references": [
-		]
-	    },
-	    "confidence": 0.92
+	    "source": 1,
+	    "target": 3,
+	    "evidences": [
+		{
+		    "type": "clinical",
+		    "scope": "Albuterol tablets are indicated for the relief of bronchospasm in adults and children 6 years of age and older with reversible obstructive airway disease.",
+		    "ks": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+		    "confidence": 1
+		}
+	    ],
+	    "directed": false
+	},
+	{
+	    "source": 2,
+	    "target": 3,
+	    "evidences": [
+		{
+		    "type": "approved",
+		    "scope": "stimulate beta-adrenergic receptors",
+		    "ks": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+		    "confidence": 1
+		}
+	    ],
+	    "directed": false
 	}
     ]
 }
