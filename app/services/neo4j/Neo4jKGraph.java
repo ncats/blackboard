@@ -10,8 +10,6 @@ import services.KNode;
 import services.KEdge;
 
 public class Neo4jKGraph extends Neo4jKBase implements KGraph {
-    static public final String NAME_PROP = "_name";
-    
     final Blackboard blackboard;
     final Label kgLabel;
     
@@ -21,12 +19,6 @@ public class Neo4jKGraph extends Neo4jKBase implements KGraph {
         this.blackboard = blackboard;
     }
     
-    public String name () {
-        try (Transaction tx = graphDb.beginTx()) {
-            return (String)entity.getProperty(NAME_PROP, null);
-        }
-    }
-
     public long nodeCount () {
         try (Transaction tx = graphDb.beginTx()) {
             return graphDb.findNodes(kgLabel).stream().count();

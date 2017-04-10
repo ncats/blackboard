@@ -1,67 +1,153 @@
 POST /blackboard
 {
+    "name": "A simple blackboard example",
     "query": {
-	"term": "asthma"
+        "term": "asthma"
     }
 }
 200 /blackboard/123
 GET /blackboard/123
 {
     "id": 123,
-    "type": "knowledge-graph",
-    "query": {
-	"term": "asthma"
-    }
+    "type": "kgraph",
+    "ksources": [
+        {
+            "id": 1,
+            "type": "ks",
+            "name": "Pharos",
+            "uri": "https://pharos.nih.gov"
+        },
+        {
+            "id": 2,
+            "type": "ks",
+            "name": "Red Team's drug knowledge source",
+            "uri": "https://columbia.edu"
+        }
+    ],
     "nodes": [
-	{
-	    "id": 1,
-	    "type": "disease",
-	    "ks": "https://pharos.nih.gov/idg/diseases/Asthma",
-	    "name": "asthma"
-	},
-	{
-	    "id": 2,
-	    "type": "target",
-	    "ks": "https://pharos.nih.gov/idg/targets/P07550",
-	    "name": "Beta-2 adrenergic receptor",
-	    "synonyms": [
-		"ADRB2",
-		"P07550"
-	    ]
-	},
-	{
-	    "id": 3,
-	    "type": "drug",
-	    "ks": "https://pharos.nih.gov/idg/ligands/salbutamol"
-	    "name": "Salbutamol"
-	}
+        {
+            "id": 53,
+            "type": "query",
+            "name": "A simple blackboard example",
+            "query": {
+                "term": "asthma"
+            }
+        },
+        {
+            "id": 1,
+            "type": "disease",      
+            "ksource": 1,
+            "uri": "https://pharos.nih.gov/idg/diseases/Asthma",
+            "name": "asthma"
+        },
+        {
+            "id": 2,
+            "type": "protein",      
+            "ksource": 1,           
+            "uri": "https://pharos.nih.gov/idg/targets/P07550",
+            "name": "Beta-2 adrenergic receptor",
+            "synonyms": [
+                "ADRB2",
+                "P07550"
+            ]
+        },
+        {
+            "id": 3,
+            "type": "drug",         
+            "ksource": 1,
+            "uri": "https://pharos.nih.gov/idg/ligands/salbutamol"
+            "name": "salbutamol",
+            "synonyms": [
+                "albuterol"
+            ]
+        },
+        {
+            "id": 4,
+            "type": "protein",      
+            "ksource": 1,
+            "uri": "https://pharos.nih.gov/idg/targets/Q13258",
+            "name": "Prostaglandin D2 receptor",
+            "synonyms": [
+                "Q13258",
+                "PTGDR"
+            ]
+        }
     ],
     "edges": [
-	{
-	    "source": 1,
-	    "target": 3,
-	    "evidences": [
-		{
-		    "type": "clinical",
-		    "scope": "Albuterol tablets are indicated for the relief of bronchospasm in adults and children 6 years of age and older with reversible obstructive airway disease.",
-		    "ks": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
-		    "confidence": 1
-		}
-	    ],
-	    "directed": false
-	},
-	{
-	    "source": 2,
-	    "target": 3,
-	    "evidences": [
-		{
-		    "type": "approved",
-		    "scope": "stimulate beta-adrenergic receptors",
-		    "ks": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
-		    "confidence": 1
-		}
-	    ],
-	    "directed": false
-	}
+        {
+            "id": 432,
+            "type": "matched",
+            "source": 53,
+            "target": 1,
+            "directed": false
+        },
+        {
+            "id": 542,
+            "type": "assertion",
+            "source": 1,
+            "target": 3,
+            "evidence": [
+                {
+                    "id": 6432,
+                    "type": "clinical",
+                    "ksource": 2,
+                    "scope": "Albuterol tablets are indicated for the relief of bronchospasm in adults and children 6 years of age and older with reversible obstructive airway disease.",
+                    "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+                    "confidence": 1
+                }
+            ],
+            "directed": false
+        },
+        {
+            "id": 321,
+            "type": "assertion",
+            "source": 2,
+            "target": 3,
+            "evidence": [
+                {
+                    "id": 5343,
+                    "type": "clinical",
+                    "ksource": 2,
+                    "scope": "stimulate beta-adrenergic receptors",
+                    "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+                    "confidence": 1
+                }
+            ],
+            "directed": false
+        },
+        {
+            "id": 531,
+            "type": "assertion",
+            "source": 2,
+            "target": 4,
+            "evidence": [
+                {
+                    "id": 3423,
+                    "type": "in vitro",
+                    "ksource": 1,
+                    "scope": "Protein-protein interaction",
+                    "uri": "https://www.ncbi.nlm.nih.gov/pubmed/26186194",
+                    "confidence": 0.72
+                }
+            ],
+            "directed": true
+        },
+        {
+            "id": 654,
+            "type": "assertion",
+            "source": 1,
+            "target": 4,
+            "evidence": [
+                {
+                    "id": 3121,
+                    "type": "literature",
+                    "ksource": 1,
+                    "scope": "text mining",
+                    "uri": "http://diseases.jensenlab.org/Entity?documents=10&type1=9606&id2=umls:C0004096&id1=ENSP00000303424",
+                    "confidence": 0.58
+                }
+            ],
+            "directed": false
+        }
     ]
 }

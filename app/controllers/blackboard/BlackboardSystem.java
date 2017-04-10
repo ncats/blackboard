@@ -53,4 +53,8 @@ public class BlackboardSystem extends Controller {
     public Result getKG (Long id) {
         return ok ("KG "+id);
     }
+
+    public Result getTypes () {
+        return ok ((JsonNode)mapper.valueToTree(blackboard.getTypes()));
+    }
 }

@@ -29,6 +29,7 @@ public class Neo4jBlackboard implements Blackboard {
 
     protected GraphDatabaseService graphDb;
     protected Configuration config;
+    protected Set<String> types;
 
     @Inject
     public Neo4jBlackboard (Configuration config,
@@ -39,6 +40,9 @@ public class Neo4jBlackboard implements Blackboard {
 
         File dir = new File (base, "blackboard.db");
         dir.mkdirs();
+
+        types = new TreeSet<>(config.getStringList
+                              ("blackboard.types", new ArrayList<>()));
         
         graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dir)
             .setConfig(GraphDatabaseSettings.dump_configuration, "true")
@@ -106,7 +110,9 @@ public class Neo4jBlackboard implements Blackboard {
         KGraph kg = null;
         try (Transaction tx = graphDb.beginTx()) {
             Node node = graphDb.createNode(KGRAPH_LABEL);
-            node.setProperty(Neo4jKGraph.NAME_PROP, name);
+            node.setProperty(Neo4jKBase.NAME_PROP, name);
+            // this should be an enum of some sort here
+            node.setProperty(Neo4jKBase.TYPE_PROP, "kgraph");
             if (properties != null) {
                 for (Map.Entry<String, Object> me : properties.entrySet())
                     node.setProperty(me.getKey(), me.getValue());
@@ -115,5 +121,9 @@ public class Neo4jBlackboard implements Blackboard {
             tx.success();
         }
         return kg;
+    }
+
+    public Collection<String> getTypes () {
+        return types;
     }
 }

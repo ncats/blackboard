@@ -8,11 +8,22 @@ import play.Logger;
 import services.KBase;
 
 public class Neo4jKBase implements KBase {
+    public static final String NAME_PROP = "_name";
+    public static final String TYPE_PROP = "_type";
+    
     protected final GraphDatabaseService graphDb;
     protected final Entity entity;
+    protected final String type;
+    protected final String name;
 
     public Neo4jKBase (Entity entity) {
         graphDb = entity.getGraphDatabase();
+        
+        try (Transaction tx = graphDb.beginTx()) {
+            name = (String)entity.getProperty(NAME_PROP, null);
+            type = (String)entity.getProperty(TYPE_PROP, null);
+        }
+        
         this.entity = entity;
     }
 
@@ -21,6 +32,9 @@ public class Neo4jKBase implements KBase {
             return entity.getId();
         }
     }
+
+    public String name () { return name; }
+    public String type () { return type; }
 
     public void set (String name, Object value) {
         try (Transaction tx = graphDb.beginTx()) {

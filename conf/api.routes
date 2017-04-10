@@ -1,6 +1,8 @@
 #
 # basic blackboard api
 #
+GET	/@types	controllers.blackboard.BlackboardSystem.getTypes
 GET	/	controllers.blackboard.BlackboardSystem.listKG
 POST	/ 	controllers.blackboard.BlackboardSystem.createKG
 GET	/:id	controllers.blackboard.BlackboardSystem.getKG(id: Long)
+
