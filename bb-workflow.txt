@@ -22,7 +22,13 @@ GET /blackboard/123
             "type": "ks",
             "name": "Red Team's drug knowledge source",
             "uri": "https://columbia.edu"
-        }
+        },
+	{
+	  "id":3,
+	  "type":"ks",
+	  "name":"NCBI GEO",
+	  "uri":"https://www.ncbi.nlm.nih.gov/geo"
+	}
     ],
     "nodes": [
         {
@@ -71,7 +77,16 @@ GET /blackboard/123
                 "Q13258",
                 "PTGDR"
             ]
-        }
+        },
+	{
+	  "id":5,
+	  "type":"expression_set",
+	  "ksource":3,
+	  "uri":"https://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=GDS5037",
+	  "ref_series":"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE43696",
+	  "name":"Severe asthma: bronchial epithelial cell",
+	  "summary","Analysis of bronchial epithelial cells from patients with severe asthma. Results provide insight into the molecular mechanisms underlying the development of severe asthma."
+	}
     ],
     "edges": [
         {
@@ -81,6 +96,13 @@ GET /blackboard/123
             "target": 1,
             "directed": false
         },
+	{
+	  "id":632,
+	  "type":"matched",
+	  "source":53,
+	  "target":5,
+	  "directed":false
+	},
         {
             "id": 542,
             "type": "assertion",
