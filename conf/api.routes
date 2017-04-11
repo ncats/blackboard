@@ -1,8 +1,10 @@
 #
 # basic blackboard api
 #
-GET	/@types	controllers.blackboard.BlackboardSystem.getTypes
+GET	/nodes/@type	controllers.blackboard.BlackboardSystem.getNodeTypes
+GET	/edges/@type	controllers.blackboard.BlackboardSystem.getEdgeTypes
+GET	/evidence/@type	controllers.blackboard.BlackboardSystem.getEvidenceTypes
 GET	/	controllers.blackboard.BlackboardSystem.listKG
-POST	/ 	controllers.blackboard.BlackboardSystem.createKG
+POST	/ 	controllers.blackboard.BlackboardSystem.createKGraph
 GET	/:id	controllers.blackboard.BlackboardSystem.getKG(id: Long)
 

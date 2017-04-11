@@ -16,19 +16,19 @@ public class Neo4jKNode extends Neo4jKBase implements KNode {
         this.node = node;
     }
 
-    public int degree () {
+    public int getDegree () {
         try (Transaction tx = graphDb.beginTx()) {
             return node.getDegree();
         }
     }
 
-    public int in () {
+    public int getInDegree () {
         try (Transaction tx = graphDb.beginTx()) {
             return node.getDegree(Direction.INCOMING);
         }
     }
 
-    public int out () {
+    public int getOutDegree () {
         try (Transaction tx = graphDb.beginTx()) {
             return node.getDegree(Direction.OUTGOING);
         }

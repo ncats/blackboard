@@ -1,27 +1,27 @@
 POST /blackboard
 {
+    "type": "query",
     "name": "A simple blackboard example",
-    "query": {
-        "term": "asthma"
-    }
+    "term": "asthma"
 }
 200 /blackboard/123
-GET /blackboard/123
+PUT /blackboard/123/ks/Pharos
+PUT /blackboard/123/ks/DrugCentral
 {
     "id": 123,
     "type": "kgraph",
     "ksources": [
         {
             "id": 1,
-            "type": "ks",
+            "type": "ksource",
             "name": "Pharos",
             "uri": "https://pharos.nih.gov"
         },
         {
             "id": 2,
-            "type": "ks",
-            "name": "Red Team's drug knowledge source",
-            "uri": "https://columbia.edu"
+            "type": "ksource",
+            "name": "DrugCentral",
+            "uri": "http://drugcentral.org"
         }
     ],
     "nodes": [
@@ -76,7 +76,7 @@ GET /blackboard/123
     "edges": [
         {
             "id": 432,
-            "type": "matched",
+            "type": "resolve",
             "source": 53,
             "target": 1,
             "directed": false
@@ -87,14 +87,7 @@ GET /blackboard/123
             "source": 1,
             "target": 3,
             "evidence": [
-                {
-                    "id": 6432,
-                    "type": "clinical",
-                    "ksource": 2,
-                    "scope": "Albuterol tablets are indicated for the relief of bronchospasm in adults and children 6 years of age and older with reversible obstructive airway disease.",
-                    "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
-                    "confidence": 1
-                }
+		6432
             ],
             "directed": false
         },
@@ -104,14 +97,7 @@ GET /blackboard/123
             "source": 2,
             "target": 3,
             "evidence": [
-                {
-                    "id": 5343,
-                    "type": "clinical",
-                    "ksource": 2,
-                    "scope": "stimulate beta-adrenergic receptors",
-                    "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
-                    "confidence": 1
-                }
+		5343
             ],
             "directed": false
         },
@@ -121,14 +107,7 @@ GET /blackboard/123
             "source": 2,
             "target": 4,
             "evidence": [
-                {
-                    "id": 3423,
-                    "type": "in vitro",
-                    "ksource": 1,
-                    "scope": "Protein-protein interaction",
-                    "uri": "https://www.ncbi.nlm.nih.gov/pubmed/26186194",
-                    "confidence": 0.72
-                }
+		3423
             ],
             "directed": true
         },
@@ -138,16 +117,43 @@ GET /blackboard/123
             "source": 1,
             "target": 4,
             "evidence": [
-                {
-                    "id": 3121,
-                    "type": "literature",
-                    "ksource": 1,
-                    "scope": "text mining",
-                    "uri": "http://diseases.jensenlab.org/Entity?documents=10&type1=9606&id2=umls:C0004096&id1=ENSP00000303424",
-                    "confidence": 0.58
-                }
+		3121
             ],
             "directed": false
         }
-    ]
+    ],
+    "evidence": [
+        {
+            "id": 6432,
+            "type": "clinical",
+            "ksource": 2,
+            "scope": "Albuterol tablets are indicated for the relief of bronchospasm in adults and children 6 years of age and older with reversible obstructive airway disease.",
+            "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+            "confidence": 1
+        },
+        {
+            "id": 5343,
+            "type": "clinical",
+            "ksource": 2,
+            "scope": "stimulate beta-adrenergic receptors",
+            "uri": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c1f3881-2b68-4bdb-a12f-8134fe8ba961",
+            "confidence": 1
+        },
+        {
+            "id": 3423,
+            "type": "in vitro",
+            "ksource": 1,
+            "scope": "Protein-protein interaction",
+            "uri": "https://www.ncbi.nlm.nih.gov/pubmed/26186194",
+            "confidence": 0.72
+        },
+        {
+            "id": 3121,
+            "type": "literature",
+            "ksource": 1,
+            "scope": "text mining",
+            "uri": "http://diseases.jensenlab.org/Entity?documents=10&type1=9606&id2=umls:C0004096&id1=ENSP00000303424",
+            "confidence": 0.58
+        }
+    ]    
 }

@@ -1,9 +1,9 @@
 package services;
 
 public interface KBase {
-    long id ();
-    String type ();
-    String name ();
+    long getId ();
+    String getType ();
+    String getName ();
     void set (String prop, Object value);
     Object get (String prop);
 }

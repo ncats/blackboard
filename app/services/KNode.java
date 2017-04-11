@@ -2,7 +2,7 @@ package services;
 
 public interface KNode extends KBase {
     KNode[] neighbors ();
-    int degree ();
-    int in ();
-    int out ();
+    int getDegree ();
+    int getInDegree ();
+    int getOutDegree ();
 }

@@ -18,23 +18,19 @@ public class Neo4jKBase implements KBase {
 
     public Neo4jKBase (Entity entity) {
         graphDb = entity.getGraphDatabase();
-        
-        try (Transaction tx = graphDb.beginTx()) {
-            name = (String)entity.getProperty(NAME_PROP, null);
-            type = (String)entity.getProperty(TYPE_PROP, null);
-        }
-        
+        name = (String)entity.getProperty(NAME_PROP, null);
+        type = (String)entity.getProperty(TYPE_PROP, null);
         this.entity = entity;
     }
 
-    public long id () {
+    public long getId () {
         try (Transaction tx = graphDb.beginTx()) {
             return entity.getId();
         }
     }
 
-    public String name () { return name; }
-    public String type () { return type; }
+    public String getName () { return name; }
+    public String getType () { return type; }
 
     public void set (String name, Object value) {
         try (Transaction tx = graphDb.beginTx()) {

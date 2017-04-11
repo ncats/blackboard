@@ -1,6 +1,7 @@
 package services.neo4j;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import org.neo4j.graphdb.*;
 import play.Logger;
 
@@ -16,16 +17,17 @@ public class Neo4jKGraph extends Neo4jKBase implements KGraph {
     public Neo4jKGraph (Blackboard blackboard, Node node) {
         super (node);
         kgLabel = Label.label("KG:"+node.getId());
+        node.addLabel(kgLabel);
         this.blackboard = blackboard;
     }
     
-    public long nodeCount () {
+    public long getNodeCount () {
         try (Transaction tx = graphDb.beginTx()) {
             return graphDb.findNodes(kgLabel).stream().count();
         }
     }
 
-    public long edgeCount () {
+    public long getEdgeCount () {
         try (Transaction tx = graphDb.beginTx();
              Result result = graphDb.execute("match(n:`"+kgLabel.name()
                                              +"`)-[e]-(m:`"+kgLabel.name()
@@ -38,11 +40,16 @@ public class Neo4jKGraph extends Neo4jKBase implements KGraph {
         return -1l;
     }
 
-    public KNode[] nodes () {
-        return null;
+    public KNode[] getNodes () {
+        try (Transaction tx = graphDb.beginTx()) {
+            List<Neo4jKNode> nodes = graphDb.findNodes(kgLabel).stream()
+                .map(n -> new Neo4jKNode (n))
+                .collect(Collectors.toList());
+            return nodes.toArray(new KNode[0]);
+        }
     }
 
-    public KEdge[] edges () {
+    public KEdge[] getEdges () {
         return null;
     }
 

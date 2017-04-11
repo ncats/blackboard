@@ -1,8 +1,8 @@
 package services;
 
 public interface KEdge extends KBase {
-    KNode source ();
-    KNode target ();
-    boolean directed ();
+    KNode getSource ();
+    KNode getTarget ();
+    boolean isDirected ();
     KNode other (KNode node);
 }

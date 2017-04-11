@@ -24,12 +24,12 @@ public class Neo4jKEdge extends Neo4jKBase implements KEdge {
         this.edge = edge;
     }
 
-    public KNode source () { return source; }
-    public KNode target () { return target; }
+    public KNode getSource () { return source; }
+    public KNode getTarget () { return target; }
     public KNode other (KNode node) {
         if (node == target) return source;
         if (node == source) return target;
         return null;
     }
-    public boolean directed () { return directed; }
+    public boolean isDirected () { return directed; }
 }

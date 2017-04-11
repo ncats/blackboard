@@ -3,6 +3,7 @@ package services.neo4j;
 import java.io.*;
 import java.util.*;
 import javax.inject.*;
+import java.util.stream.Collectors;
 
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -29,7 +30,9 @@ public class Neo4jBlackboard implements Blackboard {
 
     protected GraphDatabaseService graphDb;
     protected Configuration config;
-    protected Set<String> types;
+    protected Set<String> nodeTypes;
+    protected Set<String> edgeTypes;
+    protected Set<String> evidenceTypes;
 
     @Inject
     public Neo4jBlackboard (Configuration config,
@@ -41,8 +44,13 @@ public class Neo4jBlackboard implements Blackboard {
         File dir = new File (base, "blackboard.db");
         dir.mkdirs();
 
-        types = new TreeSet<>(config.getStringList
-                              ("blackboard.types", new ArrayList<>()));
+        nodeTypes = new TreeSet<>(config.getStringList
+                                  ("blackboard.node.type", new ArrayList<>())); 
+        edgeTypes = new TreeSet<>(config.getStringList
+                                  ("blackboard.edge.type", new ArrayList<>()));
+        evidenceTypes = new TreeSet<>(config.getStringList
+                                      ("blackboard.evidence.type",
+                                       new ArrayList<>()));
         
         graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dir)
             .setConfig(GraphDatabaseSettings.dump_configuration, "true")
@@ -77,10 +85,11 @@ public class Neo4jBlackboard implements Blackboard {
 
     public Iterator<KGraph> iterator () {
         try (Transaction tx = graphDb.beginTx()) {
-            return graphDb.findNodes(KGRAPH_LABEL)
+            List<KGraph> kgraphs = graphDb.findNodes(KGRAPH_LABEL)
                 .stream().map(n -> (KGraph)new Neo4jKGraph
                               (Neo4jBlackboard.this, n))
-                .iterator();
+                .collect(Collectors.toList());
+            return kgraphs.iterator();
         }
     }
 
@@ -123,7 +132,7 @@ public class Neo4jBlackboard implements Blackboard {
         return kg;
     }
 
-    public Collection<String> getTypes () {
-        return types;
-    }
+    public Collection<String> getNodeTypes () { return nodeTypes; }
+    public Collection<String> getEdgeTypes () { return edgeTypes; }
+    public Collection<String> getEvidenceTypes () { return evidenceTypes; }
 }
