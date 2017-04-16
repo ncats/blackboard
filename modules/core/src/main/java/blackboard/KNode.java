@@ -1,6 +1,6 @@
-package services;
+package blackboard;
 
-public interface KNode extends KBase {
+public interface KNode extends KEntity {
     KNode[] neighbors ();
     int getDegree ();
     int getInDegree ();

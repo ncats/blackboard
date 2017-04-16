@@ -20,22 +20,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import services.*;
+import blackboard.*;
+import static blackboard.KEntity.*;
 
 @Singleton
 public class BlackboardSystem extends Controller {
     private ActorSystem actorSystem;
-    private ExecutionContextExecutor exec;
     private Blackboard blackboard;
-    private final ObjectMapper mapper = new ObjectMapper ();
+    private final ObjectMapper mapper;
 
     @Inject
     public BlackboardSystem (ActorSystem actorSystem,
-                             ExecutionContextExecutor exec,
+                             JsonCodec codec,
                              Blackboard blackboard) {
       this.actorSystem = actorSystem;
-      this.exec = exec;
       this.blackboard = blackboard;
+      this.mapper = codec.getObjectMapper();
     }
 
     public Result listKG () {
@@ -49,23 +49,21 @@ public class BlackboardSystem extends Controller {
     @BodyParser.Of(value = BodyParser.Json.class)    
     public Result createKGraph () {
         JsonNode json = request().body().asJson();
-        if (!json.hasNonNull("type")) 
-            return badRequest ("Json has not \"type\" field!");
+        if (!json.hasNonNull(TYPE_P)) 
+            return badRequest ("Json has not \""+TYPE_P+"\" field!");
 
-        String type = json.get("type").asText();
+        String type = json.get(TYPE_P).asText();
         if (!"query".equals(type))
             return badRequest
                 ("Can't create knowledge graph with type \""+type+"\"");
         
-        String name = json.hasNonNull("name")
-            ? json.get("name").asText() : null;
         Map<String, Object> props = new TreeMap<>();
         for (Iterator<String> it = json.fieldNames(); it.hasNext(); ) {
             String field = it.next();
             props.put(field, json.get(field).asText());
         }
-        KGraph kg = blackboard.createKGraph(name, props);
         
+        KGraph kg = blackboard.createKGraph(props);
         return ok ((JsonNode)mapper.valueToTree(kg));
     }
 

@@ -1,15 +1,16 @@
-POST /blackboard
++POST /blackboard
 {
     "type": "query",
-    "name": "A simple blackboard example",
+    "name": "A simple blackboard query",
     "term": "asthma"
 }
-200 /blackboard/123
-PUT /blackboard/123/ks/Pharos
-PUT /blackboard/123/ks/DrugCentral
+-200 /blackboard/123
++PUT /blackboard/123/ks/Pharos,DrugCentral,GEO,wikipedia
+-200
 {
     "id": 123,
     "type": "kgraph",
+    "name": "A simple blackboard query",
     "ksources": [
         {
             "id": 1,
@@ -23,21 +24,25 @@ PUT /blackboard/123/ks/DrugCentral
             "name": "DrugCentral",
             "uri": "http://drugcentral.org"
         },
-	{
-	  "id":3,
-	  "type":"ksource",
-	  "name":"NCBI GEO",
-	  "uri":"https://www.ncbi.nlm.nih.gov/geo"
-	}
+        {
+            "id": 3,
+            "type": "ksource",
+            "name": "NCBI GEO",
+            "uri": "https://www.ncbi.nlm.nih.gov/geo"
+        },
+        {
+            "id": 4,
+            "type": "ksource",
+            "name": "wikipedia",
+            "uri": "https://en.wikipedia.org"
+        }
     ],
     "nodes": [
         {
             "id": 53,
             "type": "query",
             "name": "A simple blackboard example",
-            "query": {
-                "term": "asthma"
-            }
+            "term": "asthma"
         },
         {
             "id": 1,
@@ -78,15 +83,26 @@ PUT /blackboard/123/ks/DrugCentral
                 "PTGDR"
             ]
         },
-	{
-	  "id":5,
-	  "type":"expression_set",
-	  "ksource":3,
-	  "uri":"https://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=GDS5037",
-	  "ref_series":"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE43696",
-	  "name":"Severe asthma: bronchial epithelial cell",
-	  "summary","Analysis of bronchial epithelial cells from patients with severe asthma. Results provide insight into the molecular mechanisms underlying the development of severe asthma."
-	}
+        {
+            "id": 5,
+            "type": "expression_set",
+            "ksource": 3,
+            "uri": "https://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=GDS5037",
+            "ref_series": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE43696",
+            "name": "Severe asthma: bronchial epithelial cell",
+            "summary": "Analysis of bronchial epithelial cells from patients with severe asthma. Results provide insight into the molecular mechanisms underlying the development of severe asthma."
+        },
+        {
+            "id": 6,
+            "type": "drug",
+            "ksource": 1,
+            "uri": "https://pharos.nih.gov/idg/ligands/laropiprant",
+            "name": "laropiprant",
+            "status": "withdrawn",
+            "synonyms": [
+                "MK-0524A"
+            ]
+        }
     ],
     "edges": [
         {
@@ -96,20 +112,20 @@ PUT /blackboard/123/ks/DrugCentral
             "target": 1,
             "directed": false
         },
-	{
-	  "id":632,
-	  "type":"matched",
-	  "source":53,
-	  "target":5,
-	  "directed":false
-	},
+        {
+            "id":632,
+            "type": "resolve",
+            "source":53,
+            "target":5,
+            "directed":false
+        },
         {
             "id": 542,
             "type": "assertion",
             "source": 1,
             "target": 3,
             "evidence": [
-		6432
+                6432
             ],
             "directed": false
         },
@@ -119,7 +135,7 @@ PUT /blackboard/123/ks/DrugCentral
             "source": 2,
             "target": 3,
             "evidence": [
-		5343
+                5343
             ],
             "directed": false
         },
@@ -129,7 +145,7 @@ PUT /blackboard/123/ks/DrugCentral
             "source": 2,
             "target": 4,
             "evidence": [
-		3423
+                3423
             ],
             "directed": true
         },
@@ -139,7 +155,17 @@ PUT /blackboard/123/ks/DrugCentral
             "source": 1,
             "target": 4,
             "evidence": [
-		3121
+                3121
+            ],
+            "directed": false
+        },
+        {
+            "id": 539,
+            "type": "assertion",
+            "source": 4,
+            "target": 6,
+            "evidence": [
+                4232
             ],
             "directed": false
         }
@@ -176,6 +202,14 @@ PUT /blackboard/123/ks/DrugCentral
             "scope": "text mining",
             "uri": "http://diseases.jensenlab.org/Entity?documents=10&type1=9606&id2=umls:C0004096&id1=ENSP00000303424",
             "confidence": 0.58
+        },
+        {
+            "id": 4232,
+            "type": "clinical",
+            "ksource": 4,
+            "scope": "Prostaglandin receptor antagonist",
+            "uri": "https://en.wikipedia.org/wiki/Laropiprant"
+            "confidence": 1
         }
     ]    
 }

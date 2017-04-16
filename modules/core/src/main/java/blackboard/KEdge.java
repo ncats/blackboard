@@ -1,6 +1,6 @@
-package services;
+package blackboard;
 
-public interface KEdge extends KBase {
+public interface KEdge extends KEntity {
     KNode getSource ();
     KNode getTarget ();
     boolean isDirected ();

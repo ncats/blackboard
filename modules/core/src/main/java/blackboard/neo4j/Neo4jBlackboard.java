@@ -1,4 +1,4 @@
-package services.neo4j;
+package blackboard.neo4j;
 
 import java.io.*;
 import java.util.*;
@@ -19,14 +19,16 @@ import play.Configuration;
 import play.cache.CacheApi;
 import play.inject.ApplicationLifecycle;
 import play.libs.F;
+import play.inject.Injector;
 
-import services.Blackboard;
-import services.KGraph;
-
+import blackboard.Blackboard;
+import blackboard.KGraph;
+import static blackboard.KEntity.*;
 
 @Singleton
 public class Neo4jBlackboard implements Blackboard {
-    static public final Label KGRAPH_LABEL = Label.label("KGraphNode");
+    static public final Label KGRAPH_LABEL = Label.label("KGraph");
+    static public final Label KSOURCE_LABEL = Label.label("KSource");
 
     protected GraphDatabaseService graphDb;
     protected Configuration config;
@@ -60,7 +62,27 @@ public class Neo4jBlackboard implements Blackboard {
                 shutdown ();
                 return F.Promise.pure(null);
             });
-        this.config = config;   
+        this.config = config;
+        
+        initBlackboard ();
+    }
+
+    protected void initBlackboard () {
+        long created;
+        try (Transaction tx = graphDb.beginTx()) {
+            Node meta = graphDb.getNodeById(0l);
+            created = (Long)meta.getProperty("created", 0l);
+        }
+        catch (NotFoundException ex) {
+            created = System.currentTimeMillis();
+            try (Transaction tx = graphDb.beginTx()) {
+                Node meta = graphDb.createNode(Label.label("Blackboard"));
+                meta.setProperty("created", created);
+                tx.success();
+            }
+        }
+        Logger.debug("## Blackboard initialized; created = "
+                     +new java.util.Date(created));
     }
 
     protected void shutdown () {
@@ -115,23 +137,30 @@ public class Neo4jBlackboard implements Blackboard {
         }
     }
 
-    public KGraph createKGraph (String name, Map<String, Object> properties) {
-        KGraph kg = null;
+    protected Node createNode (Label label, String type,
+                               Map<String, Object> properties) {
+        Node node = graphDb.createNode(label);
+        node.setProperty(TYPE_P, type);
+        if (properties.containsKey(NAME_P))
+            node.setProperty(NAME_P, properties.get(NAME_P));
+        return node;
+    }
+    
+    public KGraph createKGraph (Map<String, Object> properties) {
+        Neo4jKGraph kg = null;
         try (Transaction tx = graphDb.beginTx()) {
-            Node node = graphDb.createNode(KGRAPH_LABEL);
-            node.setProperty(Neo4jKBase.NAME_PROP, name);
-            // this should be an enum of some sort here
-            node.setProperty(Neo4jKBase.TYPE_PROP, "kgraph");
-            if (properties != null) {
-                for (Map.Entry<String, Object> me : properties.entrySet())
-                    node.setProperty(me.getKey(), me.getValue());
-            }
+            /*
+             * every knowledge graph has a meta-node of type=kgraph and
+             * label=KGRAPH_LABEL
+             */
+            Node node = createNode (KGRAPH_LABEL, "kgraph", properties);
             kg = new Neo4jKGraph (this, node);
+            kg.createNode(properties);
             tx.success();
         }
         return kg;
     }
-
+    
     public Collection<String> getNodeTypes () { return nodeTypes; }
     public Collection<String> getEdgeTypes () { return edgeTypes; }
     public Collection<String> getEvidenceTypes () { return evidenceTypes; }

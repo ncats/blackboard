@@ -1,4 +1,10 @@
-name := """blackboard"""
+
+lazy val branch = "git rev-parse --abbrev-ref HEAD".!!.trim
+lazy val commit = "git rev-parse --short HEAD".!!.trim
+lazy val author = s"git show --format=%an -s $commit".!!.trim
+lazy val buildDate = (new java.text.SimpleDateFormat("yyyyMMdd"))
+  .format(new java.util.Date())
+lazy val appVersion = "%s-%s-%s".format(branch, buildDate, commit)
 
 lazy val commonDependencies = Seq(
   cache,
@@ -7,21 +13,55 @@ lazy val commonDependencies = Seq(
   "org.webjars" %% "webjars-play" % "2.5.0"
 )
 
-lazy val commonSettings = Seq(
-  scalaVersion := "2.11.7",
-  version := "1.0-SNAPSHOT"
-)
-
 lazy val javaBuildOptions = Seq(
   "-encoding", "UTF-8"
     //,"-Xlint:-options"
     //,"-Xlint:deprecation"
 )
 
+lazy val commonSettings = Seq(
+  name := """blackboard""",
+  scalaVersion := "2.11.8",
+  version := appVersion
+)
+
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
+  .dependsOn(buildinfo,core,pharos).aggregate(buildinfo,core,pharos)
+
+lazy val buildinfo = (project in file("modules/build"))
+  .settings(commonSettings: _*)
+  .settings(name := "blackboard-buildinfo",
+    sourceGenerators in Compile <+= sourceManaged in Compile map { dir =>
+      val file = dir / "BuildInfo.java"
+      IO.write(file, """
+package blackboard;
+public class BuildInfo { 
+   public static final String BRANCH = "%s";
+   public static final String DATE = "%s";
+   public static final String COMMIT = "%s";
+   public static final String TIME = "%s";
+   public static final String AUTHOR = "%s";
+}
+""".format(branch, buildDate, commit, new java.util.Date(), author))
+      Seq(file)
+    }
+)
+
+lazy val core =  (project in file("modules/core"))
+  .settings(commonSettings: _*)
   .settings(
-  libraryDependencies ++= commonDependencies,
+    name := "blackboard-core",
+    libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 )
+
+lazy val pharos = (project in file("modules/pharos"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "blackboard-pharos",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(core).aggregate(core)

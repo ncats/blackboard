@@ -1,25 +1,33 @@
-package services.neo4j;
+package blackboard.neo4j;
+
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.Collection;
 
 import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
 import play.Logger;
 
-import services.KBase;
+import blackboard.KEntity;
 
-public class Neo4jKBase implements KBase {
-    public static final String NAME_PROP = "_name";
-    public static final String TYPE_PROP = "_type";
-    
+public class Neo4jKEntity implements KEntity {    
     protected final GraphDatabaseService graphDb;
     protected final Entity entity;
     protected final String type;
     protected final String name;
 
-    public Neo4jKBase (Entity entity) {
+    public Neo4jKEntity (Entity entity) {
+        this (entity, null);
+    }
+    
+    public Neo4jKEntity (Entity entity, Map<String, Object> properties) {
         graphDb = entity.getGraphDatabase();
-        name = (String)entity.getProperty(NAME_PROP, null);
-        type = (String)entity.getProperty(TYPE_PROP, null);
+        name = (String)entity.getProperty(NAME_P, null);
+        type = (String)entity.getProperty(TYPE_P, null);
+        if (properties != null)
+            Neo4j.setProperties(entity, properties);
+        
         this.entity = entity;
     }
 
@@ -43,5 +51,9 @@ public class Neo4jKBase implements KBase {
         try (Transaction tx = graphDb.beginTx()) {
             return entity.getProperty(name);
         }
+    }
+
+    public Map<String, Object> getProperties () {
+        return Neo4j.getProperties(entity);
     }
 }

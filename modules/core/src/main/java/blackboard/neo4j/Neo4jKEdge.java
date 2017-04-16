@@ -1,15 +1,16 @@
-package services.neo4j;
+package blackboard.neo4j;
 
+import java.util.Map;
 import java.util.stream.*;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
 
-import services.KEdge;
-import services.KNode;
+import blackboard.KEdge;
+import blackboard.KNode;
 
-public class Neo4jKEdge extends Neo4jKBase implements KEdge {
+public class Neo4jKEdge extends Neo4jKEntity implements KEdge {
     public final String DIRECTED_PROP = "_directed";
     
     protected final Relationship edge;
@@ -17,7 +18,11 @@ public class Neo4jKEdge extends Neo4jKBase implements KEdge {
     protected final boolean directed;
 
     public Neo4jKEdge (Relationship edge) {
-        super (edge);
+        this (edge, null);
+    }
+    
+    public Neo4jKEdge (Relationship edge, Map<String, Object> properties) {
+        super (edge, properties);
         source = new Neo4jKNode (edge.getStartNode());
         target = new Neo4jKNode (edge.getEndNode());
         directed = (Boolean)edge.getProperty(DIRECTED_PROP, false);

@@ -4,8 +4,11 @@ import java.time.Clock;
 import services.ApplicationTimer;
 import services.AtomicCounter;
 import services.Counter;
-import services.Blackboard;
-import services.neo4j.Neo4jBlackboard;
+
+import blackboard.Blackboard;
+import blackboard.JsonCodec;
+import blackboard.neo4j.Neo4jBlackboard;
+import blackboard.neo4j.Neo4jJsonCodec;
 
 /**
  * This class is a Guice module that tells Guice how to bind several
@@ -29,6 +32,7 @@ public class Module extends AbstractModule {
         // Set AtomicCounter as the implementation for Counter.
         bind(Counter.class).to(AtomicCounter.class);
         bind(Blackboard.class).to(Neo4jBlackboard.class).asEagerSingleton();
+        bind(JsonCodec.class).to(Neo4jJsonCodec.class);
     }
 
 }

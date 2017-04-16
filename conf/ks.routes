@@ -1,0 +1,3 @@
+GET	/	controllers.ks.KnowledgeSource.index
+
+->	/pharos	pharos.Routes

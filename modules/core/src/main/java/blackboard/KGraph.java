@@ -1,12 +1,11 @@
-package services;
+package blackboard;
 
 import java.util.Map;
 
 /**
  * Knowledge graph
  */
-public interface KGraph extends KBase {
-    String getName ();
+public interface KGraph extends KEntity {
     long getNodeCount ();
     long getEdgeCount ();
     KNode[] getNodes ();

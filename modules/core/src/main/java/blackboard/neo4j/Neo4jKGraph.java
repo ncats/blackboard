@@ -1,23 +1,27 @@
-package services.neo4j;
+package blackboard.neo4j;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import org.neo4j.graphdb.*;
 import play.Logger;
 
-import services.KGraph;
-import services.Blackboard;
-import services.KNode;
-import services.KEdge;
+import blackboard.KGraph;
+import blackboard.Blackboard;
+import blackboard.KNode;
+import blackboard.KEdge;
 
-public class Neo4jKGraph extends Neo4jKBase implements KGraph {
+public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
     final Blackboard blackboard;
     final Label kgLabel;
-    
+
     public Neo4jKGraph (Blackboard blackboard, Node node) {
-        super (node);
+        this (blackboard, node, null);
+    }
+    
+    public Neo4jKGraph (Blackboard blackboard,
+                        Node node, Map<String, Object> properties) {
+        super (node, properties);
         kgLabel = Label.label("KG:"+node.getId());
-        node.addLabel(kgLabel);
         this.blackboard = blackboard;
     }
     
@@ -62,7 +66,13 @@ public class Neo4jKGraph extends Neo4jKBase implements KGraph {
     }
 
     public KNode createNode (Map<String, Object> properties) {
-        return null;
+        KNode node = null;
+        try (Transaction tx = graphDb.beginTx()) {
+            Node n = graphDb.createNode(kgLabel);
+            node = new Neo4jKNode (n, properties);
+            tx.success();
+        }
+        return node;
     }
 
     public KEdge createEdge (long source, long target, boolean directed,
