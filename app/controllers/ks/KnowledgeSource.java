@@ -26,57 +26,14 @@ import blackboard.KSource;
 
 @Singleton
 public class KnowledgeSource extends Controller {
-    private ActorSystem actorSystem;
-    private BlackboardSystem bbsys;
-    private ArrayNode ksinfo;
-    private Map<String, KSource> ksources;
+    @Inject ActorSystem actorSystem;
+    @Inject BlackboardSystem bbsys;
+    @Inject @Named("pharos") KSource pharos;
     
-    @Inject
-    public KnowledgeSource (Configuration config,
-                            Injector injector,
-                            ActorSystem actorSystem,
-                            BlackboardSystem bbsys) {
-        ObjectMapper mapper = new ObjectMapper ();
-        ksinfo = mapper.createArrayNode();
-        ksources = new HashMap<>();
-        
-        List<Configuration> ksconfigs = config.getConfigList
-            ("blackboard.ksources", new ArrayList<>());
-        for (Configuration c : ksconfigs) {
-            ObjectNode n = mapper.createObjectNode();
-            String id = c.getString("id", null);
-            if (id == null) {
-                Logger.warn("Knowledge has no \"id\" field!");
-            }
-            else {
-                n.put("id", id);
-                n.put("name", c.getString("name", null));
-                n.put("version", c.getString("version", null));
-                n.put("uri", c.getString("uri", null));
-                String cls = c.getString("class", null);
-                if (cls != null) {
-                    try {
-                        KSource ks =
-                            (KSource)injector.instanceOf(Class.forName(cls));
-                        ksources.put(id, ks);
-                        ksinfo.add(n);
-                    }
-                    catch (Exception ex) {
-                        Logger.error("Can't instantiate knowledge source: "
-                                     +id, ex);
-                    }
-                }
-                else {
-                    Logger.warn("Knowledge source \""
-                                +id+"\" has no \"class\" specified!");
-                }
-            }
-        }
-        this.actorSystem = actorSystem;
-        this.bbsys = bbsys;
+    public KnowledgeSource () {
     }
     
     public Result index () {
-        return ok (ksinfo);
+        return ok ();
     }
 }

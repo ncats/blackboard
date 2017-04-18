@@ -25,8 +25,8 @@ import static blackboard.KEntity.*;
 
 @Singleton
 public class BlackboardSystem extends Controller {
-    private ActorSystem actorSystem;
-    private Blackboard blackboard;
+    private final ActorSystem actorSystem;
+    private final Blackboard blackboard;
     private final ObjectMapper mapper;
 
     @Inject

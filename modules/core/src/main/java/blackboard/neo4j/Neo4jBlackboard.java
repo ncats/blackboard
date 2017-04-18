@@ -30,11 +30,11 @@ public class Neo4jBlackboard implements Blackboard {
     static public final Label KGRAPH_LABEL = Label.label("KGraph");
     static public final Label KSOURCE_LABEL = Label.label("KSource");
 
-    protected GraphDatabaseService graphDb;
-    protected Configuration config;
-    protected Set<String> nodeTypes;
-    protected Set<String> edgeTypes;
-    protected Set<String> evidenceTypes;
+    protected final GraphDatabaseService graphDb;
+    protected final Configuration config;
+    protected final Set<String> nodeTypes;
+    protected final Set<String> edgeTypes;
+    protected final Set<String> evidenceTypes;
 
     @Inject
     public Neo4jBlackboard (Configuration config,

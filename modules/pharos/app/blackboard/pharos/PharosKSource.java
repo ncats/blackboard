@@ -11,15 +11,15 @@ import blackboard.KSource;
 import blackboard.KGraph;
 
 public class PharosKSource implements KSource {
-    private ActorSystem actorSystem;
-    private WSAPI wsapi;
+    private final ActorSystem actorSystem;
+    private final WSAPI wsapi;
     
     @Inject
     public PharosKSource (ActorSystem actorSystem, WSAPI wsapi) {
         this.actorSystem = actorSystem;
         this.wsapi = wsapi;
         WSRequest req = wsapi.url
-            ("https://pharos.ncats.io/idg/api/v1/targets/1");
+            ("https://pharos.ncats.io/idg/api/v1/targets/2");
         try {
             WSResponse res = req.get().toCompletableFuture().get();
             Logger.debug(">>>"+res.asJson());
