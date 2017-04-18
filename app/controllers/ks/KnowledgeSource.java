@@ -1,8 +1,9 @@
 package controllers.ks;
 
-import javax.inject.*;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.inject.Named;
 import play.*;
-import play.inject.Injector;
 import play.mvc.*;
 import play.libs.ws.*;
 import static play.mvc.Http.MultipartFormData.*;
@@ -16,6 +17,10 @@ import scala.concurrent.duration.Duration;
 import scala.concurrent.ExecutionContextExecutor;
 import akka.actor.ActorSystem;
 
+import com.google.inject.Injector;
+import com.google.inject.TypeLiteral;
+import com.google.inject.Binding;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -23,17 +28,57 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import controllers.blackboard.BlackboardSystem;
 import blackboard.KSource;
+import blackboard.KSourceProvider;
 
 @Singleton
 public class KnowledgeSource extends Controller {
-    @Inject ActorSystem actorSystem;
-    @Inject BlackboardSystem bbsys;
-    @Inject @Named("pharos") KSource pharos;
+    public static final TypeLiteral<KSourceProvider> KTYPE =
+        new TypeLiteral<KSourceProvider>(){};
     
-    public KnowledgeSource () {
+    final Injector injector;
+    final ActorSystem actorSystem;
+    final BlackboardSystem bbsys;
+
+    final Map<String, KSourceProvider> ksources;
+    final ObjectMapper mapper = new ObjectMapper ();
+
+    @Inject
+    public KnowledgeSource (Injector injector,
+                            ActorSystem actorSystem,
+                            BlackboardSystem bbsys) {
+        this.injector = injector;
+        this.actorSystem = actorSystem;
+        this.bbsys = bbsys;
+
+        ksources = new TreeMap<>();
+        for (Binding<KSourceProvider> ksb
+                 : injector.findBindingsByType(KTYPE)) {
+            KSourceProvider ksp = ksb.getProvider().get();
+            ksources.put(ksp.getId(), ksp);
+        }
+        Logger.debug(ksources.size()+" knowledge sources defined!");
     }
     
     public Result index () {
-        return ok ();
+        return ok ((JsonNode)mapper.valueToTree(ksources));
+    }
+
+    public Result getKS (String id) {
+        KSourceProvider ksp = ksources.get(id);
+        if (ksp != null) {
+            return ok ((JsonNode)mapper.valueToTree(ksp));
+        }
+        return notFound ("Unknown knowledge source: "+id);
+    }
+
+    public Result putKS (String id) {
+        KSourceProvider ksp = ksources.get(id);
+        if (ksp == null) {
+            return notFound ("Unknown knowledge source: "+id);
+        }
+        KSource ks = ksp.getKS();
+        ks.execute(null);
+        
+        return ok ("Knowledge source \""+id+"\" executed successful!");
     }
 }

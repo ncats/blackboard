@@ -1,3 +1,3 @@
 GET	/	controllers.ks.KnowledgeSource.index
-
-->	/pharos	pharos.Routes
+GET	/:id	controllers.ks.KnowledgeSource.getKS(id: String)
+PUT	/:id	controllers.ks.KnowledgeSource.putKS(id: String)
