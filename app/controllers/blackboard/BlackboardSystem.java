@@ -22,19 +22,23 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import blackboard.*;
 import static blackboard.KEntity.*;
+import controllers.ks.KnowledgeSource;
 
 @Singleton
 public class BlackboardSystem extends Controller {
     private final ActorSystem actorSystem;
     private final Blackboard blackboard;
+    private final KnowledgeSource knowledgeSource;
     private final ObjectMapper mapper;
 
     @Inject
     public BlackboardSystem (ActorSystem actorSystem,
                              JsonCodec codec,
+                             KnowledgeSource knowledgeSource,
                              Blackboard blackboard) {
       this.actorSystem = actorSystem;
       this.blackboard = blackboard;
+      this.knowledgeSource = knowledgeSource;
       this.mapper = codec.getObjectMapper();
     }
 
@@ -68,7 +72,26 @@ public class BlackboardSystem extends Controller {
     }
 
     public Result getKG (Long id) {
-        return ok ("KG "+id);
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return notFound ("Unknown knowledge graph: "+id);
+        
+        return ok ((JsonNode)mapper.valueToTree(kg));
+    }
+
+    public Result runKS (Long id, String ks) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+
+        try {
+            knowledgeSource.runKS(ks, kg);
+        }
+        catch (Exception ex) {
+            return badRequest (ex.getMessage());
+        }
+        return ok ("Knowledge source \""+ks
+                   +"\" successfully executed on knowledge graph "+id);
     }
 
     public Result getNodeTypes () {

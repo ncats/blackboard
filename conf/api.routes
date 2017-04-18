@@ -1,3 +1,5 @@
+->	/ks	ks.Routes
+
 #
 # basic blackboard api
 #
@@ -7,4 +9,4 @@ GET	/evidence/@type	controllers.blackboard.BlackboardSystem.getEvidenceTypes
 GET	/	controllers.blackboard.BlackboardSystem.listKG
 POST	/ 	controllers.blackboard.BlackboardSystem.createKGraph
 GET	/:id	controllers.blackboard.BlackboardSystem.getKG(id: Long)
-
+PUT	/:id/ks.$ks<[a-z0-9]+>	controllers.blackboard.BlackboardSystem.runKS(id: Long, ks: String)

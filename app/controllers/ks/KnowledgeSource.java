@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import controllers.blackboard.BlackboardSystem;
 import blackboard.KSource;
 import blackboard.KSourceProvider;
+import blackboard.KGraph;
 
 @Singleton
 public class KnowledgeSource extends Controller {
@@ -37,18 +38,15 @@ public class KnowledgeSource extends Controller {
     
     final Injector injector;
     final ActorSystem actorSystem;
-    final BlackboardSystem bbsys;
 
     final Map<String, KSourceProvider> ksources;
     final ObjectMapper mapper = new ObjectMapper ();
 
     @Inject
     public KnowledgeSource (Injector injector,
-                            ActorSystem actorSystem,
-                            BlackboardSystem bbsys) {
+                            ActorSystem actorSystem) {
         this.injector = injector;
         this.actorSystem = actorSystem;
-        this.bbsys = bbsys;
 
         ksources = new TreeMap<>();
         for (Binding<KSourceProvider> ksb
@@ -63,22 +61,20 @@ public class KnowledgeSource extends Controller {
         return ok ((JsonNode)mapper.valueToTree(ksources));
     }
 
-    public Result getKS (String id) {
-        KSourceProvider ksp = ksources.get(id);
+    public Result getKS (String ks) {
+        KSourceProvider ksp = ksources.get(ks);
         if (ksp != null) {
             return ok ((JsonNode)mapper.valueToTree(ksp));
         }
-        return notFound ("Unknown knowledge source: "+id);
+        return notFound ("Unknown knowledge source: "+ks);
     }
 
-    public Result putKS (String id) {
-        KSourceProvider ksp = ksources.get(id);
-        if (ksp == null) {
-            return notFound ("Unknown knowledge source: "+id);
-        }
-        KSource ks = ksp.getKS();
-        ks.execute(null);
-        
-        return ok ("Knowledge source \""+id+"\" executed successful!");
+    public void runKS (String ks, KGraph kgraph) {
+        KSourceProvider ksp = ksources.get(ks);
+        if (ksp == null)
+            throw new IllegalArgumentException
+                ("Unknown knowledge source \""+ks+"\"");
+
+        ksp.getKS().execute(kgraph);
     }
 }

@@ -1,3 +1,2 @@
 GET	/	controllers.ks.KnowledgeSource.index
-GET	/:id	controllers.ks.KnowledgeSource.getKS(id: String)
-PUT	/:id	controllers.ks.KnowledgeSource.putKS(id: String)
+GET	/:ks	controllers.ks.KnowledgeSource.getKS(ks: String)
