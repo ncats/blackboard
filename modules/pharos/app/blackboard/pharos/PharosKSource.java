@@ -33,7 +33,7 @@ public class PharosKSource implements KSource {
         this.actorSystem = actorSystem;
         this.wsclient = wsclient;
         this.ksp = ksp;
-        
+
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 return F.Promise.pure(null);
@@ -76,8 +76,14 @@ public class PharosKSource implements KSource {
                  +"&facet=IDG%20Development%20Level/Tclin");
             
             req.get().thenAccept(res -> {
-                    JsonNode json = res.asJson();
-                    resolveTargets (json);
+                    try {
+                        JsonNode json = res.asJson();
+                        resolveTargets (json, kg);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Can't resolve targets for term \""
+                                     +term+"\"", ex);
+                    }
                 });
         }
         catch (Exception ex) {
@@ -85,12 +91,46 @@ public class PharosKSource implements KSource {
         }
     }
 
-    void resolveTargets (JsonNode json) {
+    void resolveTargets (JsonNode json, KGraph kg) {
         Logger.debug("uri: "+json.get("uri").asText());
         JsonNode content = json.get("content");
         for (int i = 0; i < content.size(); ++i) {
-            Logger.debug("..."+content.get(i).get("name").asText());
+            long id = content.get(i).get("id").asLong();
+            String name = content.get(i).get("name").asText();
+            String uri = ksp.getUri()+"/targets("+id+")";
+            
+            Map<String, Object> props = new HashMap<>();
+            props.put("uri", uri);
+            props.put("type", "protein");
+            props.put("name", name);
+            props.put("family", content.get(i).get("idgFamily").asText());
+            String[] syns = retrieveSynonyms (uri);
+            if (syns.length > 0)
+                props.put("synonyms", syns);
+            KNode node = kg.createNodeIfAbsent(props, "uri");
+            Logger.debug(node.getId()+"..."+name);
         }
         Logger.debug(content.size()+" targets!");
+    }
+
+    String[] retrieveSynonyms (String url) {
+        List<String> syns = new ArrayList<>();
+        // only retrieve UniProt related synonyms
+        WSRequest req = wsclient.url(url+"/synonyms(label=UniProt*)");
+        try {
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode json = res.asJson();
+            for (int i = 0; i < json.size(); ++i) {
+                String s = json.get(i).get("term").asText();
+                if (syns.indexOf(s) < 0) // terrible
+                    syns.add(s);
+            }
+        }
+        catch (Exception ex) {
+            Logger.error("Can't get synonyms for "+url, ex);
+        }
+        //Logger.debug(url+" => "+syns.size()+" synonyms!");
+        
+        return syns.toArray(new String[0]);
     }
 }
