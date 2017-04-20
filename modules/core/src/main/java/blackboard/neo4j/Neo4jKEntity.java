@@ -37,8 +37,17 @@ public class Neo4jKEntity implements KEntity {
         }
     }
 
-    public String getName () { return name; }
-    public String getType () { return type; }
+    public String getName () {
+        try (Transaction tx = graphDb.beginTx()) {
+            return (String) entity.getProperty(NAME_P, null);
+        }
+    }
+    
+    public String getType () {
+        try (Transaction tx = graphDb.beginTx()) {
+            return (String) entity.getProperty(TYPE_P, null);
+        }
+    }
 
     public void set (String name, Object value) {
         try (Transaction tx = graphDb.beginTx()) {

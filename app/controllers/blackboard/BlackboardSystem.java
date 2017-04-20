@@ -4,6 +4,7 @@ import javax.inject.*;
 import play.*;
 import play.mvc.*;
 import play.libs.ws.*;
+import play.libs.Json;
 import static play.mvc.Http.MultipartFormData.*;
 
 import java.util.*;
@@ -29,7 +30,6 @@ public class BlackboardSystem extends Controller {
     private final ActorSystem actorSystem;
     private final Blackboard blackboard;
     private final KnowledgeSource knowledgeSource;
-    private final ObjectMapper mapper;
 
     @Inject
     public BlackboardSystem (ActorSystem actorSystem,
@@ -39,13 +39,13 @@ public class BlackboardSystem extends Controller {
       this.actorSystem = actorSystem;
       this.blackboard = blackboard;
       this.knowledgeSource = knowledgeSource;
-      this.mapper = codec.getObjectMapper();
+      Json.setObjectMapper(codec.getObjectMapper());
     }
 
     public Result listKG () {
-        ArrayNode nodes = mapper.createArrayNode();
+        ArrayNode nodes = Json.newArray();
         for (KGraph kg : blackboard) {
-            nodes.add(mapper.valueToTree(kg));
+            nodes.add(Json.toJson(kg));
         }
         return ok (nodes);
     }
@@ -68,7 +68,7 @@ public class BlackboardSystem extends Controller {
         }
         
         KGraph kg = blackboard.createKGraph(props);
-        return ok ((JsonNode)mapper.valueToTree(kg));
+        return ok (Json.toJson(kg));
     }
 
     public Result getKG (Long id) {
@@ -76,7 +76,7 @@ public class BlackboardSystem extends Controller {
         if (kg == null)
             return notFound ("Unknown knowledge graph: "+id);
         
-        return ok ((JsonNode)mapper.valueToTree(kg));
+        return ok (Json.toJson(kg));
     }
 
     public Result runKS (Long id, String ks) {
@@ -94,13 +94,47 @@ public class BlackboardSystem extends Controller {
                    +"\" successfully executed on knowledge graph "+id);
     }
 
+    public Result getNodesForKG (Long id) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+        return ok (Json.toJson(kg.getNodes()));
+    }
+
+    public Result getNodeForKG (Long id, Long nid) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+        KNode kn = kg.node(nid);
+        if (kn == null)
+            return badRequest ("Knowledge graph "+id+" has no node: "+nid);
+        return ok (Json.toJson(kn));
+    }
+
+    public Result getEdgesForKG (Long id) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+        return ok (Json.toJson(kg.getEdges()));
+    }
+
+    public Result getEdgeForKG (Long id, Long eid) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+        KEdge ke = kg.edge(eid);
+        if (ke == null)
+            return badRequest ("Knowledge graph "+id+" has no edge: "+eid);
+        return ok (Json.toJson(ke));
+    }
+    
     public Result getNodeTypes () {
-        return ok ((JsonNode)mapper.valueToTree(blackboard.getNodeTypes()));
+        return ok (Json.toJson(blackboard.getNodeTypes()));
     }
     public Result getEdgeTypes () {
-        return ok ((JsonNode)mapper.valueToTree(blackboard.getEdgeTypes()));
+        return ok (Json.toJson(blackboard.getEdgeTypes()));
     }
     public Result getEvidenceTypes () {
-        return ok ((JsonNode)mapper.valueToTree(blackboard.getEvidenceTypes()));
+        return ok (Json.toJson(blackboard.getEvidenceTypes()));
     }
 }

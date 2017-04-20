@@ -7,6 +7,7 @@ public interface KEntity {
     public static final String NAME_P = "name";
     public static final String TYPE_P = "type";
     public static final String CREATED_P = "created";
+    public static final String DIRECTED_P = "directed";
     
     long getId ();
     String getType ();

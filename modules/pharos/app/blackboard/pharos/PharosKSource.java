@@ -69,29 +69,37 @@ public class PharosKSource implements KSource {
         Logger.debug("query \""+term+"\"");
 
         // first try target
-        try {
-            WSRequest req = wsclient.url
-                (ksp.getUri()+"/search?q="+term
-                 +"&facet=ix.Class/ix.idg.models.Target"
-                 +"&facet=IDG%20Development%20Level/Tclin");
-            
-            req.get().thenAccept(res -> {
-                    try {
-                        JsonNode json = res.asJson();
-                        resolveTargets (json, kg);
-                    }
-                    catch (Exception ex) {
-                        Logger.error("Can't resolve targets for term \""
-                                     +term+"\"", ex);
-                    }
-                });
-        }
-        catch (Exception ex) {
-            Logger.error("Unable to execute request", ex);
-        }
+        WSRequest req = wsclient.url
+            (ksp.getUri()+"/targets/search?q="+term
+             +"&facet=IDG%20Development%20Level/Tclin");
+        
+        req.get().thenAccept(res -> {
+                try {
+                    JsonNode json = res.asJson();
+                    resolveTargets (json, kn, kg);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't resolve targets for term \""
+                                 +term+"\"", ex);
+                }
+            });
+
+        req = wsclient.url
+            (ksp.getUri()+"/ligands/search?q="+term
+             +"&facet=IDG%20Development%20Level/Tclin");
+        req.get().thenAccept(res -> {
+                try {
+                    JsonNode json = res.asJson();
+                    resolveLigands (json, kn, kg);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't resolve ligands for term \""
+                                 +term+"\"", ex);
+                }
+            });
     }
 
-    void resolveTargets (JsonNode json, KGraph kg) {
+    void resolveTargets (JsonNode json, KNode kn, KGraph kg) {
         Logger.debug("uri: "+json.get("uri").asText());
         JsonNode content = json.get("content");
         for (int i = 0; i < content.size(); ++i) {
@@ -104,19 +112,43 @@ public class PharosKSource implements KSource {
             props.put("type", "protein");
             props.put("name", name);
             props.put("family", content.get(i).get("idgFamily").asText());
-            String[] syns = retrieveSynonyms (uri);
+            String[] syns = retrieveSynonyms (uri, "(label=UniProt*)");
             if (syns.length > 0)
                 props.put("synonyms", syns);
             KNode node = kg.createNodeIfAbsent(props, "uri");
+            kg.createEdgeIfAbsent(kn, node);
             Logger.debug(node.getId()+"..."+name);
         }
         Logger.debug(content.size()+" targets!");
     }
 
-    String[] retrieveSynonyms (String url) {
+    void resolveLigands (JsonNode json, KNode kn, KGraph kg) {
+        Logger.debug("uri: "+json.get("uri").asText());
+        JsonNode content = json.get("content");
+        for (int i = 0; i < content.size(); ++i) {
+            long id = content.get(i).get("id").asLong();
+            String name = content.get(i).get("name").asText();
+            String uri = ksp.getUri()+"/ligands("+id+")";
+            
+            Map<String, Object> props = new HashMap<>();
+            props.put("uri", uri);
+            props.put("type", "drug");
+            props.put("name", name);
+            String[] syns = retrieveSynonyms (uri, null);
+            if (syns.length > 0)
+                props.put("synonyms", syns);
+            KNode node = kg.createNodeIfAbsent(props, "uri");
+            kg.createEdgeIfAbsent(kn, node);
+            Logger.debug(node.getId()+"..."+name);          
+        }
+        Logger.debug(content.size()+" ligands!");
+    }
+
+    String[] retrieveSynonyms (String url, String filter) {
         List<String> syns = new ArrayList<>();
         // only retrieve UniProt related synonyms
-        WSRequest req = wsclient.url(url+"/synonyms(label=UniProt*)");
+        WSRequest req = wsclient.url(url+"/synonyms"
+                                     +(filter != null ? filter:""));
         try {
             WSResponse res = req.get().toCompletableFuture().get();
             JsonNode json = res.asJson();
