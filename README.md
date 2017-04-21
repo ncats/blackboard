@@ -69,4 +69,4 @@ match(n:`KG:1`) return n
 
 This should return a knowledge similar to the one shown here:
 
-![Asthma Knowledge Graph](asthma1.svg)
+![Asthma Knowledge Graph](asthma1.png)
