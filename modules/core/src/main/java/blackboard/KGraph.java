@@ -14,10 +14,10 @@ public interface KGraph extends KEntity {
     KEdge edge (long id);
     KNode createNode (Map<String, Object> properties);
     KNode createNodeIfAbsent (Map<String, Object> properties, String key);
-    KEdge createEdge (KNode source, KNode target,
+    KEdge createEdge (KNode source, KNode target, String type,
                       Map<String, Object> properties);
-    KEdge createEdgeIfAbsent (KNode source, KNode target);
-    KEdge createEdgeIfAbsent (KNode source, KNode target,
+    KEdge createEdgeIfAbsent (KNode source, KNode target, String type);
+    KEdge createEdgeIfAbsent (KNode source, KNode target, String type,
                               Map<String, Object> properties,
                               String key);
     Blackboard blackboard ();

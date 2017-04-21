@@ -46,4 +46,27 @@ curl http://localhost:9000/blackboard/api
 ```
 
 to see that the knowledge graph has been updated with new nodes contributed by
-the [Pharos](https://pharos.nih.gov) knowledge source.
+the [Pharos](https://pharos.nih.gov) knowledge source. Note that each
+time the [Pharos](https://pharos.nih.gov) knowledge source is run, it makes
+contributions to the knowledge graph by iterating over all the available
+nodes in the graph. After the first iteration, the knowledge graph contains
+nodes that are related to the query. Let's extend these nodes further
+by rerunning the knowledge source:
+
+```
+curl -X PUT http://localhost:9000/blackboard/api/1/ks.pharos
+```
+
+The knowledge graph should now contains new nodes and edges. To see a
+more visually pleasing knowledge graph, you can shutdown
+activator by hitting <kbd>Ctrl</kbd>+<kbd>D</kbd> then point your
+[Neo4j client](https://neo4j.com/download/community-edition/) to the
+database `blackboard.db`. Once logged in, you can issue this query
+
+```
+match(n:`KG:1`) return n
+```
+
+This should return a knowledge similar to the one shown here:
+
+![Asthma Knowledge Graph](asthma1.svg)

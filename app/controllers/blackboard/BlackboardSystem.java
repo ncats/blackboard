@@ -88,6 +88,7 @@ public class BlackboardSystem extends Controller {
             knowledgeSource.runKS(ks, kg);
         }
         catch (Exception ex) {
+            ex.printStackTrace();
             return badRequest (ex.getMessage());
         }
         return ok ("Knowledge source \""+ks

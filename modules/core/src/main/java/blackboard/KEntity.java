@@ -1,6 +1,7 @@
 package blackboard;
 
 import java.util.Map;
+import java.util.function.Supplier;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
 public interface KEntity {
@@ -12,7 +13,8 @@ public interface KEntity {
     long getId ();
     String getType ();
     String getName ();
-    void set (String prop, Object value);
+    void put (String prop, Object value);
+    void putIfAbsent (String prop, Supplier supplier);
     Object get (String prop);
     @JsonAnyGetter
     Map<String, Object> getProperties ();

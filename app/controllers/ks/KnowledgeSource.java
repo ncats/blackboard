@@ -74,7 +74,6 @@ public class KnowledgeSource extends Controller {
         if (ksp == null)
             throw new IllegalArgumentException
                 ("Unknown knowledge source \""+ks+"\"");
-
         ksp.getKS().execute(kgraph);
     }
 }

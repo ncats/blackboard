@@ -3,6 +3,7 @@ package blackboard.neo4j;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.Collection;
+import java.util.function.Supplier;
 
 import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.GraphDatabaseService;
@@ -49,10 +50,19 @@ public class Neo4jKEntity implements KEntity {
         }
     }
 
-    public void set (String name, Object value) {
+    public void put (String name, Object value) {
         try (Transaction tx = graphDb.beginTx()) {
             entity.setProperty(name, value);
             tx.success();
+        }
+    }
+
+    public void putIfAbsent (String name, Supplier supplier) {
+        try (Transaction tx = graphDb.beginTx()) {
+            if (!entity.hasProperty(name)) {
+                entity.setProperty(name, supplier.get());
+                tx.success();
+            }
         }
     }
 

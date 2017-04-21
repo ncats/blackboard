@@ -15,7 +15,6 @@ import blackboard.KEdge;
 public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
     final Blackboard blackboard;
     final Label kgLabel;
-    final RelationshipType kgType;
     final Index<Node> nodeIndex;
     final Index<Relationship> edgeIndex;
     
@@ -27,7 +26,6 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
                         Node node, Map<String, Object> properties) {
         super (node, properties);
         kgLabel = Label.label("KG:"+node.getId());
-        kgType = RelationshipType.withName("KG:"+node.getId());
         nodeIndex = graphDb.index().forNodes(kgLabel.name());
         edgeIndex = graphDb.index().forRelationships(kgLabel.name());
         this.blackboard = blackboard;
@@ -64,7 +62,8 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
     public KEdge[] getEdges () {
         try (Transaction tx = graphDb.beginTx()) {
             List<Neo4jKEdge> edges = graphDb.getAllRelationships().stream()
-                .filter(rel -> rel.isType(kgType))
+                .filter(rel -> rel.getStartNode().hasLabel(kgLabel)
+                        && rel.getEndNode().hasLabel(kgLabel))
                 .map(rel -> new Neo4jKEdge
                      (rel, new Neo4jKNode (rel.getStartNode()),
                       new Neo4jKNode (rel.getEndNode())))
@@ -115,7 +114,10 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
     public KNode createNode (Map<String, Object> properties) {
         KNode node = null;
         try (Transaction tx = graphDb.beginTx()) {
-            Node n = graphDb.createNode(kgLabel);
+            Node n = properties.containsKey(TYPE_P)
+                ? graphDb.createNode
+                (kgLabel, Label.label((String)properties.get(TYPE_P)))
+                : graphDb.createNode(kgLabel);
             index (nodeIndex, n, properties);       
             node = new Neo4jKNode (n, properties);
             tx.success();
@@ -150,14 +152,22 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         return node;
     }
 
-    public KEdge createEdge (KNode source, KNode target,
+    public KEdge createEdge (KNode source, KNode target, String type,
                              Map<String, Object> properties) {
+        if (type == null)
+            throw new IllegalArgumentException
+                ("Can't create edge with null type!");
+        
+        if (source == null || target == null)
+            throw new IllegalArgumentException
+                ("Either source or target is null");
+        
         KEdge edge = null;
         try (Transaction tx = graphDb.beginTx()) {
             Neo4jKNode s = (Neo4jKNode)source;
             Neo4jKNode t = (Neo4jKNode)target;
-            Relationship rel =
-                s.node().createRelationshipTo(t.node(), kgType);
+            Relationship rel = s.node().createRelationshipTo
+                (t.node(), RelationshipType.withName(type));
             index (edgeIndex, rel, properties);     
             edge = new Neo4jKEdge (rel, s, t, properties);
             tx.success();
@@ -165,27 +175,28 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         return edge;
     }
 
-    public KEdge createEdgeIfAbsent (KNode source, KNode target) {
+    public KEdge createEdgeIfAbsent (KNode source, KNode target, String type) {
         try (Transaction tx = graphDb.beginTx()) {
             Neo4jKNode s = (Neo4jKNode)source;
             Neo4jKNode t = (Neo4jKNode)target;
+            RelationshipType etype = RelationshipType.withName(type);
             for (Relationship rel : s.node().getRelationships()) {
                 Node other = rel.getOtherNode(s.node());
-                if (other.equals(t.node())) {
+                if (other.equals(t.node()) && rel.isType(etype)) {
                     return new Neo4jKEdge (rel, s, t);
                 }
             }
         }
         
-        return createEdge (source, target, null);
+        return createEdge (source, target, type, null);
     }
     
-    public KEdge createEdgeIfAbsent (KNode source, KNode target,
+    public KEdge createEdgeIfAbsent (KNode source, KNode target, String type,
                                      Map<String, Object> properties,
                                      String key) {
         if (key == null || !properties.containsKey(key)
             || null == properties.get(key)) {
-            return createEdge (source, target, properties);
+            return createEdge (source, target, type, properties);
         }
         
         Object val = properties.get(key);
@@ -196,17 +207,18 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         try (Transaction tx = graphDb.beginTx();
              IndexHits<Relationship> hits = edgeIndex.get(key, val)) {
             if (hits.hasNext()) {
+                RelationshipType etype = RelationshipType.withName(type);
                 Relationship rel = hits.next();
                 Neo4jKNode s = (Neo4jKNode)source;
                 Neo4jKNode t = (Neo4jKNode)target;
                 if (rel.getStartNode().equals(s.node())
-                    && rel.getEndNode().equals(t.node()))
+                    && rel.getEndNode().equals(t.node()) && rel.isType(etype))
                     edge = new Neo4jKEdge (rel, s, t);
             }
         }
 
         if (edge == null)
-            edge = createEdge (source, target, properties);
+            edge = createEdge (source, target, type, properties);
         
         return edge;
     }
