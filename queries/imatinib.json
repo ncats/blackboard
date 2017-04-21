@@ -1,0 +1,6 @@
+{
+    "type": "drug",
+    "uri": "https://pharos.ncats.io/idg/api/v1/ligands(31242)",
+    "name": "imatinib",
+    "description": "This is an example query seeded with gleevec"
+}

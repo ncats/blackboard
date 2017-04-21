@@ -56,11 +56,6 @@ public class BlackboardSystem extends Controller {
         if (!json.hasNonNull(TYPE_P)) 
             return badRequest ("Json has not \""+TYPE_P+"\" field!");
 
-        String type = json.get(TYPE_P).asText();
-        if (!"query".equals(type))
-            return badRequest
-                ("Can't create knowledge graph with type \""+type+"\"");
-        
         Map<String, Object> props = new TreeMap<>();
         for (Iterator<String> it = json.fieldNames(); it.hasNext(); ) {
             String field = it.next();

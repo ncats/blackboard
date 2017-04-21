@@ -28,7 +28,7 @@ import static blackboard.KEntity.*;
 @Singleton
 public class Neo4jBlackboard implements Blackboard {
     static public final Label KGRAPH_LABEL = Label.label("KGraph");
-    static public final Label KSOURCE_LABEL = Label.label("KSource");
+    static public final Label KQUERY_LABEL = Label.label("KQuery");
 
     protected final GraphDatabaseService graphDb;
     protected final Configuration config;
@@ -155,7 +155,8 @@ public class Neo4jBlackboard implements Blackboard {
              */
             Node node = createNode (KGRAPH_LABEL, "kgraph", properties);
             kg = new Neo4jKGraph (this, node);
-            kg.createNode(properties);
+            Neo4jKNode kn = (Neo4jKNode) kg.createNode(properties);
+            kn.node().addLabel(KQUERY_LABEL); // this is the seed node
             tx.success();
         }
         return kg;

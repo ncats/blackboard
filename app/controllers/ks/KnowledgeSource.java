@@ -5,6 +5,7 @@ import javax.inject.Singleton;
 import javax.inject.Named;
 import play.*;
 import play.mvc.*;
+import play.libs.Json;
 import play.libs.ws.*;
 import static play.mvc.Http.MultipartFormData.*;
 
@@ -21,12 +22,8 @@ import com.google.inject.Injector;
 import com.google.inject.TypeLiteral;
 import com.google.inject.Binding;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import controllers.blackboard.BlackboardSystem;
 import blackboard.KSource;
 import blackboard.KSourceProvider;
 import blackboard.KGraph;
@@ -40,7 +37,6 @@ public class KnowledgeSource extends Controller {
     final ActorSystem actorSystem;
 
     final Map<String, KSourceProvider> ksources;
-    final ObjectMapper mapper = new ObjectMapper ();
 
     @Inject
     public KnowledgeSource (Injector injector,
@@ -58,13 +54,13 @@ public class KnowledgeSource extends Controller {
     }
     
     public Result index () {
-        return ok ((JsonNode)mapper.valueToTree(ksources));
+        return ok (Json.toJson(ksources));
     }
 
     public Result getKS (String ks) {
         KSourceProvider ksp = ksources.get(ks);
         if (ksp != null) {
-            return ok ((JsonNode)mapper.valueToTree(ksp));
+            return ok (Json.toJson(ksp));
         }
         return notFound ("Unknown knowledge source: "+ks);
     }

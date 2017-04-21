@@ -194,31 +194,37 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
     public KEdge createEdgeIfAbsent (KNode source, KNode target, String type,
                                      Map<String, Object> properties,
                                      String key) {
-        if (key == null || !properties.containsKey(key)
+        KEdge edge = null; 
+        if (key == null || properties == null
+            || !properties.containsKey(key)
             || null == properties.get(key)) {
-            return createEdge (source, target, type, properties);
+            edge = createEdgeIfAbsent (source, target, type);
         }
-        
-        Object val = properties.get(key);
-        if (val.getClass().isArray())
-            Logger.warn("Key \""+key+"\" has multiple values!");
-        
-        KEdge edge = null;
-        try (Transaction tx = graphDb.beginTx();
-             IndexHits<Relationship> hits = edgeIndex.get(key, val)) {
-            if (hits.hasNext()) {
-                RelationshipType etype = RelationshipType.withName(type);
-                Relationship rel = hits.next();
-                Neo4jKNode s = (Neo4jKNode)source;
-                Neo4jKNode t = (Neo4jKNode)target;
-                if (rel.getStartNode().equals(s.node())
-                    && rel.getEndNode().equals(t.node()) && rel.isType(etype))
-                    edge = new Neo4jKEdge (rel, s, t);
+        else {
+            Object val = properties.get(key);
+            if (val.getClass().isArray())
+                Logger.warn("Key \""+key+"\" has multiple values!");
+            
+            try (Transaction tx = graphDb.beginTx();
+                 IndexHits<Relationship> hits = edgeIndex.get(key, val)) {
+                if (hits.hasNext()) {
+                    RelationshipType etype = RelationshipType.withName(type);
+                    Relationship rel = hits.next();
+                    Neo4jKNode s = (Neo4jKNode)source;
+                    Neo4jKNode t = (Neo4jKNode)target;
+                    if (rel.getStartNode().equals(s.node())
+                        && rel.getEndNode().equals(t.node())
+                        && rel.isType(etype))
+                        edge = new Neo4jKEdge (rel, s, t);
+                }
             }
+
+            if (edge == null)
+                edge = createEdgeIfAbsent (source, target, type);
         }
 
-        if (edge == null)
-            edge = createEdge (source, target, type, properties);
+        if (!properties.isEmpty())
+            edge.putAll(properties);
         
         return edge;
     }

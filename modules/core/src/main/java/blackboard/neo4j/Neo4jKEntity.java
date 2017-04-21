@@ -57,6 +57,13 @@ public class Neo4jKEntity implements KEntity {
         }
     }
 
+    public void putAll (Map<String, Object> properties) {
+        try (Transaction tx = graphDb.beginTx()) {
+            for (Map.Entry<String, Object> me : properties.entrySet())
+                entity.setProperty(me.getKey(), me.getValue());
+        }
+    }
+
     public void putIfAbsent (String name, Supplier supplier) {
         try (Transaction tx = graphDb.beginTx()) {
             if (!entity.hasProperty(name)) {

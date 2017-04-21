@@ -67,6 +67,6 @@ database `blackboard.db`. Once logged in, you can issue this query
 match(n:`KG:1`) return n
 ```
 
-This should return a knowledge similar to the one shown here:
+This should return a knowledge graph similar to the one shown here:
 
 ![Asthma Knowledge Graph](asthma1.png)
