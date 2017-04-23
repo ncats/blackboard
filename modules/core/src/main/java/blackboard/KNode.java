@@ -5,4 +5,5 @@ public interface KNode extends KEntity {
     int getDegree ();
     int getInDegree ();
     int getOutDegree ();
+    void addTag (String... tags);
 }

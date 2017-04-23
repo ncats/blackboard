@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.stream.*;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
 
@@ -45,6 +46,15 @@ public class Neo4jKNode extends Neo4jKEntity implements KNode {
                 .map(rel -> new Neo4jKNode (rel.getOtherNode(node())))
                 .collect(Collectors.toList())
                 .toArray(new KNode[0]);
+        }
+    }
+
+    public void addTag (String... tags) {
+        try (Transaction tx = graphDb.beginTx()) {
+            Node n = node ();
+            for (String t : tags)
+                n.addLabel(Label.label(t));
+            tx.success();
         }
     }
 }

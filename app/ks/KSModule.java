@@ -1,6 +1,8 @@
 package ks;
 
 import java.util.Set;
+import java.util.Map;
+import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Provider;
 
@@ -15,6 +17,7 @@ import play.api.inject.Module;
 import play.libs.Scala;
 
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigValue;
 import com.google.common.collect.ImmutableList;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -35,6 +38,8 @@ public class KSModule extends Module {
         public String uri;
         @JsonIgnore
         public final String klass;
+        @JsonIgnore
+        public final Map<String, String> properties = new TreeMap<>();
         
         public KSourceProviderImpl (String klass) {
             if (klass == null)
@@ -62,7 +67,7 @@ public class KSModule extends Module {
         public String getVersion () { return version; }
         public String getUri () { return uri; }
         public String getImplClass () { return klass; }
-
+        public Map<String, String> getProperties () { return properties; }
         public KSourceProvider get () { return this; }
     }
     
@@ -85,12 +90,24 @@ public class KSModule extends Module {
                         KSourceProviderImpl ksp =
                             new KSourceProviderImpl (klass);
                         ksp.id = ks;
-                        if (conf.hasPath("name"))
-                            ksp.name = conf.getString("name");
-                        if (conf.hasPath("version"))
-                            ksp.version = conf.getString("version");
-                        if (conf.hasPath("uri"))
-                            ksp.uri = conf.getString("uri");
+                        
+                        for (Map.Entry<String, ConfigValue> me
+                                 : conf.entrySet()) {
+                            String val = me.getValue().unwrapped().toString();
+                            switch (me.getKey()) {
+                            case "name":
+                                ksp.name = val;
+                                break;
+                            case "version":
+                                ksp.version = val;
+                                break;
+                            case "uri":
+                                ksp.uri = val;
+                            default:
+                                ksp.properties.put(me.getKey(), val);
+                            }
+                        }
+                        
                         list.add(bind (KSourceProvider.class)
                                  .qualifiedWith(new NamedImpl (ks))
                                  .to(ksp));

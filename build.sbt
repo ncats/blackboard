@@ -28,7 +28,8 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
-  .dependsOn(buildinfo,core,pharos).aggregate(buildinfo,core,pharos)
+  .dependsOn(buildinfo,core,pharos,biothings)
+  .aggregate(buildinfo,core,pharos,biothings)
 
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
@@ -62,6 +63,14 @@ lazy val pharos = (project in file("modules/pharos"))
   .settings(commonSettings: _*)
   .settings(
     name := "blackboard-pharos",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(core).aggregate(core)
+
+lazy val biothings = (project in file("modules/biothings"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "blackboard-biothings",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)

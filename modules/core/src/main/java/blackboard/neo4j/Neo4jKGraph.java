@@ -1,6 +1,8 @@
 package blackboard.neo4j;
 
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 import java.lang.reflect.Array;
 import java.util.stream.Collectors;
 import org.neo4j.graphdb.*;
@@ -50,25 +52,56 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         return -1l;
     }
 
+    Stream<KNode> _nodes () {
+        return _nodes (n -> true);
+    }
+    
+    Stream<KNode> _nodes (Predicate<KNode> predicate) {
+        return graphDb.findNodes(kgLabel).stream()
+            .map(n -> (KNode)new Neo4jKNode (n))
+            .filter(predicate);
+    }
+
+    Stream<KEdge> _edges () {
+        return _edges (e -> true);
+    }
+    
+    Stream<KEdge> _edges (Predicate<KEdge> predicate) {
+        return graphDb.getAllRelationships().stream()
+            .filter(rel -> rel.getStartNode().hasLabel(kgLabel)
+                    && rel.getEndNode().hasLabel(kgLabel))
+            .map(rel -> (KEdge) new Neo4jKEdge
+                 (rel, new Neo4jKNode (rel.getStartNode()),
+                  new Neo4jKNode (rel.getEndNode())))
+            .filter(predicate);
+    }
+    
     public KNode[] getNodes () {
         try (Transaction tx = graphDb.beginTx()) {
-            List<Neo4jKNode> nodes = graphDb.findNodes(kgLabel).stream()
-                .map(n -> new Neo4jKNode (n))
-                .collect(Collectors.toList());
+            return _nodes()
+                .collect(Collectors.toList()).toArray(new KNode[0]);
+        }
+    }
+
+    public KNode[] nodes (Predicate<KNode> predicate) {
+        try (Transaction tx = graphDb.beginTx()) {
+            List<KNode> nodes =
+                _nodes (predicate).collect(Collectors.toList());
             return nodes.toArray(new KNode[0]);
         }
     }
 
     public KEdge[] getEdges () {
         try (Transaction tx = graphDb.beginTx()) {
-            List<Neo4jKEdge> edges = graphDb.getAllRelationships().stream()
-                .filter(rel -> rel.getStartNode().hasLabel(kgLabel)
-                        && rel.getEndNode().hasLabel(kgLabel))
-                .map(rel -> new Neo4jKEdge
-                     (rel, new Neo4jKNode (rel.getStartNode()),
-                      new Neo4jKNode (rel.getEndNode())))
-                .collect(Collectors.toList());
-            return edges.toArray(new KEdge[0]);
+            return _edges()
+                .collect(Collectors.toList()).toArray(new KEdge[0]);
+        }
+    }
+
+    public KEdge[] edges (Predicate<KEdge> predicate) {
+        try (Transaction tx = graphDb.beginTx()) {      
+            return _edges(predicate)
+                .collect(Collectors.toList()).toArray(new KEdge[0]);
         }
     }
 

@@ -48,12 +48,12 @@ public class PharosKSource implements KSource {
                 return F.Promise.pure(null);
             });
         
-        Logger.debug("$$ "+getClass().getName()
+        Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp);
     }
 
     public void execute (KGraph kgraph) {
-        Logger.debug(getClass().getName()
+        Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()
                      +" \""+kgraph.getName()+"\"");
 
@@ -148,6 +148,7 @@ public class PharosKSource implements KSource {
             consumer.accept(jn, props);
             
             KNode node = kg.createNodeIfAbsent(props, "uri");
+            node.addTag(ksp.getId());
             kg.createEdgeIfAbsent(kn, node, "assertion");
             Logger.debug(node.getId()+"..."+name);
         }
@@ -239,6 +240,7 @@ public class PharosKSource implements KSource {
             
             // create this node if it isn't on the graph already
             KNode xn = kg.createNodeIfAbsent(props, "uri");
+            xn.addTag(ksp.getId());
             if (name == null)
                 xn.putIfAbsent(NAME_P, () -> {
                         return retrieveJsonValue (uri+"/$name");
@@ -294,6 +296,7 @@ public class PharosKSource implements KSource {
             props.put(NAME_P, disease);
 
             KNode xn = kg.createNodeIfAbsent(props, "uri");
+            xn.addTag(ksp.getId());
             xn.putIfAbsent("synonyms", () -> {
                     return retrieveSynonyms (uri, null);                    
                 });
@@ -339,6 +342,7 @@ public class PharosKSource implements KSource {
             props.put("uri", uri);
             
             KNode xn = kg.createNodeIfAbsent(props, "uri");
+            xn.addTag(ksp.getId());
             xn.putIfAbsent(NAME_P, () -> {
                     return retrieveJsonValue (uri+"/$name");
                 });
