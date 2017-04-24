@@ -23,5 +23,6 @@ public interface KGraph extends KEntity {
     KEdge createEdgeIfAbsent (KNode source, KNode target, String type,
                               Map<String, Object> properties,
                               String key);
+    KNode[] findNodes (String property, Object value);
     Blackboard blackboard ();
 }

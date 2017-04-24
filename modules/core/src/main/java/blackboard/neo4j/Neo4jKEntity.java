@@ -61,6 +61,7 @@ public class Neo4jKEntity implements KEntity {
         try (Transaction tx = graphDb.beginTx()) {
             for (Map.Entry<String, Object> me : properties.entrySet())
                 entity.setProperty(me.getKey(), me.getValue());
+            tx.success();
         }
     }
 

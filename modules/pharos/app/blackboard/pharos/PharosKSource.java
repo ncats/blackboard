@@ -142,15 +142,17 @@ public class PharosKSource implements KSource {
             String name = jn.get("name").asText();
             String uri = ksp.getUri()+"/"+entity+"("+id+")";
             
-            Map<String, Object> props = new HashMap<>();
+            Map<String, Object> props = new TreeMap<>();
             props.put("uri", uri);
             props.put("name", name);
             consumer.accept(jn, props);
             
             KNode node = kg.createNodeIfAbsent(props, "uri");
-            node.addTag(ksp.getId());
-            kg.createEdgeIfAbsent(kn, node, "assertion");
-            Logger.debug(node.getId()+"..."+name);
+            if (node.getId() != kn.getId()) {
+                node.addTag("KS:"+ksp.getId());
+                kg.createEdgeIfAbsent(kn, node, "assertion");
+                Logger.debug(node.getId()+"..."+name);
+            }
         }
         Logger.debug("uri: "+json.get("uri").asText()+"..."+content.size());    
     }
@@ -231,7 +233,7 @@ public class PharosKSource implements KSource {
         // disease -> ligand can have empty properties, so we just
         // make
         if (moa != null || pn.size() == 0) {
-            Map<String, Object> props = new HashMap<>();
+            Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "drug");
             String uri = ksp.getUri()+"/ligands("+id+")";
             props.put("uri", uri);
@@ -240,25 +242,27 @@ public class PharosKSource implements KSource {
             
             // create this node if it isn't on the graph already
             KNode xn = kg.createNodeIfAbsent(props, "uri");
-            xn.addTag(ksp.getId());
-            if (name == null)
-                xn.putIfAbsent(NAME_P, () -> {
-                        return retrieveJsonValue (uri+"/$name");
+            if (xn.getId() != kn.getId()) {
+                xn.addTag("KS:"+ksp.getId());
+                if (name == null)
+                    xn.putIfAbsent(NAME_P, () -> {
+                            return retrieveJsonValue (uri+"/$name");
+                        });
+                xn.putIfAbsent("synonyms", () -> {
+                        return retrieveSynonyms (uri, null);
                     });
-            xn.putIfAbsent("synonyms", () -> {
-                    return retrieveSynonyms (uri, null);
-                });
-
-            // now link it
-            if (href != null) {
-                props.clear();
-                props.put("href", href);
+                
+                // now link it
+                if (href != null) {
+                    props.clear();
+                    props.put("href", href);
+                }
+                kg.createEdgeIfAbsent(xn, kn, moa != null
+                                      ? moa.toLowerCase() : "assertion",
+                                      props, null);
+                Logger.debug(xn.getId()+":"+xn.getName()
+                             + " <-> "+kn.getId()+":"+kn.getName());
             }
-            kg.createEdgeIfAbsent(xn, kn, moa != null
-                                  ? moa.toLowerCase() : "assertion",
-                                  props, null);
-            Logger.debug(xn.getId()+":"+xn.getName()
-                         + " <-> "+kn.getId()+":"+kn.getName());
         }
     }
 
@@ -289,21 +293,23 @@ public class PharosKSource implements KSource {
         }
 
         if (ds != null) {
-            Map<String, Object> props = new HashMap<>();
+            Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "disease");
             String uri = ksp.getUri()+"/diseases("+id+")";
             props.put("uri", uri);
             props.put(NAME_P, disease);
 
             KNode xn = kg.createNodeIfAbsent(props, "uri");
-            xn.addTag(ksp.getId());
-            xn.putIfAbsent("synonyms", () -> {
-                    return retrieveSynonyms (uri, null);                    
-                });
-
-            KEdge ke = kg.createEdgeIfAbsent(kn, xn, ds);
-            Logger.debug(kn.getId()+":"+kn.getName()
-                         + " <-> "+xn.getId()+":"+xn.getName());
+            if (xn.getId() != kn.getId()) {
+                xn.addTag("KS:"+ksp.getId());
+                xn.putIfAbsent("synonyms", () -> {
+                        return retrieveSynonyms (uri, null);                    
+                    });
+                
+                KEdge ke = kg.createEdgeIfAbsent(kn, xn, ds);
+                Logger.debug(kn.getId()+":"+kn.getName()
+                             + " <-> "+xn.getId()+":"+xn.getName());
+            }
         }
     }
 
@@ -336,30 +342,32 @@ public class PharosKSource implements KSource {
         }
 
         if (moa != null || tdl != null) {
-            Map<String, Object> props = new HashMap<>();
+            Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "protein");
             String uri = ksp.getUri()+"/targets("+id+")";
             props.put("uri", uri);
             
             KNode xn = kg.createNodeIfAbsent(props, "uri");
-            xn.addTag(ksp.getId());
-            xn.putIfAbsent(NAME_P, () -> {
-                    return retrieveJsonValue (uri+"/$name");
-                });
-            xn.putIfAbsent("synonyms", () -> {
-                    return retrieveSynonyms (uri, null);
-                });
-
-            KEdge ke = kg.createEdgeIfAbsent
-                (kn, xn, moa != null ? moa.toLowerCase() : "assertion");
-            if (ds != null) {
-                final String source = ds;
-                ke.putIfAbsent("source", () -> {
-                        return source;
+            if (xn.getId() != kn.getId()) {
+                xn.addTag("KS:"+ksp.getId());
+                xn.putIfAbsent(NAME_P, () -> {
+                        return retrieveJsonValue (uri+"/$name");
                     });
+                xn.putIfAbsent("synonyms", () -> {
+                        return retrieveSynonyms (uri, null);
+                    });
+                
+                KEdge ke = kg.createEdgeIfAbsent
+                    (kn, xn, moa != null ? moa.toLowerCase() : "assertion");
+                if (ds != null) {
+                    final String source = ds;
+                    ke.putIfAbsent("source", () -> {
+                            return source;
+                        });
+                }
+                Logger.debug(kn.getId()+":"+kn.getName()
+                             + " <-> "+xn.getId()+":"+xn.getName());
             }
-            Logger.debug(kn.getId()+":"+kn.getName()
-                         + " <-> "+xn.getId()+":"+xn.getName());
         }
     }
 

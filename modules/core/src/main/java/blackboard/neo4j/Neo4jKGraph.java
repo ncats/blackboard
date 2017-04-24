@@ -201,7 +201,7 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
             Neo4jKNode t = (Neo4jKNode)target;
             Relationship rel = s.node().createRelationshipTo
                 (t.node(), RelationshipType.withName(type));
-            index (edgeIndex, rel, properties);     
+            index (edgeIndex, rel, properties);
             edge = new Neo4jKEdge (rel, s, t, properties);
             tx.success();
         }
@@ -260,6 +260,19 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
             edge.putAll(properties);
         
         return edge;
+    }
+
+    public KNode[] findNodes (String property, Object value) {
+        List<KNode> nodes = new ArrayList<>();
+        try (Transaction tx = graphDb.beginTx();
+             IndexHits<Node> hits = nodeIndex.get(property, value)) {
+            while (hits.hasNext()) {
+                Node n = hits.next();
+                nodes.add(new Neo4jKNode (n));
+            }
+        }
+        
+        return nodes.toArray(new KNode[0]);
     }
     
     public Blackboard blackboard () { return blackboard; }

@@ -40,4 +40,11 @@ public class Neo4jKEdge extends Neo4jKEntity implements KEdge {
             return (Boolean)edge().getProperty(DIRECTED_P, false);
         }
     }
+
+    @Override
+    public String getType () {
+        try (Transaction tx = graphDb.beginTx()) {
+            return edge().getType().toString();
+        }
+    }
 }

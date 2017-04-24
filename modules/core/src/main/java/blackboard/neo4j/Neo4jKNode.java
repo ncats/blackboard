@@ -1,6 +1,8 @@
 package blackboard.neo4j;
 
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.stream.*;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
@@ -39,14 +41,28 @@ public class Neo4jKNode extends Neo4jKEntity implements KNode {
         }
     }
 
-    public KNode[] neighbors () {
+    public KNode[] neighbors (String... tags) {
         try (Transaction tx = graphDb.beginTx()) {
             return StreamSupport
                 .stream(node().getRelationships().spliterator(), false)
+                .filter(rel -> {
+                        if (tags == null || tags.length == 0)
+                            return true;
+                        for (String t : tags)
+                            if (rel.getOtherNode(node())
+                                .hasLabel(Label.label(t)))
+                                return true;
+                        return false;
+                    })
                 .map(rel -> new Neo4jKNode (rel.getOtherNode(node())))
                 .collect(Collectors.toList())
                 .toArray(new KNode[0]);
         }
+    }
+
+    public boolean hasNeighbors (String... tags) {
+        KNode[] nodes = neighbors (tags);
+        return nodes != null && nodes.length > 0;
     }
 
     public void addTag (String... tags) {
@@ -55,6 +71,22 @@ public class Neo4jKNode extends Neo4jKEntity implements KNode {
             for (String t : tags)
                 n.addLabel(Label.label(t));
             tx.success();
+        }
+    }
+
+    public String[] getTags () {
+        List<String> tags = new ArrayList<>();
+        try (Transaction tx = graphDb.beginTx()) {
+            Node n = node ();
+            for (Label l : n.getLabels())
+                tags.add(l.name());
+        }
+        return tags.toArray(new String[0]);
+    }
+
+    public boolean hasTag (String tag) {
+        try (Transaction tx = graphDb.beginTx()) {
+            return node().hasLabel(Label.label(tag));
         }
     }
 }
