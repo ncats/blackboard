@@ -144,6 +144,30 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
          }
     }
 
+    /**
+     * create implicit edges between entities based on synonyms or whatever
+     * fields deem appropriate
+     */
+    void stitch (Node node, String name, Object value) {
+        if (value.getClass().isArray()) {
+            int len = Array.getLength(value);
+            for (int i = 0; i < len; ++i) {
+                Object val = Array.get(value, i);
+                stitch (node, name, val);
+            }
+        }
+        else {
+            IndexHits<Node> hits = nodeIndex.get(SYNONYMS_P, value);
+            while (hits.hasNext()) {
+                Node n = hits.next();
+                Relationship rel = node.createRelationshipTo
+                    (n, RelationshipType.withName("resolve"));
+                rel.setProperty("value", value);
+            }
+            hits.close();
+        }
+    }
+
     public KNode createNode (Map<String, Object> properties) {
         KNode node = null;
         try (Transaction tx = graphDb.beginTx()) {
@@ -151,6 +175,10 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
                 ? graphDb.createNode
                 (kgLabel, Label.label((String)properties.get(TYPE_P)))
                 : graphDb.createNode(kgLabel);
+            Object syn = properties.get(SYNONYMS_P);
+            if (syn != null) {
+                stitch (n, SYNONYMS_P, syn);
+            }
             index (nodeIndex, n, properties);       
             node = new Neo4jKNode (n, properties);
             tx.success();

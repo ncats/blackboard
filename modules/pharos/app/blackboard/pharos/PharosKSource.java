@@ -58,79 +58,91 @@ public class PharosKSource implements KSource {
                      +" \""+kgraph.getName()+"\"");
 
         for (KNode kn : kgraph.getNodes()) {
-            switch (kn.getType()) {
-            case "query":
-                seedQuery ((String)kn.get("term"), kn, kgraph);
+            String uri = (String) kn.get(URI_P);
+            if (uri != null && uri.startsWith(ksp.getUri())) {
+                switch (kn.getType()) {
+                case "query":
+                    seedQuery ((String)kn.get("term"), kn, kgraph);
+                    break;
+                
+                case "disease":
+                    seedDisease (kn, kgraph);
                 break;
                 
-            case "disease":
-                seedDisease (kn, kgraph);
+                case "protein":
+                    seedTarget (kn, kgraph);
                 break;
                 
-            case "protein":
-                seedTarget (kn, kgraph);
-                break;
-                
-            case "drug":
-                seedLigand (kn, kgraph);
-                break;
+                case "drug":
+                    seedLigand (kn, kgraph);
+                    break;
+                }
+            }
+            else {
+                // not from the same knowledge source, so we treat it as
+                //  query
+                seedQuery (kn.getName(), kn, kgraph);
             }
         }
     }
     
     void seedQuery (String term, KNode kn, KGraph kg) {
         Logger.debug(">>> seedQuery \""+term+"\"");
-
-        resolve (ksp.getUri()+"/targets/search?q="+term
-                 +"&facet=IDG%20Development%20Level/Tclin",
-                 kn, kg, this::resolveTargets);
-
-        resolve (ksp.getUri()+"/ligands/search?q="+term
-                 +"&facet=IDG%20Development%20Level/Tclin",
-                 kn, kg, this::resolveLigands);
-        
-        resolve (ksp.getUri()+"/diseases/search?q="+term
-                 +"&facet=IDG%20Development%20Level/Tclin",
-                 kn, kg, this::resolveDiseases);
+        try {
+            String q = URLEncoder.encode("\""+term+"\"", "utf8");     
+            resolve (ksp.getUri()+"/targets/search?q="+q
+                     +"&facet=IDG%20Development%20Level/Tclin",
+                     kn, kg, this::resolveTargets);
+            
+            resolve (ksp.getUri()+"/ligands/search?q="+q
+                     +"&facet=IDG%20Development%20Level/Tclin",
+                     kn, kg, this::resolveLigands);
+            
+            resolve (ksp.getUri()+"/diseases/search?q="+q
+                     +"&facet=IDG%20Development%20Level/Tclin",
+                     kn, kg, this::resolveDiseases);
+        }
+        catch (Exception ex) {
+            Logger.error("Unable to utf encode query \""+term+"\"", ex);
+        }
     }
 
     void seedTarget (KNode kn, KGraph kg) {
         Logger.debug(">>> seedTarget \""+kn.getName()+"\"");
         // argh.. should update the pharos api to allow list for filter
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Ligand)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Ligand)",
                  kn, kg, this::resolveLinks);
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Disease)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Disease)",
                  kn, kg, this::resolveLinks);
     }
 
     void seedLigand (KNode kn, KGraph kg) {
         Logger.debug(">>> seedLigand \""+kn.getName()+"\"");
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Target)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Target)",
                  kn, kg, this::resolveLinks);
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Disease)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Disease)",
                  kn, kg, this::resolveLinks);
     }
 
     void seedDisease (KNode kn, KGraph kg) {
         Logger.debug(">>> seedDisease \""+kn.getName()+"\"");
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Target)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Target)",
                  kn, kg, this::resolveLinks);
-        resolve (kn.get("uri")+"/links(kind=ix.idg.models.Ligand)",
+        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Ligand)",
                  kn, kg, this::resolveLinks);
     }
 
     void resolve (String url, KNode kn, KGraph kg, Resolver resolver) {
         Logger.debug("+++ resolving..."+url);
         WSRequest req = wsclient.url(url);
-        req.get().thenAccept(res -> {
-                try {
-                    JsonNode json = res.asJson();
-                    resolver.resolve(json, kn, kg);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't resolve url: "+url, ex);
-                }
-            });
+        try {   
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode json = res.asJson();
+            resolver.resolve(json, kn, kg);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't resolve url: "+url, ex);
+        }
     }
     
     void resolve (String entity, JsonNode json, KNode kn, KGraph kg,
@@ -143,18 +155,18 @@ public class PharosKSource implements KSource {
             String uri = ksp.getUri()+"/"+entity+"("+id+")";
             
             Map<String, Object> props = new TreeMap<>();
-            props.put("uri", uri);
+            props.put(URI_P, uri);
             props.put("name", name);
             consumer.accept(jn, props);
             
-            KNode node = kg.createNodeIfAbsent(props, "uri");
+            KNode node = kg.createNodeIfAbsent(props, URI_P);
             if (node.getId() != kn.getId()) {
                 node.addTag("KS:"+ksp.getId());
                 kg.createEdgeIfAbsent(kn, node, "assertion");
                 Logger.debug(node.getId()+"..."+name);
             }
         }
-        Logger.debug("uri: "+json.get("uri").asText()+"..."+content.size());    
+        Logger.debug("uri: "+json.get(URI_P).asText()+"..."+content.size());    
     }
 
     void resolveTargets (JsonNode json, KNode kn, KGraph kg) {
@@ -162,9 +174,9 @@ public class PharosKSource implements KSource {
                 props.put(TYPE_P, "protein");       
                 props.put("family", jn.get("idgFamily").asText());
                 String[] syns = retrieveSynonyms
-                    ((String)props.get("uri"), "(label=UniProt*)");
+                    ((String)props.get(URI_P), "(label=UniProt*)");
                 if (syns.length > 0)
-                    props.put("synonyms", syns);
+                    props.put(SYNONYMS_P, syns);
             });
     }
 
@@ -172,9 +184,9 @@ public class PharosKSource implements KSource {
         resolve ("ligands", json, kn, kg, (jn, props) -> {
                 props.put(TYPE_P, "drug");
                 String[] syns = retrieveSynonyms
-                    ((String)props.get("uri"), null);
+                    ((String)props.get(URI_P), null);
                 if (syns.length > 0)
-                    props.put("synonyms", syns);
+                    props.put(SYNONYMS_P, syns);
             });
     }
 
@@ -182,9 +194,9 @@ public class PharosKSource implements KSource {
         resolve ("diseases", json, kn, kg, (jn, props) -> {
                 props.put(TYPE_P, "disease");
                 String[] syns = retrieveSynonyms
-                    ((String)props.get("uri"), null);
+                    ((String)props.get(URI_P), null);
                 if (syns.length > 0)
-                    props.put("synonyms", syns);                
+                    props.put(SYNONYMS_P, syns);                
             });
     }
 
@@ -236,19 +248,19 @@ public class PharosKSource implements KSource {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "drug");
             String uri = ksp.getUri()+"/ligands("+id+")";
-            props.put("uri", uri);
+            props.put(URI_P, uri);
             if (name != null)
                 props.put(NAME_P, name);
             
             // create this node if it isn't on the graph already
-            KNode xn = kg.createNodeIfAbsent(props, "uri");
+            KNode xn = kg.createNodeIfAbsent(props, URI_P);
             if (xn.getId() != kn.getId()) {
                 xn.addTag("KS:"+ksp.getId());
                 if (name == null)
                     xn.putIfAbsent(NAME_P, () -> {
                             return retrieveJsonValue (uri+"/$name");
                         });
-                xn.putIfAbsent("synonyms", () -> {
+                xn.putIfAbsent(SYNONYMS_P, () -> {
                         return retrieveSynonyms (uri, null);
                     });
                 
@@ -296,13 +308,13 @@ public class PharosKSource implements KSource {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "disease");
             String uri = ksp.getUri()+"/diseases("+id+")";
-            props.put("uri", uri);
+            props.put(URI_P, uri);
             props.put(NAME_P, disease);
 
-            KNode xn = kg.createNodeIfAbsent(props, "uri");
+            KNode xn = kg.createNodeIfAbsent(props, URI_P);
             if (xn.getId() != kn.getId()) {
                 xn.addTag("KS:"+ksp.getId());
-                xn.putIfAbsent("synonyms", () -> {
+                xn.putIfAbsent(SYNONYMS_P, () -> {
                         return retrieveSynonyms (uri, null);                    
                     });
                 
@@ -345,15 +357,15 @@ public class PharosKSource implements KSource {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "protein");
             String uri = ksp.getUri()+"/targets("+id+")";
-            props.put("uri", uri);
+            props.put(URI_P, uri);
             
-            KNode xn = kg.createNodeIfAbsent(props, "uri");
+            KNode xn = kg.createNodeIfAbsent(props, URI_P);
             if (xn.getId() != kn.getId()) {
                 xn.addTag("KS:"+ksp.getId());
                 xn.putIfAbsent(NAME_P, () -> {
                         return retrieveJsonValue (uri+"/$name");
                     });
-                xn.putIfAbsent("synonyms", () -> {
+                xn.putIfAbsent(SYNONYMS_P, () -> {
                         return retrieveSynonyms (uri, null);
                     });
                 

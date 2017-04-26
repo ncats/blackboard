@@ -65,7 +65,7 @@ public class DrugKSource implements KSource {
         
         WSRequest req = wsclient.url(url);
         // if we use req.get().thenAccept(...) then we can potentially
-        // generating too many threads
+        // generating too many simultenous connections
         WSResponse res = req.get().toCompletableFuture().get();
         
         JsonNode json = res.asJson().get("hits");
@@ -73,12 +73,18 @@ public class DrugKSource implements KSource {
         for (int i = 0; i < json.size(); ++i) {
             JsonNode node = json.get(i);
             if (node.hasNonNull("unii")) {
+                JsonNode unii = node.get("unii");
+                // only consider exact match since biothings.io returns
+                //  any tokens that matched
+                if (!kn.getName().equalsIgnoreCase
+                    (unii.get("preferred_term").asText()))
+                    continue;
+
                 /*
                  * we use the unii node as the anchor for all 
                  * derived nodes from from this knowledge source
                  */
-                KEdge ke = unii
-                    (node.get("unii"), kn, kg, "resolve");
+                KEdge ke = unii (unii, kn, kg, "resolve");
                             
                 // if this node is already resolved, then it's the
                 // anchor
@@ -147,10 +153,10 @@ public class DrugKSource implements KSource {
             // this is just a symbolic and not actual resolvable uri
             String uri = ksp.getUri()+"/aeolus/"+node.get("name").asText();
             Map<String, Object> props = new TreeMap<>();
-            props.put("uri", uri);
+            props.put(URI_P, uri);
             props.put(NAME_P, node.get("name").asText());
-            props.put(TYPE_P, "adverse-event");
-            KNode xn = kg.createNodeIfAbsent(props, "uri");
+            props.put(TYPE_P, "adverse");
+            KNode xn = kg.createNodeIfAbsent(props, URI_P);
             xn.addTag("aeolus");
             props.clear();
             props.put("ror", node.get("ror").asDouble());
@@ -163,20 +169,24 @@ public class DrugKSource implements KSource {
     void chebi (JsonNode json, KNode kn, KGraph kg) {
     }
 
-    void drugbank (JsonNode json, KNode kn, KGraph kg) {
-        kn.putIfAbsent("synonyms", () -> {
+    void setDrugbankSynonyms (JsonNode json, KNode kn) {
+        kn.putIfAbsent(SYNONYMS_P, () -> {
                 List<String> syns = new ArrayList<>();
                 if (json.hasNonNull("accession_number"))
                     syns.add(json.get("accession_number").asText());
                 else if (json.hasNonNull("drugbank_id"))
                     syns.add(json.get("drugbank_id").asText());
-                JsonNode sn = json.get("synonyms");
+                JsonNode sn = json.get(SYNONYMS_P);
                 if (sn != null) {
                     for (int i = 0; i < sn.size(); ++i)
                         syns.add(sn.get(i).asText());
                 }
                 return syns.toArray(new String[0]);
             });
+    }
+    
+    void drugbank (JsonNode json, KNode kn, KGraph kg) {
+        setDrugbankSynonyms (json, kn);
         
         JsonNode di = json.get("drug_interactions");
         if (di != null) {
@@ -195,6 +205,11 @@ public class DrugKSource implements KSource {
                                 ke.putIfAbsent("description", () -> {
                                         return ddi.get("description").asText();
                                     });
+                                if (jn.hasNonNull("drugbank")) {
+                                    KNode xn = ke.other(kn);
+                                    setDrugbankSynonyms
+                                        (jn.get("drugbank"), xn);
+                                }
                             }
                         }
                         catch (Exception ex) {
@@ -203,15 +218,40 @@ public class DrugKSource implements KSource {
                     });
             }
         }
+
+        JsonNode targets = json.get("targets");
+        if (targets != null) {
+            for (int i = 0; i < targets.size(); ++i) {
+                JsonNode n = targets.get(i);
+                if (!"Swiss-Prot".equals(n.get("source").asText())
+                    || !n.hasNonNull("actions"))
+                    continue;
+                
+                Map<String, Object> props = new TreeMap<>();
+                props.put(TYPE_P, "protein");
+                props.put(NAME_P, n.get("name").asText());
+                props.put(SYNONYMS_P, n.get("uniprot").asText());
+                // symbolic uri
+                String uri = ksp.getUri()+"/drugbank/"
+                    +n.get("uniprot").asText();
+                props.put(URI_P, uri);
+                KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                xn.addTag("KS:"+ksp.getId());
+                String action = n.get("actions").isArray()
+                    ? n.get("actions").get(0).asText()
+                    : n.get("actions").asText();
+                KEdge ke = kg.createEdgeIfAbsent(kn, xn, action);
+            }
+        }
     }
 
     KEdge unii (JsonNode json, KNode kn, KGraph kg, String type) {
         String uri = ksp.getUri()+"/drug/"+json.get("unii").asText();
         Map<String, Object> props = new TreeMap<>();
         props.put(TYPE_P, "drug");
-        props.put("uri", uri);
+        props.put(URI_P, uri);
         props.put(NAME_P, json.get("preferred_term").asText());
-        KNode xn = kg.createNodeIfAbsent(props, "uri");
+        KNode xn = kg.createNodeIfAbsent(props, URI_P);
         KEdge ke = null;
         if (xn.getId() != kn.getId()) {
             // tag this node with this knowledge source id  

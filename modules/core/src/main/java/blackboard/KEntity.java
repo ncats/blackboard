@@ -10,6 +10,8 @@ public interface KEntity {
     public static final String CREATED_P = "created";
     public static final String DIRECTED_P = "directed";
     public static final String URI_P = "uri";
+    public static final String ID_P = "id";
+    public static final String SYNONYMS_P = "synonyms";
     
     long getId ();
     String getType ();
