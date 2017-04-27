@@ -27,9 +27,6 @@ public class PharosKSource implements KSource {
     interface Resolver {
         void resolve (JsonNode json, KNode kn, KGraph kg);
     }
-
-    class PharosResolver {
-    }
     
     private final ActorSystem actorSystem;
     private final WSClient wsclient;
@@ -58,30 +55,22 @@ public class PharosKSource implements KSource {
                      +" \""+kgraph.getName()+"\"");
 
         for (KNode kn : kgraph.getNodes()) {
-            String uri = (String) kn.get(URI_P);
-            if (uri != null && uri.startsWith(ksp.getUri())) {
-                switch (kn.getType()) {
-                case "query":
-                    seedQuery ((String)kn.get("term"), kn, kgraph);
-                    break;
-                
-                case "disease":
-                    seedDisease (kn, kgraph);
+            switch (kn.getType()) {
+            case "query":
+                seedQuery ((String)kn.get("term"), kn, kgraph);
                 break;
                 
-                case "protein":
-                    seedTarget (kn, kgraph);
+            case "disease":
+                seedDisease (kn, kgraph);
                 break;
                 
-                case "drug":
-                    seedLigand (kn, kgraph);
-                    break;
-                }
-            }
-            else {
-                // not from the same knowledge source, so we treat it as
-                //  query
-                seedQuery (kn.getName(), kn, kgraph);
+            case "protein":
+                seedTarget (kn, kgraph);
+                break;
+                
+            case "drug":
+                seedLigand (kn, kgraph);
+                break;          
             }
         }
     }
@@ -89,18 +78,18 @@ public class PharosKSource implements KSource {
     void seedQuery (String term, KNode kn, KGraph kg) {
         Logger.debug(">>> seedQuery \""+term+"\"");
         try {
-            String q = URLEncoder.encode("\""+term+"\"", "utf8");     
-            resolve (ksp.getUri()+"/targets/search?q="+q
-                     +"&facet=IDG%20Development%20Level/Tclin",
-                     kn, kg, this::resolveTargets);
+            Map<String, String> q = new HashMap<>();
+            q.put("q", "\""+term+"\"");
+            q.put("facet","IDG Development Level/Tclin");
             
-            resolve (ksp.getUri()+"/ligands/search?q="+q
-                     +"&facet=IDG%20Development%20Level/Tclin",
-                     kn, kg, this::resolveLigands);
+            resolve (ksp.getUri()+"/targets/search",
+                     q, kn, kg, this::resolveTargets);
             
-            resolve (ksp.getUri()+"/diseases/search?q="+q
-                     +"&facet=IDG%20Development%20Level/Tclin",
-                     kn, kg, this::resolveDiseases);
+            resolve (ksp.getUri()+"/ligands/search",
+                     q, kn, kg, this::resolveLigands);
+            
+            resolve (ksp.getUri()+"/diseases/search",
+                     q, kn, kg, this::resolveDiseases);
         }
         catch (Exception ex) {
             Logger.error("Unable to utf encode query \""+term+"\"", ex);
@@ -109,32 +98,68 @@ public class PharosKSource implements KSource {
 
     void seedTarget (KNode kn, KGraph kg) {
         Logger.debug(">>> seedTarget \""+kn.getName()+"\"");
-        // argh.. should update the pharos api to allow list for filter
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Ligand)",
-                 kn, kg, this::resolveLinks);
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Disease)",
-                 kn, kg, this::resolveLinks);
+        String uri = (String) kn.get(URI_P);
+        if (uri != null && uri.startsWith(ksp.getUri())) {
+            // argh.. should update the pharos api to allow list for filter
+            resolve (uri+"/links(kind=ix.idg.models.Ligand)", null,
+                     kn, kg, this::resolveLinks);
+            resolve (uri+"/links(kind=ix.idg.models.Disease)", null,
+                     kn, kg, this::resolveLinks);
+        }
+        else if (kn.getName() != null) {
+            Map<String, String> query = new HashMap<>();
+            query.put("filter", "name='"+kn.getName()+"'");
+            resolve (ksp.getUri()+"/targets", query, 
+                     kn, kg, this::resolveTargets);
+        }
     }
 
     void seedLigand (KNode kn, KGraph kg) {
         Logger.debug(">>> seedLigand \""+kn.getName()+"\"");
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Target)",
-                 kn, kg, this::resolveLinks);
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Disease)",
-                 kn, kg, this::resolveLinks);
+        String uri = (String) kn.get(URI_P);
+        if (uri != null && uri.startsWith(ksp.getUri())) {
+            resolve (uri+"/links(kind=ix.idg.models.Target)", null,
+                     kn, kg, this::resolveLinks);
+            resolve (uri+"/links(kind=ix.idg.models.Disease)", null,
+                     kn, kg, this::resolveLinks);
+        }
+        else if (kn.getName() != null) {
+            Map<String, String> query = new HashMap<>();
+            query.put("filter", "name='"+kn.getName()+"'");
+            resolve (ksp.getUri()+"/ligands", query,
+                     kn, kg, this::resolveLigands);
+        }
     }
 
     void seedDisease (KNode kn, KGraph kg) {
         Logger.debug(">>> seedDisease \""+kn.getName()+"\"");
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Target)",
-                 kn, kg, this::resolveLinks);
-        resolve (kn.get(URI_P)+"/links(kind=ix.idg.models.Ligand)",
-                 kn, kg, this::resolveLinks);
+        String uri = (String) kn.get(URI_P);
+        if (uri != null && uri.startsWith(ksp.getUri())) {      
+            resolve (uri+"/links(kind=ix.idg.models.Target)", null,
+                     kn, kg, this::resolveLinks);
+            resolve (uri+"/links(kind=ix.idg.models.Ligand)", null,
+                     kn, kg, this::resolveLinks);
+        }
+        else if (kn.getName() != null) {
+            Map<String, String> query = new HashMap<>();
+            query.put("filter", "name='"+kn.getName()+"'");
+            resolve (ksp.getUri()+"/diseases", query,
+                     kn, kg, this::resolveDiseases);
+        }
     }
 
-    void resolve (String url, KNode kn, KGraph kg, Resolver resolver) {
-        Logger.debug("+++ resolving..."+url);
-        WSRequest req = wsclient.url(url);
+    void resolve (String url, Map<String, String> params,
+                  KNode kn, KGraph kg, Resolver resolver) {
+        WSRequest req = wsclient.url(url).setFollowRedirects(true);
+        if (params != null) {
+            Logger.debug(url);
+            for (Map.Entry<String, String> me : params.entrySet()) {
+                //Logger.debug(".."+me.getKey()+": "+me.getValue());
+                req = req.setQueryParameter(me.getKey(), me.getValue());
+            }
+        }
+        //Logger.debug("+++ resolving..."+req.getUrl());
+        
         try {   
             WSResponse res = req.get().toCompletableFuture().get();
             JsonNode json = res.asJson();
@@ -147,22 +172,26 @@ public class PharosKSource implements KSource {
     
     void resolve (String entity, JsonNode json, KNode kn, KGraph kg,
                   BiConsumer<JsonNode, Map<String, Object>> consumer) {
-        JsonNode content = json.get("content");
+        String uri = null;
+        if (json.hasNonNull("uri"))
+            uri = json.get("uri").asText();
+        
+        JsonNode content = json.get("content"); 
         for (int i = 0; i < content.size(); ++i) {
             JsonNode jn = content.get(i);
             long id = jn.get("id").asLong();
             String name = jn.get("name").asText();
-            String uri = ksp.getUri()+"/"+entity+"("+id+")";
-            
             Map<String, Object> props = new TreeMap<>();
-            props.put(URI_P, uri);
-            props.put("name", name);
+            props.put(URI_P, ksp.getUri()+"/"+entity+"("+id+")");
+            props.put(NAME_P, name);
             consumer.accept(jn, props);
             
             KNode node = kg.createNodeIfAbsent(props, URI_P);
             if (node.getId() != kn.getId()) {
                 node.addTag("KS:"+ksp.getId());
-                kg.createEdgeIfAbsent(kn, node, "assertion");
+                props.clear();
+                props.put("value", uri);
+                kg.createEdgeIfAbsent(kn, node, "resolve", props, null);
                 Logger.debug(node.getId()+"..."+name);
             }
         }
