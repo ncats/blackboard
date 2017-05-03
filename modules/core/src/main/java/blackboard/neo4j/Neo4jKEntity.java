@@ -15,8 +15,6 @@ import blackboard.KEntity;
 public class Neo4jKEntity implements KEntity {    
     protected final GraphDatabaseService graphDb;
     protected final Entity entity;
-    protected final String type;
-    protected final String name;
 
     public Neo4jKEntity (Entity entity) {
         this (entity, null);
@@ -24,8 +22,6 @@ public class Neo4jKEntity implements KEntity {
     
     public Neo4jKEntity (Entity entity, Map<String, Object> properties) {
         graphDb = entity.getGraphDatabase();
-        name = (String)entity.getProperty(NAME_P, null);
-        type = (String)entity.getProperty(TYPE_P, null);
         if (properties != null)
             Neo4j.setProperties(entity, properties);
         

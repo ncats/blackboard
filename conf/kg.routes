@@ -1,0 +1,10 @@
+##
+GET	/	controllers.blackboard.BlackboardSystem.listKG
+POST	/	controllers.blackboard.BlackboardSystem.createKGraph
+GET	/:id	controllers.blackboard.BlackboardSystem.getKG(id: Long)
+GET	/:id/nodes	controllers.blackboard.BlackboardSystem.getNodesForKG(id: Long)
+GET	/:id/nodes/:nid	controllers.blackboard.BlackboardSystem.getNodeForKG(id: Long, nid: Long)
+PUT	/:id/nodes/:nid/ks.$ks<[a-z0-9]+>	controllers.blackboard.BlackboardSystem.runKSNodeSeed(id: Long, nid: Long, ks: String)
+GET	/:id/edges	controllers.blackboard.BlackboardSystem.getEdgesForKG(id: Long)
+GET	/:id/edges/:eid	controllers.blackboard.BlackboardSystem.getEdgeForKG(id: Long, eid: Long)
+PUT	/:id/ks.$ks<[a-z0-9]+>	controllers.blackboard.BlackboardSystem.runKS(id: Long, ks: String)

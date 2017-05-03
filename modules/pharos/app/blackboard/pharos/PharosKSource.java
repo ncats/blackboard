@@ -49,12 +49,15 @@ public class PharosKSource implements KSource {
                      +" initialized; provider is "+ksp);
     }
 
-    public void execute (KGraph kgraph) {
+    public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()
                      +" \""+kgraph.getName()+"\"");
+        
+        if (nodes == null || nodes.length == 0)
+            nodes = kgraph.getNodes();
 
-        for (KNode kn : kgraph.getNodes()) {
+        for (KNode kn : nodes) {
             switch (kn.getType()) {
             case "query":
                 seedQuery ((String)kn.get("term"), kn, kgraph);

@@ -7,5 +7,5 @@ import java.util.Collection;
  * Knowledge source
  */
 public interface KSource {
-    void execute (KGraph kgraph);
+    void execute (KGraph kgraph, KNode... nodes);
 }

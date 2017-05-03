@@ -2,6 +2,7 @@ package blackboard.neo4j;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
 import javax.inject.*;
 import java.util.stream.Collectors;
 
@@ -21,23 +22,38 @@ import play.inject.ApplicationLifecycle;
 import play.libs.F;
 import play.inject.Injector;
 
-import blackboard.Blackboard;
-import blackboard.KGraph;
+import blackboard.*;
 import static blackboard.KEntity.*;
 
 @Singleton
-public class Neo4jBlackboard implements Blackboard {
+public class Neo4jBlackboard extends TransactionEventHandler.Adapter
+    implements Blackboard {
     static public final Label KGRAPH_LABEL = Label.label("KGraph");
     static public final Label KQUERY_LABEL = Label.label("KQuery");
 
     protected final GraphDatabaseService graphDb;
     protected final Configuration config;
+    protected final KEvents events;
+
+    static class KEV<T extends KEntity> {
+        Class<T> cls;
+        KEvent<T> event;
+
+        KEV (Class<T> cls, KEvent<T> event) {
+            this.cls = cls;
+            this.event = event;
+        }
+    }
+
+    protected BlockingQueue<KEV> queue = new LinkedBlockingQueue<>();
+    
     protected final Set<String> nodeTypes;
     protected final Set<String> edgeTypes;
     protected final Set<String> evidenceTypes;
 
     @Inject
     public Neo4jBlackboard (Configuration config,
+                            KEvents events,
                             ApplicationLifecycle lifecycle) throws IOException {
         String param = config.getString("blackboard.base", ".");
         File base = new File (param);
@@ -57,12 +73,14 @@ public class Neo4jBlackboard implements Blackboard {
         graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dir)
             .setConfig(GraphDatabaseSettings.dump_configuration, "true")
             .newGraphDatabase();
+        graphDb.registerTransactionEventHandler(this);
 
         lifecycle.addStopHook(() -> {
                 shutdown ();
                 return F.Promise.pure(null);
             });
         this.config = config;
+        this.events = events;
         
         initBlackboard ();
     }
@@ -90,13 +108,26 @@ public class Neo4jBlackboard implements Blackboard {
         graphDb.shutdown();
     }
 
+    @Override
+    public void afterCommit (TransactionData data, Object state) {
+        // now flush all the events
+        try {
+            List<KEV> evs = new ArrayList<>();
+            queue.drainTo(evs);
+            for (KEV ev : evs)
+                events.fireEvent(ev.cls, ev.event);
+        }
+        catch (Exception ex) {
+            Logger.debug("One or more event firing failed", ex);
+        }
+    }
+
     public KGraph getKGraph (long id) {
         KGraph kg = null;
         try (Transaction tx = graphDb.beginTx()) {
             Node node = graphDb.getNodeById(id);
             if (node.hasLabel(KGRAPH_LABEL)) {
                 kg = new Neo4jKGraph (this, node);
-                tx.success();
             }
         }
         catch (NotFoundException ex) {
@@ -158,8 +189,21 @@ public class Neo4jBlackboard implements Blackboard {
             Neo4jKNode kn = (Neo4jKNode) kg.createNode(properties);
             kn.node().addLabel(KQUERY_LABEL); // this is the seed node
             tx.success();
+            
+            fireEvent (KGraph.class,
+                       new KEvent<>(this, kg, KEvent.Oper.ADD));
         }
+        
         return kg;
+    }
+
+    protected <T extends KEntity> void fireEvent (Class<T> cls, KEvent<T> kev) {
+        try {
+            queue.put(new KEV (cls, kev));
+        }
+        catch (InterruptedException ex) {
+            Logger.error("Event interrupted!", ex);
+        }
     }
     
     public Collection<String> getNodeTypes () { return nodeTypes; }

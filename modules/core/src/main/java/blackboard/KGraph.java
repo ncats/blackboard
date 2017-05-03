@@ -2,6 +2,7 @@ package blackboard;
 
 import java.util.Map;
 import java.util.function.Predicate;
+import com.fasterxml.jackson.annotation.JsonView;
 
 /**
  * Knowledge graph
@@ -9,8 +10,10 @@ import java.util.function.Predicate;
 public interface KGraph extends KEntity {
     long getNodeCount ();
     long getEdgeCount ();
+    @JsonView(BeanViews.Full.class)
     KNode[] getNodes ();
     KNode[] nodes (Predicate<KNode> predicate);
+    @JsonView(BeanViews.Full.class)
     KEdge[] getEdges ();
     KEdge[] edges (Predicate<KEdge> predicate);
     KNode node (long id);

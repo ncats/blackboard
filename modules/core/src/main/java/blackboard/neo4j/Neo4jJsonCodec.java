@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 
 import blackboard.JsonCodec;
 import blackboard.KEntity;
+import blackboard.BeanViews;
 
 public class Neo4jJsonCodec implements JsonCodec {
     static class KEntitySerializer extends JsonSerializer<KEntity> {
@@ -44,19 +45,29 @@ public class Neo4jJsonCodec implements JsonCodec {
         }
     }
     
-    final ObjectMapper mapper;
+    final ObjectMapper compact, full;
     
     public Neo4jJsonCodec () {
         //SimpleModule module = new SimpleModule ("Neo4j serialization");
         //module.addSerializer(KEntity.class, new KEntitySerializer ());
         //mapper = new ObjectMapper().registerModule(module);
-        mapper = new ObjectMapper()
+        compact = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT)
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+            ;
+        compact.setConfig(compact.getSerializationConfig()
+                          .withView(BeanViews.Compact.class));
+
+        full = new ObjectMapper ()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL)
             ;
     }
     
-    public ObjectMapper getObjectMapper () {
-        return mapper;
+    public ObjectMapper getCompactMapper () { return compact; }
+    public ObjectMapper getFullMapper () { return full; }
+    public JsonNode toJson (Object value, boolean full) {
+        return full ? this.full.valueToTree(value)
+            : compact.valueToTree(value);
     }
 }

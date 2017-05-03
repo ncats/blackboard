@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import blackboard.KSource;
 import blackboard.KSourceProvider;
 import blackboard.KGraph;
+import blackboard.KNode;
 
 @Singleton
 public class KnowledgeSource extends Controller {
@@ -65,11 +66,11 @@ public class KnowledgeSource extends Controller {
         return notFound ("Unknown knowledge source: "+ks);
     }
 
-    public void runKS (String ks, KGraph kgraph) {
+    public void runKS (String ks, KGraph kgraph, KNode... nodes) {
         KSourceProvider ksp = ksources.get(ks);
         if (ksp == null)
             throw new IllegalArgumentException
                 ("Unknown knowledge source \""+ks+"\"");
-        ksp.getKS().execute(kgraph);
+        ksp.getKS().execute(kgraph, nodes);
     }
 }

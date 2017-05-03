@@ -1,20 +1,59 @@
-@*
- * This template takes a single argument, a String containing a
- * message to display.
- *@
-@(message: String)
+<!DOCTYPE html>
 
-@*
- * Call the `main` template with two arguments. The first
- * argument is a `String` with the title of the page, the second
- * argument is an `Html` object containing the body of the page.
- *@
-@main("Welcome to Play") {
+<html>
+<head>
+    <title>A Simple Blackboard Demo</title>
+    <link rel='stylesheet' href='@routes.Assets.versioned("lib/bootstrap/css/bootstrap.min.css")'>
+    <link rel='stylesheet' href='@routes.Assets.versioned("stylesheets/blackboard.css")'>    
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+	<div class="col-md-9"> <!-- content panel -->
+	  <div class="panel panel-primary bbgraph">
+	    <div class="panel-heading">
+	      <h1 id="kg-title" class="panel-title">Knowledge Graph</h1>
+	    </div>
+	    <div class="panel-body">
+	      <div id="kgraph"></div>
+	    </div>
+	  </div>
+	</div>
+	<div class="col-md-3"> <!-- left panel -->
+	  <div class="panel panel-info bbpanel">
+	    <div class="panel-heading">
+	      <h1 class="panel-title">Blackboard</h1>
+	    </div>
+	    <div class="panel-body">
+	      adsfadfasdf
+	    </div>
+	  </div>
+	  <div class="panel panel-default bbquery">
+	    <div class="panel-heading">
+	      <h1 class="panel-title">Query</h1>
+	    </div>
+	    <div class="panel-body">
+	      ;kajdfasdfasdfasdf
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+</body>
 
-    @*
-     * Get an `Html` object by calling the built-in Play welcome
-     * template and passing a `String` message.
-     *@
-    @play20.welcome(message, style = "Java")
+<head>
+  <script type='text/javascript' src='@routes.Assets.versioned("lib/jquery/jquery.min.js")'></script>    
+  <script type='text/javascript' src='@routes.Assets.versioned("lib/bootstrap/js/bootstrap.min.js")'></script>
+  <script type='text/javascript' src='@routes.Assets.versioned("javascripts/blackboard.js")'></script>
+</head>
+</html>
 
-}
+<script>
+  $(document).ready(function () {
+     console.log("i'm ready!");
+
+     websocket('#kgraph','ws://localhost:9000'+'@controllers.routes.BlackboardApp.console(5379)');
+  });
+</script>

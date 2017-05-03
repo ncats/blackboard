@@ -7,11 +7,10 @@ import play.libs.ws.*;
 import play.libs.Json;
 import static play.mvc.Http.MultipartFormData.*;
 
+import akka.actor.*;
+
 import java.util.*;
-import java.util.concurrent.Executor;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import scala.concurrent.duration.Duration;
 import scala.concurrent.ExecutionContextExecutor;
 import akka.actor.ActorSystem;
@@ -27,21 +26,27 @@ import controllers.ks.KnowledgeSource;
 
 @Singleton
 public class BlackboardSystem extends Controller {
-    private final ActorSystem actorSystem;
-    private final Blackboard blackboard;
-    private final KnowledgeSource knowledgeSource;
+
+    public final ActorSystem actorSystem;
+    public final Blackboard blackboard;
+    public final KnowledgeSource knowledgeSource;
+    public final KEvents events;
+    public final JsonCodec jsonCodec;
 
     @Inject
     public BlackboardSystem (ActorSystem actorSystem,
                              JsonCodec codec,
                              KnowledgeSource knowledgeSource,
+                             KEvents events,
                              Blackboard blackboard) {
       this.actorSystem = actorSystem;
       this.blackboard = blackboard;
+      this.jsonCodec = codec;
       this.knowledgeSource = knowledgeSource;
-      Json.setObjectMapper(codec.getObjectMapper());
+      this.events = events;
+      Json.setObjectMapper(codec.getCompactMapper());
     }
-
+    
     public Result listKG () {
         ArrayNode nodes = Json.newArray();
         for (KGraph kg : blackboard) {
@@ -70,8 +75,9 @@ public class BlackboardSystem extends Controller {
         KGraph kg = blackboard.getKGraph(id);
         if (kg == null)
             return notFound ("Unknown knowledge graph: "+id);
-        
-        return ok (Json.toJson(kg));
+        String view = request().getQueryString("view");
+        return ok ("full".equals(view)
+                   ? jsonCodec.toJson(kg, true) : Json.toJson(kg));
     }
 
     public Result runKS (Long id, String ks) {
@@ -88,6 +94,28 @@ public class BlackboardSystem extends Controller {
         }
         return ok ("Knowledge source \""+ks
                    +"\" successfully executed on knowledge graph "+id);
+    }
+
+    public Result runKSNodeSeed (Long id, Long node, String ks) {
+        KGraph kg = blackboard.getKGraph(id);
+        if (kg == null)
+            return badRequest ("Unknown knowledge graph requested: "+id);
+        
+        KNode kn = kg.node(node);
+        if (kn == null)
+            return badRequest ("Knowledge graph "+id+" has no node: "+node);
+
+        try {
+            knowledgeSource.runKS(ks, kg, kn);
+        }
+        catch (Exception ex) {
+            ex.printStackTrace();
+            return badRequest (ex.getMessage());
+        }
+        
+        return ok ("Knowledge source \""+ks
+                   +"\" successfully executed on knowledge graph "
+                   +id+" ande node "+node);
     }
 
     public Result getNodesForKG (Long id) {

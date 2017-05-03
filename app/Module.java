@@ -1,10 +1,6 @@
 import com.google.inject.AbstractModule;
 import java.time.Clock;
 
-import services.ApplicationTimer;
-import services.AtomicCounter;
-import services.Counter;
-
 import blackboard.Blackboard;
 import blackboard.JsonCodec;
 import blackboard.neo4j.Neo4jBlackboard;
@@ -26,13 +22,7 @@ public class Module extends AbstractModule {
     public void configure() {
         // Use the system clock as the default implementation of Clock
         bind(Clock.class).toInstance(Clock.systemDefaultZone());
-        // Ask Guice to create an instance of ApplicationTimer when the
-        // application starts.
-        bind(ApplicationTimer.class).asEagerSingleton();
-        // Set AtomicCounter as the implementation for Counter.
-        bind(Counter.class).to(AtomicCounter.class);
         bind(Blackboard.class).to(Neo4jBlackboard.class).asEagerSingleton();
         bind(JsonCodec.class).to(Neo4jJsonCodec.class);
     }
-
 }

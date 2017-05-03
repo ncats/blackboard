@@ -12,6 +12,7 @@ public interface KEntity {
     public static final String URI_P = "uri";
     public static final String ID_P = "id";
     public static final String SYNONYMS_P = "synonyms";
+    public static final String KGRAPH_P = "kgraph";
     
     long getId ();
     String getType ();

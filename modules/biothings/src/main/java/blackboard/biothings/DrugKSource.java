@@ -41,11 +41,12 @@ public class DrugKSource implements KSource {
                      +" initialized; provider is "+ksp.getImplClass());
     }
 
-    public void execute (KGraph kgraph) {
+    public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()
                      +" \""+kgraph.getName()+"\"");
-        KNode[] drugs = kgraph.nodes(n -> "drug".equals(n.getType()));
+        KNode[] drugs = nodes == null || nodes.length == 0
+            ?  kgraph.nodes(n -> "drug".equals(n.getType())) : nodes;
         for (KNode kn : drugs) {
             try {
                 seedDrug (kn, kgraph);
@@ -83,7 +84,8 @@ public class DrugKSource implements KSource {
                 JsonNode unii = node.get("unii");
                 // only consider exact match since biothings.io returns
                 //  any tokens that matched
-                if (!kn.getName().equalsIgnoreCase
+                if (!unii.hasNonNull("preferred_term")
+                    || !kn.getName().equalsIgnoreCase
                     (unii.get("preferred_term").asText()))
                     continue;
 
@@ -197,7 +199,8 @@ public class DrugKSource implements KSource {
             for (int i = 0; i < json.size(); ++i)
                 targets (json.get(i), kn, kg);
         }
-        else if ("Swiss-Prot".equals(json.get("source").asText())
+        else if (json.hasNonNull("source")
+                 && "Swiss-Prot".equals(json.get("source").asText())
                  && json.hasNonNull("actions")) {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "protein");

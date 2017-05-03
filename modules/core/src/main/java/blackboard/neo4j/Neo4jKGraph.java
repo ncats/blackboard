@@ -9,22 +9,19 @@ import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.*;
 import play.Logger;
 
-import blackboard.KGraph;
-import blackboard.Blackboard;
-import blackboard.KNode;
-import blackboard.KEdge;
+import blackboard.*;
 
 public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
-    final Blackboard blackboard;
+    final Neo4jBlackboard blackboard;
     final Label kgLabel;
     final Index<Node> nodeIndex;
     final Index<Relationship> edgeIndex;
-    
-    public Neo4jKGraph (Blackboard blackboard, Node node) {
+
+    public Neo4jKGraph (Neo4jBlackboard blackboard, Node node) {
         this (blackboard, node, null);
     }
     
-    public Neo4jKGraph (Blackboard blackboard,
+    public Neo4jKGraph (Neo4jBlackboard blackboard,
                         Node node, Map<String, Object> properties) {
         super (node, properties);
         kgLabel = Label.label("KG:"+node.getId());
@@ -32,7 +29,7 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         edgeIndex = graphDb.index().forRelationships(kgLabel.name());
         this.blackboard = blackboard;
     }
-    
+
     public long getNodeCount () {
         try (Transaction tx = graphDb.beginTx()) {
             return graphDb.findNodes(kgLabel).stream().count();
@@ -175,6 +172,7 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
                 ? graphDb.createNode
                 (kgLabel, Label.label((String)properties.get(TYPE_P)))
                 : graphDb.createNode(kgLabel);
+            n.setProperty(KGRAPH_P, entity.getId()); // parent kgraph
             Object syn = properties.get(SYNONYMS_P);
             if (syn != null) {
                 stitch (n, SYNONYMS_P, syn);
@@ -183,6 +181,12 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
             node = new Neo4jKNode (n, properties);
             tx.success();
         }
+
+        if (node != null) {
+            blackboard.fireEvent
+                (KNode.class, new KEvent<>(this, node, KEvent.Oper.ADD));
+        }
+
         return node;
     }
 
@@ -233,6 +237,12 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
             edge = new Neo4jKEdge (rel, s, t, properties);
             tx.success();
         }
+
+        if (edge != null) {
+            blackboard.fireEvent
+                (KEdge.class, new KEvent<>(this, edge, KEvent.Oper.ADD));
+        }
+            
         return edge;
     }
 
