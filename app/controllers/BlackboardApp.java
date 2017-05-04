@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import blackboard.*;
-import controllers.blackboard.BlackboardSystem;
+import controllers.api.BlackboardSystem;
 
 @Singleton
 public class BlackboardApp extends Controller {
@@ -142,5 +142,20 @@ public class BlackboardApp extends Controller {
             return new ConsoleWebSocket (kg);
         }
         return WebSocket.reject(badRequest ());
+    }
+
+    public Result kgraph (String id) {
+        try {
+            KGraph kg = blackboard.getKGraph(Long.parseLong(id));
+            if (kg != null) {
+                return ok (views.html.kgraph.render(kg));
+            }
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve KGraph "+id, ex);
+        }
+        
+        return ok (views.html.error.render
+                   (routes.BlackboardApp.kgraph(id).url(), 404));
     }
 }

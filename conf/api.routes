@@ -4,6 +4,6 @@
 #
 # basic blackboard api
 #
-GET	/nodes/@type	controllers.blackboard.BlackboardSystem.getNodeTypes
-GET	/edges/@type	controllers.blackboard.BlackboardSystem.getEdgeTypes
-GET	/evidence/@type	controllers.blackboard.BlackboardSystem.getEvidenceTypes
+GET	/nodes/@type	controllers.api.BlackboardSystem.getNodeTypes
+GET	/edges/@type	controllers.api.BlackboardSystem.getEdgeTypes
+GET	/evidence/@type	controllers.api.BlackboardSystem.getEvidenceTypes

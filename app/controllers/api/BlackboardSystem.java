@@ -1,4 +1,4 @@
-package controllers.blackboard;
+package controllers.api;
 
 import javax.inject.*;
 import play.*;

@@ -1,0 +1,15 @@
+html, body {
+    margin-top: 10px;
+}
+
+.bbpanel {
+    height: 330px;
+}
+
+.bbgraph {
+    height: 650px;
+}
+
+.bbquery {
+    height: 650px;
+}

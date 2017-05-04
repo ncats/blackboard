@@ -12,7 +12,10 @@ lazy val commonDependencies = Seq(
   "org.neo4j" % "neo4j" % "3.1.0",
   "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.3.7",
-  "org.webjars" % "jquery" % "3.2.0"
+  "org.webjars" % "jquery" % "3.2.0",
+  "org.webjars" % "datatables" % "1.10.12",
+  "org.webjars" % "datatables-plugins" % "1.10.12",
+  "org.webjars" % "datatables-bootstrap" % "2-20120202-2"
 )
 
 lazy val javaBuildOptions = Seq(
