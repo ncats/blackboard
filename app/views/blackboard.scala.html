@@ -1,0 +1,124 @@
+
+@main("A Simple Blackboard Demo"){
+<div class="container-fluid">
+  <div class="jumbotron">
+    <h1>A simple blackboard</h1>
+    <p>This is a simple application created to illustrate basic
+      concepts of a blackboard architecture for
+      <a href="https://ncats.nih.gov/translator">translator</a>.
+      To begin, click on <a href="#new">New</a> to create a new query or
+      select an existing knowledge graph in the table below.
+  </div>
+  <div class="row">
+    <div class="col-md-12">
+      <div>
+	<table id="kg-table" class="table" data-page-length="5" width="100%">
+	  <thead>
+	    <tr>
+	      <th></th>
+	      <th>Id</th>
+	      <th>Name</th>
+	      <th>Node</th>
+	      <th>Edge</th>
+	    </tr>
+	  </thead>
+	</table>
+	<div class="row pull-right" style="margin-right:10px;">
+	  <p><button type="button" class="btn btn-primary"
+		     data-toggle="modal"
+		     data-target="#new-modal">
+	      <span title="Create new query"
+		    data-toggle="tooltip">New</span></button>
+	    <button type="button" class="btn btn-danger" data-toggle="modal"
+		    data-target="#delete-modal">
+	      <span data-toggle="tooltip"
+		    title="Delete selected knowledge graph">Delete</span>
+	    </button>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="delete-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">Warning: <span id="warning-mesg"></span></h4>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default"
+		data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-default"
+		id="delete-btn">Delete</button>	
+      </div>
+    </div>
+  </div>
+</div>
+
+}{
+$(document).ready(function () {
+    $('[data-toggle="tooltip"]').tooltip();
+    $('#delete-modal').on('show.bs.modal', function () {
+	console.log('row='+$('#delete-btn').data('row'));
+    });
+    $('#delete-btn').on('click', function () {
+	var url = '@controllers.api.routes.BlackboardSystem.removeKG(0)';
+	url = url.replace('/0', '/'+$(this).data('row'));
+	console.log('executing '+url);
+	$.ajax({
+	    method: 'DELETE',
+	    url: url,
+	    success: function () {
+		$('#delete-modal').modal('hide');
+		window.location.reload();
+	    }
+	});
+    });
+    
+    var dt = $('#kg-table').on('select.dt', function (e, dt, type, indexes) {
+	if (type === 'row') {
+	    var rows = dt.rows(indexes).data();
+	    console.log('rows selected: '+rows[0].id);
+	    $('#delete-btn').attr('data-row', rows[0].id);
+	    $('#warning-mesg').html('Really delete knowledge graph '+rows[0].id+'?');
+	}
+    });
+    
+    $('#kg-table').DataTable({
+	dom: 'pit',
+	order: [[1,'desc']],
+	select: true,
+	rowId: 'id',
+	ajax: {
+	    url: '@controllers.api.routes.BlackboardSystem.listKG',
+	    dataSrc: ''
+	},
+	columnDefs: [{
+	    orderable: false,
+	    className: 'select-checkbox',
+	    targets: 0,
+	    data: null,
+	    defaultContent: ''
+	},{
+	    targets: 2,
+	    render: function (data, type, full, meta) {
+		var url = '@controllers.routes.BlackboardApp.kgraph("")'+full.id;
+		return '<a href="'+url+'">'+data+'</a>';
+	    }
+	}],
+	columns: [
+	    null,
+	    { data: 'id' },
+	    { data: 'name' },
+	    { data: 'nodeCount' },
+	    { data: 'edgeCount'}
+	],
+	select: {
+	    style: 'single',
+	    selector: 'td:first-child'
+	}
+    });
+});
+}

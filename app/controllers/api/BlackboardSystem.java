@@ -80,6 +80,16 @@ public class BlackboardSystem extends Controller {
                    ? jsonCodec.toJson(kg, true) : Json.toJson(kg));
     }
 
+    public Result removeKG (Long id) {
+        try {
+            blackboard.removeKGraph(id);
+            return ok ();
+        }
+        catch (Exception ex) {
+            return notFound (ex.getMessage());
+        }
+    }
+
     public Result runKS (Long id, String ks) {
         KGraph kg = blackboard.getKGraph(id);
         if (kg == null)

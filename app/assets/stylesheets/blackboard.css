@@ -1,6 +1,6 @@
-html, body {
+/*html, body {
     margin-top: 10px;
-}
+}*/
 
 .bbpanel {
     height: 330px;
@@ -12,4 +12,11 @@ html, body {
 
 .bbquery {
     height: 650px;
+    overflow-y: auto;
+}
+
+#kgraph {
+  width: 600px;
+  height: 600px;
+  display: block;
 }

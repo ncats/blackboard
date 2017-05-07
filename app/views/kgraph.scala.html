@@ -4,8 +4,19 @@
 
 @main("Knowledge Graph: "+kg.getName){
 <div class="container-fluid">
+  <nav class="navbar navbar-default">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="@controllers.routes.BlackboardApp.index">
+	Home
+      </a>
+    </div>
+  </nav>
+  
   <div class="page-header">
-    <h1>@kg.getName</h1>
+    <h1>@kg.getName <span class="pull-right">
+	<button type="button" class="btn btn-primary" id="btn-ks"
+		data-target="#controller-modal" data-toggle="modal">
+	  Knowledge Source <i class="fa fa-sitemap"></i></a></span></h1>
   </div>
   <div class="row" style="margin-top:5px;">
     <div class="col-md-8"> <!-- content panel -->
@@ -17,18 +28,120 @@
     </div>
     <div class="col-md-4"> <!-- left panel -->
       <div class="panel panel-info bbquery">
-	<div class="panel-heading">
-	  <h1 class="panel-title">Controller</h1>
-	</div>
-	<div class="panel-body">
-	  
+	<div id="selection-panel" class="panel-body">
 	</div>
       </div>
     </div>
   </div>
-</div>    
+</div>
+
+<div class="modal fade" id="controller-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">Knowledge Sources</h4>
+      </div>
+      <div class="modal-body" style="overflow-y:auto;">
+	<div id="panel-ks"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default"
+		data-dismiss="modal">Close</button>
+        <button type="button"
+		class="btn btn-primary" id="ks-apply">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="warning-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">Warning: <span id="warning-mesg"></span></h4>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default"
+		data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 }{
+function kshtml (data) {
+    var html = '<div class="panel panel-default">'+
+	'<div class="panel-heading">'+
+	' <h1 class="panel-title"><a href="'+data.uri+'">'+data.id+'</a>'+
+	' <span class="pull-right">'+
+	'   <input type="checkbox" name="'+data.id+'"></span>'+
+	'</div>'+
+	'<div class="panel-body">'+
+	' <div class="table-responsive">'+
+	'  <table class="table table-condensed">';
+    for (var f in data) {
+	html += '  <tr><td><b>'+f+'</b></td><td>';
+	if (f === 'uri') {
+	    html += '<a href="'+data[f]+'">'+data[f]+'</a>';
+	}
+	else {
+	    html += data[f];
+	}
+	html += '</td></tr>';
+    }
+    html += '</table></div></div></div>';
+    return html;
+}
+
+function execKS (url) {
+    console.log('executing '+url);	
+    $.ajax({
+	method: 'PUT',
+	url: url,
+	error: function (xhr, status, err) {
+	    console.log(url+': '+stats+' '+err);
+	},
+	success: function (data, status, xhr) {
+	    console.log(url+' '+data);
+	}
+    });
+}
+
 $(document).ready(function() {
-   $('[data-toggle="tooltip"]').tooltip();	
+    $('[data-toggle="tooltip"]').tooltip();
+    var url = '@controllers.api.routes.BlackboardSystem.getKG(kg.getId)';
+    var wsurl = '@controllers.routes.BlackboardApp.console(kg.getId)';
+    renderKGraph('#kgraph', url+'?view=full', 'ws://localhost:9000'+wsurl);
+    
+    $('#controller-modal').on('show.bs.modal', function () {
+	$.get('@controllers.ks.routes.KnowledgeSource.index', function (data) {
+            $('#panel-ks').empty();
+	    for (var ks in data) {
+		$('#panel-ks').append(kshtml(data[ks]));
+	    }
+	});
+    });
+
+    $('#ks-apply').on('click', function () {
+	var nodes = $('div[id^="panel-n"');
+	$('input:checkbox').each(function() {
+	    var ks = $(this).attr("name");
+	    console.log(ks+': '+$(this).is(':checked')+' nodes='+nodes.length);
+	    if ($(this).is(':checked')) {
+		if (nodes.length == 0) { // do everything
+		}
+		else {
+		    nodes.each(function () {
+			var url = '@controllers.api.routes.BlackboardSystem.runKSNodeSeed(kg.getId,0,"")'+ks;
+			var nid = $(this).attr('id').substring(7); // panel-n###
+			url = url.replace('/0/', '/'+nid+'/');
+			execKS (url);
+		    });
+		}
+	    }
+	});
+	$('#controller-modal').modal('hide');
+    });
 });
 }

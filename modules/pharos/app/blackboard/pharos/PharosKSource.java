@@ -403,12 +403,6 @@ public class PharosKSource implements KSource {
                 
                 KEdge ke = kg.createEdgeIfAbsent
                     (kn, xn, moa != null ? moa.toLowerCase() : "assertion");
-                if (ds != null) {
-                    final String source = ds;
-                    ke.putIfAbsent("source", () -> {
-                            return source;
-                        });
-                }
                 Logger.debug(kn.getId()+":"+kn.getName()
                              + " <-> "+xn.getId()+":"+xn.getName());
             }

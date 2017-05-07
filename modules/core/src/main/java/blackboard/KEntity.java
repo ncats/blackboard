@@ -13,6 +13,9 @@ public interface KEntity {
     public static final String ID_P = "id";
     public static final String SYNONYMS_P = "synonyms";
     public static final String KGRAPH_P = "kgraph";
+
+    @JsonAnyGetter
+    Map<String, Object> getProperties ();
     
     long getId ();
     String getType ();
@@ -21,6 +24,4 @@ public interface KEntity {
     void putAll (Map<String, Object> properties);
     void putIfAbsent (String prop, Supplier supplier);
     Object get (String prop);
-    @JsonAnyGetter
-    Map<String, Object> getProperties ();
 }

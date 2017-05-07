@@ -8,6 +8,7 @@ import java.util.Collection;
  */
 public interface Blackboard extends Iterable<KGraph> {
     KGraph getKGraph (long id);
+    void removeKGraph (long id);
     long getKGraphCount ();
     KGraph createKGraph (Map<String, Object> properties);
 

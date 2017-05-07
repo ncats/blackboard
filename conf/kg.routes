@@ -2,6 +2,7 @@
 GET	/	controllers.api.BlackboardSystem.listKG
 POST	/	controllers.api.BlackboardSystem.createKGraph
 GET	/:id	controllers.api.BlackboardSystem.getKG(id: Long)
+DELETE	/:id	controllers.api.BlackboardSystem.removeKG(id: Long)
 GET	/:id/nodes	controllers.api.BlackboardSystem.getNodesForKG(id: Long)
 GET	/:id/nodes/:nid	controllers.api.BlackboardSystem.getNodeForKG(id: Long, nid: Long)
 PUT	/:id/nodes/:nid/ks.$ks<[a-z0-9]+>	controllers.api.BlackboardSystem.runKSNodeSeed(id: Long, nid: Long, ks: String)

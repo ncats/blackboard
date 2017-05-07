@@ -15,7 +15,8 @@ lazy val commonDependencies = Seq(
   "org.webjars" % "jquery" % "3.2.0",
   "org.webjars" % "datatables" % "1.10.12",
   "org.webjars" % "datatables-plugins" % "1.10.12",
-  "org.webjars" % "datatables-bootstrap" % "2-20120202-2"
+  "org.webjars" % "datatables-bootstrap" % "2-20120202-2",
+  "org.webjars" % "font-awesome" % "4.7.0"
 )
 
 lazy val javaBuildOptions = Seq(

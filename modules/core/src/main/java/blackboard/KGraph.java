@@ -27,5 +27,6 @@ public interface KGraph extends KEntity {
                               Map<String, Object> properties,
                               String key);
     KNode[] findNodes (String property, Object value);
+    void delete ();
     Blackboard blackboard ();
 }

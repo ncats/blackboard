@@ -136,6 +136,13 @@ public class Neo4jBlackboard extends TransactionEventHandler.Adapter
         return kg;
     }
 
+    public void removeKGraph (long id) {
+        KGraph kg = getKGraph (id);
+        if (kg == null)
+            throw new IllegalArgumentException ("Unknown KGraph: "+id);
+        kg.delete();
+    }
+
     public Iterator<KGraph> iterator () {
         try (Transaction tx = graphDb.beginTx()) {
             List<KGraph> kgraphs = graphDb.findNodes(KGRAPH_LABEL)

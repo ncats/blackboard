@@ -111,11 +111,8 @@ public class BlackboardApp extends Controller {
     }
 
     JsonNode toJson (KEvent ev, KEntity ent) {
-        ObjectNode json = Json.newObject();
+        ObjectNode json = (ObjectNode) Json.toJson(ent);
         json.put("oper", ev.getOper().toString());      
-        json.put("id", ent.getId());
-        json.put("type", ent.getType());
-        json.put("name", ent.getName());
         if (ent instanceof KGraph) {
             json.put("kind", "kgraph");
         }
@@ -125,15 +122,13 @@ public class BlackboardApp extends Controller {
         }
         else if (ent instanceof KEdge) {
             json.put("kind", "kedge");
-            json.put("source", ((KEdge)ent).getSource());
-            json.put("target", ((KEdge)ent).getTarget());
             json.put("kgraph", ((KGraph)ev.getSource()).getId());
         }
         return json;
     }
 
     public Result index () {
-        return ok (views.html.index.render());
+        return ok (views.html.blackboard.render());
     }
 
     public LegacyWebSocket<JsonNode> console (final Long id) {

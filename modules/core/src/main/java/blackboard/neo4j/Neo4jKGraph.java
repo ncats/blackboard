@@ -88,6 +88,20 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
         }
     }
 
+    public void delete () {
+        try (Transaction tx = graphDb.beginTx()) {
+            // FIXME: remove indexes associated with properties 
+            graphDb.findNodes(kgLabel).stream().forEach(n -> {
+                    for (Relationship rel : n.getRelationships())
+                        rel.delete();
+                    n.delete();
+                });
+            
+            ((Node)entity).delete();
+            tx.success();
+        }
+    }
+
     public KEdge[] getEdges () {
         try (Transaction tx = graphDb.beginTx()) {
             return _edges()
@@ -145,12 +159,13 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
      * create implicit edges between entities based on synonyms or whatever
      * fields deem appropriate
      */
-    void stitch (Node node, String name, Object value) {
+    void stitch (List<Relationship> edges, Node node,
+                 String name, Object value) {
         if (value.getClass().isArray()) {
             int len = Array.getLength(value);
             for (int i = 0; i < len; ++i) {
                 Object val = Array.get(value, i);
-                stitch (node, name, val);
+                stitch (edges, node, name, val);
             }
         }
         else {
@@ -160,31 +175,57 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
                 Relationship rel = node.createRelationshipTo
                     (n, RelationshipType.withName("resolve"));
                 rel.setProperty("value", value);
+                if (edges != null)
+                    edges.add(rel);
             }
             hits.close();
         }
     }
 
     public KNode createNode (Map<String, Object> properties) {
-        KNode node = null;
+        Neo4jKNode node = null;
+        List<KEdge> edges = null;
         try (Transaction tx = graphDb.beginTx()) {
             Node n = properties.containsKey(TYPE_P)
                 ? graphDb.createNode
                 (kgLabel, Label.label((String)properties.get(TYPE_P)))
                 : graphDb.createNode(kgLabel);
             n.setProperty(KGRAPH_P, entity.getId()); // parent kgraph
-            Object syn = properties.get(SYNONYMS_P);
-            if (syn != null) {
-                stitch (n, SYNONYMS_P, syn);
-            }
             index (nodeIndex, n, properties);       
             node = new Neo4jKNode (n, properties);
+            
+            Object syn = properties.get(SYNONYMS_P);
+            if (syn != null) {
+                List<Relationship> rels = new ArrayList<>();
+                stitch (rels, n, SYNONYMS_P, syn);
+                if (!rels.isEmpty()) {
+                    edges = new ArrayList<>();
+                    for (Relationship rel : rels) {
+                        if (n.equals(rel.getStartNode())) {
+                            KEdge e = new Neo4jKEdge
+                                (rel, node, new Neo4jKNode (rel.getEndNode()));
+                            edges.add(e);
+                        }
+                        else {
+                            KEdge e = new Neo4jKEdge
+                                (rel, new Neo4jKNode (rel.getStartNode()), node);
+                            edges.add(e);
+                        }
+                    }
+                }
+                Logger.debug("node "+n.getId()
+                             +" has "+rels.size()+" stitch(es)!");
+            }
             tx.success();
         }
 
         if (node != null) {
             blackboard.fireEvent
                 (KNode.class, new KEvent<>(this, node, KEvent.Oper.ADD));
+            if (edges != null)
+                for (KEdge e : edges)
+                    blackboard.fireEvent
+                        (KEdge.class, new KEvent<>(this, e, KEvent.Oper.ADD));
         }
 
         return node;
