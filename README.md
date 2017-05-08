@@ -42,7 +42,7 @@ curl -X PUT http://localhost:9000/blackboard/api/kg/1/ks.pharos
 If all goes well, now rerun
 
 ```
-curl http://localhost:9000/blackboard/api
+curl http://localhost:9000/blackboard/api/kg/1
 ```
 
 to see that the knowledge graph has been updated with new nodes contributed by
