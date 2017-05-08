@@ -54,7 +54,7 @@ nodes that are related to the query. Let's extend these nodes further
 by rerunning the knowledge source:
 
 ```
-curl -X PUT http://localhost:9000/blackboard/api/1/ks.pharos
+curl -X PUT http://localhost:9000/blackboard/api/kg/1/ks.pharos
 ```
 
 The knowledge graph should now contains new nodes and edges. To see a
