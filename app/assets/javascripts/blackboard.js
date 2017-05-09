@@ -71,6 +71,7 @@ function renderKGraph (id, url, wsurl) {
 		    
 		case "kedge":
 		    if (data.source != data.target) {
+			delete data.id; // cy needs this to be globally unique
 			var e = cy.add({
 			    group: "edges",
 			    data: data
@@ -105,6 +106,7 @@ function renderKGraph (id, url, wsurl) {
 	for (i = 0; i < len; ++i) {
 	    var e = kdata.edges[i];
 	    if (e.source != e.target) {
+		delete e.id;
 		cy.add({
 		    group: "edges",
 		    data: e

@@ -54,10 +54,12 @@ public class BlackboardApp extends Controller {
     private final Map<Long, ActorRef> consoles = new ConcurrentHashMap<>();
     private final Blackboard blackboard;
     private final KEvents events;
+    private final Configuration config;
 
     @Inject
-    public BlackboardApp (BlackboardSystem bbsys,
+    public BlackboardApp (Configuration config, BlackboardSystem bbsys,
                           ApplicationLifecycle lifecycle) {
+        this.config = config;
         blackboard = bbsys.blackboard;
         events = bbsys.events;
         
@@ -143,7 +145,7 @@ public class BlackboardApp extends Controller {
         try {
             KGraph kg = blackboard.getKGraph(Long.parseLong(id));
             if (kg != null) {
-                return ok (views.html.kgraph.render(kg));
+                return ok (views.html.kgraph.render(this, kg));
             }
         }
         catch (Exception ex) {
@@ -152,5 +154,10 @@ public class BlackboardApp extends Controller {
         
         return ok (views.html.error.render
                    (routes.BlackboardApp.kgraph(id).url(), 404));
+    }
+
+    public String getWebSocketUrl (long kg) {
+        String host = config.getString("play.http.host", "localhost:9000");
+        return (request().secure() ? "wss":"ws")+"://"+host+routes.BlackboardApp.console(kg);
     }
 }

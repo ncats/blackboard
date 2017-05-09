@@ -25,8 +25,7 @@
 	</table>
 	<div class="row pull-right" style="margin-right:10px;">
 	  <p><button type="button" class="btn btn-primary"
-		     data-toggle="modal"
-		     data-target="#new-modal">
+		     data-toggle="modal" data-target="#new-modal">
 	      <span title="Create new query"
 		    data-toggle="tooltip">New</span></button>
 	    <button type="button" class="btn btn-danger" data-toggle="modal"
@@ -50,13 +49,49 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-default"
 		data-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-default"
+        <button type="button" class="btn btn-danger"
 		id="delete-btn">Delete</button>	
       </div>
     </div>
   </div>
 </div>
-
+	
+<div class="modal fade" id="new-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">New Query</h4>
+      </div>
+      <div class="modal-body">
+	<div class="row">
+	  <div class="col-md-12">
+	    <div class="input-group">
+	      <span class="input-group-addon" id="basic-addon1"></span>	      
+	      <input type="text" class="form-control" id="query-title"
+		     placeholder="Enter query title"
+		     aria-describedby="basic-addon1">
+	    </div>
+	    <p>
+	      <div class="input-group">
+		<span class="input-group-addon" id="basic-addon2"></span>
+		<input type="text" class="form-control" id="query-term"
+		       placeholder="Enter query term"
+		       aria-describedby="basic-addon2">
+	    </div>
+	  </div>
+	</div>
+      </div>
+      <div class="modal-footer">
+	<span class="pull-left" id="create-span" style="color:red;"></span>  
+        <button type="button" class="btn btn-default"
+		data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary"
+		id="create-btn">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
 }{
 $(document).ready(function () {
     $('[data-toggle="tooltip"]').tooltip();
@@ -75,6 +110,42 @@ $(document).ready(function () {
 		window.location.reload();
 	    }
 	});
+    });
+
+    $('#create-btn').on('click', function () {
+	var title = $('#query-title').val();
+	var term = $('#query-term').val();
+	if (title === '') {
+	    $('#create-span').html("<em>Title can't be empty!</em>");
+	    setTimeout (function () {
+		$('#create-span').html("");
+	    }, 3000);
+	}
+	else if (term === '') {
+	    $('#create-span').html("<em>Term can't be empty!</em>");
+	    setTimeout (function () {
+		$('#create-span').html("");
+	    }, 3000);
+	}
+	else {
+	    var q = {
+		type: 'query',
+		name: title,
+		term: term
+	    };
+	    $.ajax({
+		url: '@controllers.api.routes.BlackboardSystem.createKGraph',
+		method: 'POST',
+		contentType: 'application/json',
+		data: JSON.stringify(q),
+		success: function (d) {
+		    console.log(d);
+		    window.location.reload();
+		    //$('#new-modal').modal('hide');		    
+		}
+	    });
+	}
+	console.log('title='+title+' term='+term);
     });
     
     var dt = $('#kg-table').on('select.dt', function (e, dt, type, indexes) {

@@ -1,6 +1,7 @@
-@import blackboard.KGraph
+@import _root_.blackboard.KGraph
+@import controllers.BlackboardApp
 
-@(kg: KGraph)
+@(app: BlackboardApp, kg: KGraph)
 
 @main("Knowledge Graph: "+kg.getName){
 <div class="container-fluid">
@@ -20,7 +21,7 @@
   </div>
   <div class="row" style="margin-top:5px;">
     <div class="col-md-8"> <!-- content panel -->
-      <div class="panel panel-primary bbgraph">
+      <div class="panel panel-primary">
 	<div class="panel-body">
 	  <div id="kgraph"></div>
 	</div>
@@ -111,8 +112,8 @@ function execKS (url) {
 $(document).ready(function() {
     $('[data-toggle="tooltip"]').tooltip();
     var url = '@controllers.api.routes.BlackboardSystem.getKG(kg.getId)';
-    var wsurl = '@controllers.routes.BlackboardApp.console(kg.getId)';
-    renderKGraph('#kgraph', url+'?view=full', 'ws://localhost:9000'+wsurl);
+    var wsurl = '@HtmlFormat.raw(app.getWebSocketUrl(kg.getId))';
+    renderKGraph('#kgraph', url+'?view=full', wsurl);
     
     $('#controller-modal').on('show.bs.modal', function () {
 	$.get('@controllers.ks.routes.KnowledgeSource.index', function (data) {

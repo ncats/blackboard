@@ -7,16 +7,16 @@
 }
 
 .bbgraph {
-    height: 650px;
+    height: 100%;
 }
 
 .bbquery {
-    height: 650px;
+    height: 630px;
     overflow-y: auto;
 }
 
 #kgraph {
-  width: 600px;
+  width: 100%;
   height: 600px;
   display: block;
 }

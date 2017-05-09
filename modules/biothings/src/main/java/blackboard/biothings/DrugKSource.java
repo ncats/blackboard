@@ -171,7 +171,8 @@ public class DrugKSource implements KSource {
             props.put("ror", node.get("ror").asDouble());
             props.put("prr", node.get("prr").asDouble());
             props.put("case_count", node.get("case_count").asInt());
-            kg.createEdgeIfAbsent(kn, xn, "assertion", props, null);
+            if (kn.getId() != xn.getId())
+                kg.createEdgeIfAbsent(kn, xn, "assertion", props, null);
         }
     }
 
@@ -215,7 +216,8 @@ public class DrugKSource implements KSource {
             String action = json.get("actions").isArray()
                 ? json.get("actions").get(0).asText()
                 : json.get("actions").asText();
-            KEdge ke = kg.createEdgeIfAbsent(kn, xn, action);
+            if (kn.getId() != xn.getId())
+                kg.createEdgeIfAbsent(kn, xn, action);
         }
     }
 

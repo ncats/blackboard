@@ -191,6 +191,7 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
                 (kgLabel, Label.label((String)properties.get(TYPE_P)))
                 : graphDb.createNode(kgLabel);
             n.setProperty(KGRAPH_P, entity.getId()); // parent kgraph
+            n.setProperty(CREATED_P, System.currentTimeMillis());
             index (nodeIndex, n, properties);       
             node = new Neo4jKNode (n, properties);
             
