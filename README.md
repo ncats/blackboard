@@ -12,7 +12,7 @@ blackboard and an example knowledge source that interacts with it.
 If all goes well, then try the following:
 
 ```
-curl --data-ascii @asthma.json -H 'Content-Type:application/json' http://localhost:9000/blackboard/api
+curl --data-ascii @asthma.json -H 'Content-Type:application/json' http://localhost:9000/blackboard/api/kg
 ```
 
 where ```asthma.json``` is a file containing the following payload:
@@ -28,7 +28,7 @@ where ```asthma.json``` is a file containing the following payload:
 Now try
 
 ```
-curl http://localhost:9000/blackboard/api
+curl http://localhost:9000/blackboard
 ```
 
 There should be a new knowledge graph created with a single query node. To
@@ -36,13 +36,13 @@ update this knowledge graph using the [Pharos](https://pharos.nih.gov)
 knowledge source we can use the following call:
 
 ```
-curl -X PUT http://localhost:9000/blackboard/api/1/ks.pharos
+curl -X PUT http://localhost:9000/blackboard/api/kg/1/ks.pharos
 ```
 
 If all goes well, now rerun
 
 ```
-curl http://localhost:9000/blackboard/api
+curl http://localhost:9000/blackboard/api/kg/1
 ```
 
 to see that the knowledge graph has been updated with new nodes contributed by
@@ -54,7 +54,7 @@ nodes that are related to the query. Let's extend these nodes further
 by rerunning the knowledge source:
 
 ```
-curl -X PUT http://localhost:9000/blackboard/api/1/ks.pharos
+curl -X PUT http://localhost:9000/blackboard/api/kg/1/ks.pharos
 ```
 
 The knowledge graph should now contains new nodes and edges. To see a
