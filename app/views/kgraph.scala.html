@@ -4,20 +4,40 @@
 @(app: BlackboardApp, kg: KGraph)
 
 @main("Knowledge Graph: "+kg.getName){
-<div class="container-fluid">
-  <nav class="navbar navbar-default">
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <!-- Brand and toggle get grouped for better mobile display -->
     <div class="navbar-header">
-      <a class="navbar-brand" href="@controllers.routes.BlackboardApp.index">
-	Home
-      </a>
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="@controllers.routes.BlackboardApp.index">Blackboard</a>
     </div>
-  </nav>
-  
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav">
+        <li><a href="https://spotlite.nih.gov/ncats/blackboard">Code</a>
+	</li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container-fluid">  
   <div class="page-header">
     <h1>@kg.getName <span class="pull-right">
 	<button type="button" class="btn btn-primary" id="btn-ks"
 		data-target="#controller-modal" data-toggle="modal">
-	  Knowledge Source <i class="fa fa-sitemap"></i></a></span></h1>
+	  Knowledge Source <i class="fa fa-sitemap"></i></button></span></h1>
+    <p>This is currently the state of the knowledge graph for the query
+      <code>@kg.getName</code>. As you explore the knowledge graph
+      interactively, you can select nodes as knowledge seeds to further
+      expand on the knowledge graph. To do this, simply click on any node
+      in the graph; detailed information on each selected node is displayed
+      in the right panel. Next, select one or more
+      <a href="#"  data-target="#controller-modal"
+	 data-toggle="modal">knowledge sources</a> to expand on.
   </div>
   <div class="row" style="margin-top:5px;">
     <div class="col-md-8"> <!-- content panel -->

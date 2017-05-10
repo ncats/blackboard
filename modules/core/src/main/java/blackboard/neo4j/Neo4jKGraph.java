@@ -172,11 +172,13 @@ public class Neo4jKGraph extends Neo4jKEntity implements KGraph {
             IndexHits<Node> hits = nodeIndex.get(SYNONYMS_P, value);
             while (hits.hasNext()) {
                 Node n = hits.next();
-                Relationship rel = node.createRelationshipTo
-                    (n, RelationshipType.withName("resolve"));
-                rel.setProperty("value", value);
-                if (edges != null)
-                    edges.add(rel);
+                if (!n.equals(node)) {
+                    Relationship rel = node.createRelationshipTo
+                        (n, RelationshipType.withName("resolve"));
+                    rel.setProperty("value", value);
+                    if (edges != null)
+                        edges.add(rel);
+                }
             }
             hits.close();
         }

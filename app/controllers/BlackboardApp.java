@@ -157,7 +157,7 @@ public class BlackboardApp extends Controller {
     }
 
     public String getWebSocketUrl (long kg) {
-        String host = config.getString("play.http.host", "localhost:9000");
-        return (request().secure() ? "wss":"ws")+"://"+host+routes.BlackboardApp.console(kg);
+        String wshost = config.getString("play.http.ws", "ws://localhost:9000");
+        return wshost+routes.BlackboardApp.console(kg);
     }
 }
