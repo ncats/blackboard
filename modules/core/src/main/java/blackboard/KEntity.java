@@ -18,6 +18,7 @@ public interface KEntity {
     Map<String, Object> getProperties ();
     
     long getId ();
+    long getCreated ();
     String getType ();
     String getName ();
     void put (String prop, Object value);

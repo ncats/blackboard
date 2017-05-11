@@ -3,7 +3,8 @@ A Simple Blackboard Architecture
 
 This repository contains a simple, REST-based blackboard architecture
 implementation. This implementation provides some basic plumbing for a
-blackboard and an example knowledge source that interacts with it. 
+blackboard and example knowledge sources that interact with it. A running
+instance of this code is available at [https://translator.ncats.io/blackboard](https://translator.ncats.io/blackboard).
 
 ```
 ./activator run

@@ -4,11 +4,11 @@
   <div class="jumbotron">
     <h1>A simple blackboard</h1>
     <p>This is a simple application created to illustrate basic
-      concepts of a blackboard architecture for
+      concepts of a <a href="https://en.wikipedia.org/wiki/Blackboard_system">blackboard architecture</a> for
       <a href="https://ncats.nih.gov/translator">translator</a>.
       To begin, click on <a href="#" data-toggle="modal"
 			    data-target="#new-modal">New</a> to
-      create a new query or select an existing knowledge graph in
+      create a new query or explore an existing knowledge graph in
       the table below.
   </div>
   <div class="row">
@@ -18,7 +18,9 @@
 	  <thead>
 	    <tr>
 	      <th></th>
+	      <th></th>
 	      <th>Id</th>
+	      <th>Created</th>
 	      <th>Name</th>
 	      <th>Node</th>
 	      <th>Edge</th>
@@ -175,7 +177,17 @@ $(document).ready(function () {
 	    data: null,
 	    defaultContent: ''
 	},{
-	    targets: 2,
+	    visible: false,
+	    targets: 1,
+	    data: 'created'
+	},{
+	    targets: 3,
+	    render: function (data,type,full,meta) {
+		var d = new Date(data);
+		return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();
+	    }
+	},{
+	    targets: 4,
 	    render: function (data, type, full, meta) {
 		var url = '@controllers.routes.BlackboardApp.kgraph("")'+full.id;
 		return '<a href="'+url+'">'+data+'</a>';
@@ -183,7 +195,9 @@ $(document).ready(function () {
 	}],
 	columns: [
 	    null,
+	    { visible: false },
 	    { data: 'id' },
+	    { data: 'created'},
 	    { data: 'name' },
 	    { data: 'nodeCount' },
 	    { data: 'edgeCount'}

@@ -108,6 +108,22 @@ public class PharosKSource implements KSource {
                      kn, kg, this::resolveLinks);
             resolve (uri+"/links(kind=ix.idg.models.Disease)", null,
                      kn, kg, this::resolveLinks);
+            // extract the id from the uri
+            int pos = uri.lastIndexOf("/targets(");
+            if (pos > 0) {
+                String s = uri.substring(pos+9);
+                s = s.substring(0, s.indexOf(')'));
+                try {
+                    long id = Long.parseLong(s);
+                    resolveTargetPPI (id, kn, kg);
+                }
+                catch (NumberFormatException ex) {
+                    Logger.debug("Bogus target id: "+s);
+                }
+            }
+            else {
+                Logger.debug("Not a recognized uri: "+uri);
+            }
         }
         else if (kn.getName() != null) {
             Map<String, String> query = new HashMap<>();
@@ -161,7 +177,7 @@ public class PharosKSource implements KSource {
                 req = req.setQueryParameter(me.getKey(), me.getValue());
             }
         }
-        //Logger.debug("+++ resolving..."+req.getUrl());
+        Logger.debug("+++ resolving..."+req.getUrl());
         
         try {   
             WSResponse res = req.get().toCompletableFuture().get();
@@ -173,8 +189,8 @@ public class PharosKSource implements KSource {
         }
     }
     
-    void resolve (String entity, JsonNode json, KNode kn, KGraph kg,
-                  BiConsumer<JsonNode, Map<String, Object>> consumer) {
+    void instrument (String entity, JsonNode json, KNode kn, KGraph kg,
+                     BiConsumer<JsonNode, Map<String, Object>> consumer) {
         String uri = null;
         if (json.hasNonNull("uri"))
             uri = json.get("uri").asText();
@@ -202,9 +218,12 @@ public class PharosKSource implements KSource {
     }
 
     void resolveTargets (JsonNode json, KNode kn, KGraph kg) {
-        resolve ("targets", json, kn, kg, (jn, props) -> {
+        instrument ("targets", json, kn, kg, (jn, props) -> {
                 props.put(TYPE_P, "protein");       
                 props.put("family", jn.get("idgFamily").asText());
+                props.put("tdl", jn.get("idgTDL").asText());
+                if (jn.hasNonNull("description"))
+                    props.put("description", jn.get("description").asText());
                 String[] syns = retrieveSynonyms
                     ((String)props.get(URI_P), "(label=UniProt*)");
                 if (syns.length > 0)
@@ -212,8 +231,33 @@ public class PharosKSource implements KSource {
             });
     }
 
+    void resolveTargetPPI (long id, KNode kn, KGraph kg) {
+        // grab protein-protein interaction
+        WSRequest req = wsclient.url(ksp.getUri()+"/predicates")
+            .setQueryParameter
+            ("filter",
+             "predicate='Protein-Protein Interactions' AND subject.refid="+id);
+        Logger.debug("Resolving PPI for target "+id+"...");
+        try {
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode content = res.asJson().get("content");
+            for (int i = 0; i < content.size(); ++i) {
+                JsonNode ppi = content.get(i);
+                if (ppi.hasNonNull("objects")) {
+                    JsonNode objs = ppi.get("objects");
+                    Logger.debug("PPI: target="+id+" "+objs.size());
+                    for (int j = 0; j < Math.min(10, objs.size()); ++j)
+                        resolveTargetLink (objs.get(j), "ppi", kn, kg);
+                }
+            }
+        }
+        catch (Exception ex) {
+            Logger.error("Can't resolve PPI for "+id, ex);
+        }
+    }   
+
     void resolveLigands (JsonNode json, KNode kn, KGraph kg) {
-        resolve ("ligands", json, kn, kg, (jn, props) -> {
+        instrument ("ligands", json, kn, kg, (jn, props) -> {
                 props.put(TYPE_P, "drug");
                 String[] syns = retrieveSynonyms
                     ((String)props.get(URI_P), null);
@@ -223,7 +267,7 @@ public class PharosKSource implements KSource {
     }
 
     void resolveDiseases (JsonNode json, KNode kn, KGraph kg) {
-        resolve ("diseases", json, kn, kg, (jn, props) -> {
+        instrument ("diseases", json, kn, kg, (jn, props) -> {
                 props.put(TYPE_P, "disease");
                 String[] syns = retrieveSynonyms
                     ((String)props.get(URI_P), null);
@@ -233,39 +277,43 @@ public class PharosKSource implements KSource {
     }
 
     void resolveLinks (JsonNode json, KNode kn, KGraph kg) {
+        resolveLinks (json, null, kn, kg);
+    }
+    
+    void resolveLinks (JsonNode json, String type, KNode kn, KGraph kg) {
         if (json.isArray()) {
             for (int i = 0; i < json.size(); ++i) {
-                resolveLinks (json.get(i), kn, kg); // recurse.. 
+                resolveLinks (json.get(i), type, kn, kg); // recurse.. 
             }
         }
         else if (json.hasNonNull("kind")) {
             String kind = json.get("kind").asText();
             switch (kind) {
             case "ix.idg.models.Ligand":
-                resolveLigandLink (json, kn, kg);
+                resolveLigandLink (json, type, kn, kg);
                 break;
                 
             case "ix.idg.models.Target":
-                resolveTargetLink (json, kn, kg);
+                resolveTargetLink (json, type, kn, kg);
                 break;
                 
             case "ix.idg.models.Disease":
-                resolveDiseaseLink (json, kn, kg);
+                resolveDiseaseLink (json, type, kn, kg);
                 break;
             }
         }
     }
 
-    void resolveLigandLink (JsonNode node, KNode kn, KGraph kg) {
+    void resolveLigandLink (JsonNode node, String type, KNode kn, KGraph kg) {
         long id = node.get("refid").asLong();
         JsonNode pn = node.get("properties");
         
-        String name = null, moa = null, href = null;
+        String name = null, href = null;
         for (int j = 0; j < pn.size(); ++j) {
             JsonNode n = pn.get(j);
             // we only care if this ligand has a known pharmalogical action
             if ("Pharmalogical Action".equals(n.get("label").asText())) {
-                moa = n.get("term").asText();
+                type = n.get("term").asText(); // ignore whatever type is
                 if (n.hasNonNull("href"))
                     href = n.get("href").asText();
             }
@@ -276,7 +324,7 @@ public class PharosKSource implements KSource {
 
         // disease -> ligand can have empty properties, so we just
         // make
-        if (moa != null || pn.size() == 0) {
+        if (type != null || pn.size() == 0) {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "drug");
             String uri = ksp.getUri()+"/ligands("+id+")";
@@ -301,8 +349,8 @@ public class PharosKSource implements KSource {
                     props.clear();
                     props.put("href", href);
                 }
-                kg.createEdgeIfAbsent(xn, kn, moa != null
-                                      ? moa.toLowerCase() : "assertion",
+                kg.createEdgeIfAbsent(xn, kn, type != null
+                                      ? type.toLowerCase() : "assertion",
                                       props, null);
                 Logger.debug(xn.getId()+":"+xn.getName()
                              + " <-> "+kn.getId()+":"+kn.getName());
@@ -310,7 +358,7 @@ public class PharosKSource implements KSource {
         }
     }
 
-    void resolveDiseaseLink (JsonNode node, KNode kn, KGraph kg) {
+    void resolveDiseaseLink (JsonNode node, String type, KNode kn, KGraph kg) {
         long id = node.get("refid").asLong();
         JsonNode pn = node.get("properties");
 
@@ -336,7 +384,7 @@ public class PharosKSource implements KSource {
             }
         }
 
-        if (ds != null) {
+        if (type != null || ds != null) {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "disease");
             String uri = ksp.getUri()+"/diseases("+id+")";
@@ -350,7 +398,8 @@ public class PharosKSource implements KSource {
                         return retrieveSynonyms (uri, null);                    
                     });
                 
-                KEdge ke = kg.createEdgeIfAbsent(kn, xn, ds);
+                KEdge ke = kg.createEdgeIfAbsent
+                    (kn, xn, type != null ? type : ds);
                 Logger.debug(kn.getId()+":"+kn.getName()
                              + " <-> "+xn.getId()+":"+xn.getName());
             }
@@ -358,15 +407,20 @@ public class PharosKSource implements KSource {
     }
 
     void resolveTargetLink (JsonNode node, KNode kn, KGraph kg) {
+        resolveTargetLink (node, null, kn, kg);
+    }
+
+    void resolveTargetLink (JsonNode node, String type, KNode kn, KGraph kg) {
         long id = node.get("refid").asLong();
         JsonNode pn = node.get("properties");
 
-        String moa = null, name = null, ds = null, tdl = null; 
+        String name = null, ds = null, tdl = null; 
         for (int i = 0; i < pn.size(); ++i) {
             JsonNode n = pn.get(i);
             switch (n.get("label").asText()) {
             case "Pharmalogical Action":
-                moa = n.get("term").asText();
+                if (n.hasNonNull("term"))
+                    type = n.get("term").asText();
                 break;
                 
             // unfortunately this isn't a target name.. sigh
@@ -384,8 +438,8 @@ public class PharosKSource implements KSource {
                 break;
             }
         }
-
-        if (moa != null || tdl != null) {
+        //Logger.debug("link "+node.get("id").asText()+": type="+type+" tdl="+tdl);
+        if (type != null || tdl != null) {
             Map<String, Object> props = new TreeMap<>();
             props.put(TYPE_P, "protein");
             String uri = ksp.getUri()+"/targets("+id+")";
@@ -394,15 +448,26 @@ public class PharosKSource implements KSource {
             KNode xn = kg.createNodeIfAbsent(props, URI_P);
             if (xn.getId() != kn.getId()) {
                 xn.addTag("KS:"+ksp.getId());
+                /*
                 xn.putIfAbsent(NAME_P, () -> {
                         return retrieveJsonValue (uri+"/$name");
+                    });
+                */
+                resolve (uri, null, xn, kg, (json, n, g) -> {
+                        n.put(NAME_P, json.get("name").asText());
+                        n.put("family", json.get("idgFamily").asText());
+                        n.put("tdl", json.get("idgTDL").asText());
+                        if (json.hasNonNull("description"))
+                            n.put("description",
+                                  json.get("description").asText());
                     });
                 xn.putIfAbsent(SYNONYMS_P, () -> {
                         return retrieveSynonyms (uri, null);
                     });
                 
+                
                 KEdge ke = kg.createEdgeIfAbsent
-                    (kn, xn, moa != null ? moa.toLowerCase() : "assertion");
+                    (kn, xn, type != null ? type.toLowerCase() : "assertion");
                 Logger.debug(kn.getId()+":"+kn.getName()
                              + " <-> "+xn.getId()+":"+xn.getName());
             }

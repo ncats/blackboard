@@ -89,13 +89,13 @@ public class Neo4jBlackboard extends TransactionEventHandler.Adapter
         long created;
         try (Transaction tx = graphDb.beginTx()) {
             Node meta = graphDb.getNodeById(0l);
-            created = (Long)meta.getProperty("created", 0l);
+            created = (Long)meta.getProperty(CREATED_P, 0l);
         }
         catch (NotFoundException ex) {
             created = System.currentTimeMillis();
             try (Transaction tx = graphDb.beginTx()) {
                 Node meta = graphDb.createNode(Label.label("Blackboard"));
-                meta.setProperty("created", created);
+                meta.setProperty(CREATED_P, created);
                 tx.success();
             }
         }
@@ -179,6 +179,7 @@ public class Neo4jBlackboard extends TransactionEventHandler.Adapter
                                Map<String, Object> properties) {
         Node node = graphDb.createNode(label);
         node.setProperty(TYPE_P, type);
+        node.setProperty(CREATED_P, System.currentTimeMillis());
         if (properties.containsKey(NAME_P))
             node.setProperty(NAME_P, properties.get(NAME_P));
         return node;
