@@ -34,8 +34,8 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
-  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed)
-  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed)
+  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,chembl)
+  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,chembl)
 
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
@@ -97,3 +97,10 @@ lazy val pubmed = (project in file("modules/pubmed"))
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)
 
+lazy val chembl = (project in file("modules/chembl"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "blackboard-chembl",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+  ).dependsOn(core).aggregate(core)
