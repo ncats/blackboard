@@ -11,12 +11,14 @@ import javax.inject.Named;
 
 import akka.actor.ActorSystem;
 import play.Logger;
+import play.libs.Json;
 import play.libs.ws.*;
 import play.inject.ApplicationLifecycle;
 import play.libs.F;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static blackboard.KEntity.*;
 
@@ -71,7 +73,9 @@ public class ChemblKSource implements KSource{
                     aliasMap.keySet().forEach(key->{
                         if(key.toString().startsWith("CHEMBL"))
                         {
-                            seedTarget((String)aliasMap.get(key),kn,kgraph);
+                            seedDrug("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
+                            seedTarget("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
+                            seedMechanism("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
                         }
                     });
 
@@ -84,6 +88,71 @@ public class ChemblKSource implements KSource{
             else
             {
                 System.out.println("url is null");
+                if(kn.get("synonyms")!=null)
+                {
+                    String synonyms = kn.get("synonyms").toString();
+                    if(synonyms.startsWith("CHEMBL"))
+                    {
+                        seedDrug(synonyms,kn,kgraph);
+                        seedTarget(synonyms,kn,kgraph);
+                        seedMechanism(synonyms,kn,kgraph);
+                    }
+                }
+            }
+        }
+    }
+    protected void seedMechanism(String id,KNode kn,KGraph kg)
+    {
+        String url = ksp.getUri()+"/data/mechanism.json";
+        try
+        {
+            Map<String,String>q=new HashMap<>();
+            q.put("molecule_chembl_id",id);
+            resolve(url,q,kn,kg,this::resolveMechanism);
+        }
+        catch(Exception ex)
+        {
+            Logger.debug(ex.getMessage());
+        }
+    }
+    protected void resolveMechanism(JsonNode json,KNode kn, KGraph kg)
+    {
+        if (json.isArray()) {
+            for (int i = 0; i < json.size(); ++i)
+                resolveMechanism(json.get(i), kn, kg);
+        }
+        else {
+            Map<String, Object> props = new TreeMap<>();
+            JsonNode mechanisms = json.get("mechanisms");
+            if(mechanisms.isArray())
+            {
+                for(int i=0;i<mechanisms.size();++i)
+                {
+                    JsonNode currentMechanism = mechanisms.get(i);
+                    String moa = currentMechanism.get("mechanism_of_action").toString();
+                    String targetId=currentMechanism.get("target_chembl_id").toString();
+                    String targetName = moa.substring(0,moa.lastIndexOf(" "));
+                    String action = currentMechanism.get("action_type").toString();
+                    if(!kn.hasTag("mechanism"))
+                    {
+                        kn.put("mechanism",unquote(moa));
+
+                    }
+                    else
+                    {
+                        String mech = kn.get("mechanism").toString();
+                        kn.put("mechanism",mech+","+unquote(moa));
+                    }
+                    System.out.println("moa "+moa);
+                    props.put(TYPE_P,"protein");
+                    props.put(NAME_P,unquote(targetName));
+                    props.put(SYNONYMS_P,unquote(targetId));
+                    KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                    if (xn.getId() != kn.getId()) {
+                        xn.addTag("KS:"+ksp.getId());
+                        kg.createEdgeIfAbsent(kn, xn, unquote(action));
+                    }
+                }
             }
         }
     }
@@ -118,7 +187,7 @@ public class ChemblKSource implements KSource{
         String url = ksp.getUri()+"/data/target";
         try {
             Map<String, String> q = new HashMap<>();
-            q.put("molecule_chembl_id","CHEMBL"+id);
+            q.put("molecule_chembl_id",id);
             q.put("format","json");
             resolve(url,q,kn,kg,this::resolveTarget);
         }
@@ -126,6 +195,89 @@ public class ChemblKSource implements KSource{
             Logger.error("Can't resolve url: "+url, ex);
         }
     }
+    void resolveDrug(JsonNode json, KNode kn, KGraph kg)
+    {
+        if (json.isArray()) {
+            for (int i = 0; i < json.size(); ++i)
+                resolveDrug(json.get(i), kn, kg);
+        }
+        else {
+            Map<String, Object> props = new TreeMap<>();
+            JsonNode forms = json.get("forms");
+            if(forms.isArray())
+            {
+                for(int i = 0; i< forms.size();++i)
+                {
+                    JsonNode currentDrug = forms.get(i);
+                    String chemblId = currentDrug.get("chemblId").toString();
+                    String url = ksp.getUri()+"/data/molecule.json";
+                    WSRequest req = wsclient.url(url).setFollowRedirects(true);
+                    req.setQueryParameter("molecule_chembl_id",chemblId.replace("\"",""));
+                    System.out.println(req.getUrl());
+                    try{
+                        WSResponse res = req.get().toCompletableFuture().get();
+                        JsonNode molNode = res.asJson();
+                        JsonNode drugsNode = molNode.get("molecules");
+                        if(drugsNode.isArray())
+                        {
+                            for(int j=0;j<drugsNode.size();j++)
+                            {
+                                JsonNode currentNode = drugsNode.get(j);
+                                if(!currentNode.get("pref_name").toString().equals("null")){
+                                    props.put(NAME_P,unquote(currentNode.get("pref_name").toString()));
+                                    props.put(TYPE_P,"drug");
+                                    props.put(SYNONYMS_P,unquote(chemblId));
+                                    props.put(URI_P,"https://www.ebi.ac.uk/chembl/compound/inspect/"+chemblId);
+                                    KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                                    if (xn.getId() != kn.getId()) {
+                                        xn.addTag("KS:"+ksp.getId());
+                                        kg.createEdgeIfAbsent(kn, xn, "is equivalent to");
+                                    }
+                                }
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+    public String prettyPrint (JsonNode json)
+    {
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> i = json.fieldNames();
+        while(i.hasNext())
+        {
+            String next = i.next();
+            sb.append(next);
+            sb.append(": ");
+            sb.append(json.get(next));
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+    public String unquote (String s)
+    {
+        return s.replace("\"","");
+    }
+    protected void seedDrug(String id, KNode kn, KGraph kg)
+    {
+        Logger.debug("seedDrug");
+        String url = "https://www.ebi.ac.uk/chemblws/compounds/"+id+"/form.json";
+        System.out.println("URL "+url);
+        try{
+            Map<String, String> q = new HashMap<>();
+            resolve(url,q,kn,kg,this::resolveDrug);
+        }
+        catch(Exception ex)
+        {
+            Logger.error("can't resolve url: "+url,ex);
+        }
+    }
+
     void resolve (String url, Map<String, String> params,
                   KNode kn, KGraph kg, Resolver resolver) {
         WSRequest req = wsclient.url(url).setFollowRedirects(true);
@@ -162,17 +314,20 @@ public class ChemblKSource implements KSource{
                 for (int i = 0; i < targets.size(); ++i)
                 {
                     JsonNode currentTarget = targets.get(i);
+                    String chemblId = currentTarget.get("target_chembl_id").toString();
                     props.put(TYPE_P,"protein");
                     props.put(NAME_P,currentTarget.get("pref_name").asText());
+                    props.put(URI_P,"https://www.ebi.ac.uk/chembl/target/inspect/"+unquote(chemblId));
                     KNode xn = kg.createNodeIfAbsent(props, URI_P);
                     if (xn.getId() != kn.getId()) {
                         xn.addTag("KS:"+ksp.getId());
-                        kg.createEdgeIfAbsent(kn, xn, "resolve");
+                        kg.createEdgeIfAbsent(kn, xn, "targets");
                     }
                 }
             }
 
         }
     }
+
 }
 

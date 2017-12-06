@@ -73,7 +73,13 @@ public class PharosKSource implements KSource {
                 
             case "drug":
                 seedLigand (kn, kgraph);
-                break;          
+                break;
+            default:
+                if(kn.get("name")!=null)
+                {
+                    seedQuery(kn.get("name").toString(),kn,kgraph);
+                }
+                break;
             }
         }
     }
