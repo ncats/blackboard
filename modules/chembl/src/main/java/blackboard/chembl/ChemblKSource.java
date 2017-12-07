@@ -17,6 +17,7 @@ import play.inject.ApplicationLifecycle;
 import play.libs.F;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -62,7 +63,7 @@ public class ChemblKSource implements KSource{
 
         for (KNode kn : nodes) {
             String url = (String)kn.get("uri");
-            if(url!=null)
+            if(url!=null && url.startsWith("https://kba.ncats.io"))
             {
                 WSRequest req = wsclient.url(url)
                         .setFollowRedirects(true);
@@ -87,17 +88,34 @@ public class ChemblKSource implements KSource{
             }
             else
             {
-                System.out.println("url is null");
-                if(kn.get("synonyms")!=null)
-                {
-                    String synonyms = kn.get("synonyms").toString();
-                    if(synonyms.startsWith("CHEMBL"))
+                if(kn.get("synonyms")!=null) {
+                    if(kn.get("synonyms") instanceof Array)
                     {
-                        seedDrug(synonyms,kn,kgraph);
-                        seedTarget(synonyms,kn,kgraph);
-                        seedMechanism(synonyms,kn,kgraph);
+                        String[] synonyms = (String[]) kn.get("synonyms");
+                        for(int i = 0;i<synonyms.length;++i)
+                        {
+                            String synonym = synonyms[i];
+                            if(synonym.startsWith("CHEMBL"))
+                            {
+                                seedDrug(synonym,kn,kgraph);
+                                seedTarget(synonym,kn,kgraph);
+                                seedMechanism(synonym,kn,kgraph);
+                            }
+                        }
                     }
+                    if(kn.get("synonyms")!=null)
+                    {
+                        String synonyms = kn.get("synonyms").toString();
+                        if(synonyms.startsWith("CHEMBL"))
+                        {
+                            seedDrug(synonyms,kn,kgraph);
+                            seedTarget(synonyms,kn,kgraph);
+                            seedMechanism(synonyms,kn,kgraph);
+                        }
+                    }
+
                 }
+
             }
         }
     }
@@ -143,7 +161,6 @@ public class ChemblKSource implements KSource{
                         String mech = kn.get("mechanism").toString();
                         kn.put("mechanism",mech+","+unquote(moa));
                     }
-                    System.out.println("moa "+moa);
                     props.put(TYPE_P,"protein");
                     props.put(NAME_P,unquote(targetName));
                     props.put(SYNONYMS_P,unquote(targetId));
@@ -209,7 +226,7 @@ public class ChemblKSource implements KSource{
                 for(int i = 0; i< forms.size();++i)
                 {
                     JsonNode currentDrug = forms.get(i);
-                    String chemblId = currentDrug.get("chemblId").toString();
+                    String chemblId = unquote(currentDrug.get("chemblId").toString());
                     String url = ksp.getUri()+"/data/molecule.json";
                     WSRequest req = wsclient.url(url).setFollowRedirects(true);
                     req.setQueryParameter("molecule_chembl_id",chemblId.replace("\"",""));

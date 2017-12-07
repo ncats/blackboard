@@ -430,6 +430,7 @@ public class PubMedKSource implements KSource {
         }
         return categories;
     }
+    @Inject
     public PubMedKSource (WSClient wsclient,
                           @Named("pubmed") KSourceProvider ksp,
                           ApplicationLifecycle lifecycle) {
@@ -441,8 +442,8 @@ public class PubMedKSource implements KSource {
                 return F.Promise.pure(null);
             });
         this.meshMap=createMeshMap();
-        //Logger.debug("$"+ksp.getId()+": "+ksp.getName()
-        //             +" initialized; provider is "+ksp.getImplClass());
+        Logger.debug("$"+ksp.getId()+": "+ksp.getName()
+                     +" initialized; provider is "+ksp.getImplClass());
     }
     public HashMap<Character,String> createMeshMap()
     {
@@ -454,14 +455,15 @@ public class PubMedKSource implements KSource {
         return meshMap;
     }
     public void execute (KGraph kgraph, KNode... nodes) {
-//        Logger.debug("$"+ksp.getId()
-//                     +": executing on KGraph "+kgraph.getId()
-//                     +" \""+kgraph.getName()+"\"");
+        Logger.debug("$"+ksp.getId()
+                     +": executing on KGraph "+kgraph.getId()
+                     +" \""+kgraph.getName()+"\"");
         try {
             for (KNode n : nodes) {
                 switch (n.getType()) {
                 case "query":
-                    seedQuery (kgraph, n);
+                    //seedQuery (kgraph, n);
+                    //No-oping this for now, until reasonable performance can be achieved
                     break;
                     
                 case "disease":
@@ -474,8 +476,8 @@ public class PubMedKSource implements KSource {
             }
         }
         catch (Exception ex) {
-//            Logger.error("Can't execute knowledge source on kgraph "
-//                         +kgraph.getId(), ex);
+            Logger.error("Can't execute knowledge source on kgraph "
+                         +kgraph.getId(), ex);
         }
     }
 
@@ -505,7 +507,7 @@ public class PubMedKSource implements KSource {
                     }
                 }
             }
-//            Logger.debug(count+" result(s) found!");
+            Logger.debug(count+" result(s) found!");
         }
     }
 
