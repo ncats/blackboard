@@ -62,62 +62,71 @@ public class ChemblKSource implements KSource{
             nodes = kgraph.getNodes();
 
         for (KNode kn : nodes) {
-            String url = (String)kn.get("uri");
-            if(url!=null && url.startsWith("https://kba.ncats.io"))
+            HashSet<String> ids = getChemblIds(kn);
+            if(!ids.isEmpty())
             {
-                WSRequest req = wsclient.url(url)
-                        .setFollowRedirects(true);
-                try {
-                    WSResponse res = req.get().toCompletableFuture().get();
-                    JsonNode json = res.asJson();
-                    Map aliasMap = getAliasMap(json);
-                    aliasMap.keySet().forEach(key->{
-                        if(key.toString().startsWith("CHEMBL"))
-                        {
-                            seedDrug("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
-                            seedTarget("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
-                            seedMechanism("CHEMBL"+(String)aliasMap.get(key),kn,kgraph);
-                        }
-                    });
-
-
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't resolve url: "+url, ex);
-                }
+                ids.forEach(id->{
+                    seedDrug(id,kn,kgraph);
+                    seedTarget(id,kn,kgraph);
+                    seedMechanism(id,kn,kgraph);
+                });
             }
             else
             {
-                if(kn.get("synonyms")!=null) {
-                    if(kn.get("synonyms") instanceof Array)
-                    {
-                        String[] synonyms = (String[]) kn.get("synonyms");
-                        for(int i = 0;i<synonyms.length;++i)
-                        {
-                            String synonym = synonyms[i];
-                            if(synonym.startsWith("CHEMBL"))
-                            {
-                                seedDrug(synonym,kn,kgraph);
-                                seedTarget(synonym,kn,kgraph);
-                                seedMechanism(synonym,kn,kgraph);
-                            }
-                        }
-                    }
-                    if(kn.get("synonyms")!=null)
-                    {
-                        String synonyms = kn.get("synonyms").toString();
-                        if(synonyms.startsWith("CHEMBL"))
-                        {
-                            seedDrug(synonyms,kn,kgraph);
-                            seedTarget(synonyms,kn,kgraph);
-                            seedMechanism(synonyms,kn,kgraph);
-                        }
-                    }
-
+                if(kn.get(NAME_P)!=null)
+                {
+                    seedQuery(kn.get(NAME_P).toString(),kn,kgraph);
                 }
-
             }
         }
+    }
+
+    protected HashSet<String> getChemblIds(KNode kn)
+    {
+        String url = (String)kn.get(URI_P);
+        Object syn = kn.get(SYNONYMS_P);
+        HashSet<String> chemblIds = new HashSet<String>();
+        if(url!=null && url.startsWith("https://kba.ncats.io"))
+        {
+            WSRequest req = wsclient.url(url)
+                    .setFollowRedirects(true);
+            try {
+                WSResponse res = req.get().toCompletableFuture().get();
+                JsonNode json = res.asJson();
+                Map aliasMap = getAliasMap(json);
+                Iterator<String> iter = aliasMap.keySet().iterator();
+                while (iter.hasNext()) {
+                    String current = iter.next();
+                    if (current.startsWith("CHEMBL")) {
+                       chemblIds.add(current+aliasMap.get(current));
+                    }
+                }
+            } catch (Exception ex)
+            {
+                Logger.error(ex.toString());
+            }
+        }
+        if(syn!=null)
+        {
+            String synonym = syn.toString();
+            if(synonym.contains(","))
+            {
+               String[] synonyms = synonym.split(",");
+                for (int i = 0; i < synonyms.length; ++i)
+                {
+                    String currentSynonym = synonyms[i];
+                    if (currentSynonym.startsWith("CHEMBL"))
+                    {
+                        chemblIds.add(currentSynonym);
+                    }
+                }
+            }
+            else if(synonym.startsWith("CHEMBL"))
+            {
+                chemblIds.add(synonym);
+            }
+        }
+        return chemblIds;
     }
     protected void seedMechanism(String id,KNode kn,KGraph kg)
     {
@@ -199,8 +208,69 @@ public class ChemblKSource implements KSource{
        }
        return aliasMap;
     }
+    protected void seedQuery(String name, KNode kn, KGraph kg)
+    {
+        Logger.debug("seedQuery");
+        String url = ksp.getUri()+"/data/molecule/search.json";
+        try{
+            Map<String, String> q = new HashMap<>();
+            q.put("q",name.toLowerCase());
+            resolve(url,q,kn,kg,this::resolveQuery);
+        }
+        catch(Exception ex)
+        {
+            Logger.error("Can't resolve url: "+url, ex);
+        }
+    }
+    protected void resolveQuery(JsonNode json, KNode kn, KGraph kg)
+    {
+        Logger.debug("resolveQuery");
+        JsonNode molecules = json.get("molecules");
+        Map<String, Object> props = new TreeMap<>();
+        ArrayList<String> synonyms = new ArrayList();
+        Json.prettyPrint(json);
+        Logger.debug("molecules size:"+molecules.size());
+        for(int i = 0;i<molecules.size();++i)
+        {
+            JsonNode molecule = molecules.get(i);
+            String name;
+            String chemblId = molecule.get("molecule_chembl_id").asText();
+            if(!molecule.get("pref_name").asText().equals("null"))
+            {
+                name = molecule.get("pref_name").asText();
+                System.out.println(molecule.get("pref_name"));
+            }
+            else
+            {
+                name = chemblId;
+            }
+            Logger.debug("name="+name);
+            props.put(NAME_P,name);
+            props.put(URI_P,"https://www.ebi.ac.uk/chembl/compound/inspect/"+chemblId);
+            synonyms.add(chemblId);
+            JsonNode molSyn = molecule.get("molecule_synonyms");
+            if(molSyn!=null)
+            {
+                for(int j=0;j<molSyn.size();j++)
+                {
+                    JsonNode currentSyn = molSyn.get(j);
+                    String stringSyn = currentSyn.get("molecule_synonym").asText();
+                    if(stringSyn!=null && !stringSyn.isEmpty())
+                    {
+                        synonyms.add(stringSyn);
+                    }
+                }
+            }
+            props.put(SYNONYMS_P,String.join(",",synonyms));
+            props.put(TYPE_P,"drug");
+            KNode xn = kg.createNodeIfAbsent(props, URI_P);
+            if (xn.getId() != kn.getId()) {
+                xn.addTag("KS:"+ksp.getId());
+                kg.createEdgeIfAbsent(kn, xn, "is equivalent to");
+            }
+        }
+    }
     protected void seedTarget(String id, KNode kn, KGraph kg) {
-        Logger.debug("seedTarget");
         String url = ksp.getUri()+"/data/target";
         try {
             Map<String, String> q = new HashMap<>();
@@ -305,10 +375,10 @@ public class ChemblKSource implements KSource{
                 Logger.debug(me.getKey()+", "+me.getValue());
             }
         }
-        Logger.debug("+++ resolving..."+req.getUrl());
 
         try {
             WSResponse res = req.get().toCompletableFuture().get();
+            Logger.debug("+++ resolving..."+res.getUri());
             JsonNode json = res.asJson();
             resolver.resolve(json, kn, kg);
         }

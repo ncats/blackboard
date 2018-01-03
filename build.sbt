@@ -94,6 +94,7 @@ lazy val pubmed = (project in file("modules/pubmed"))
   .settings(
   name := "blackboard-pubmed",
     libraryDependencies ++= commonDependencies,
+    libraryDependencies +=   "org.json" % "json" % "20090211",
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)
 

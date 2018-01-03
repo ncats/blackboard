@@ -90,6 +90,7 @@ public class PharosKSource implements KSource {
             Map<String, String> q = new HashMap<>();
             q.put("q", "\""+term+"\"");
             q.put("facet","IDG Development Level/Tclin");
+            q.put("top", "20");
             
             resolve (ksp.getUri()+"/targets/search",
                      q, kn, kg, this::resolveTargets);
@@ -109,10 +110,12 @@ public class PharosKSource implements KSource {
         Logger.debug(">>> seedTarget \""+kn.getName()+"\"");
         String uri = (String) kn.get(URI_P);
         if (uri != null && uri.startsWith(ksp.getUri())) {
+            Map<String, String> params = new HashMap<>();
+            params.put("top", "20");
             // argh.. should update the pharos api to allow list for filter
-            resolve (uri+"/links(kind=ix.idg.models.Ligand)", null,
+            resolve (uri+"/links(kind=ix.idg.models.Ligand)", params,
                      kn, kg, this::resolveLinks);
-            resolve (uri+"/links(kind=ix.idg.models.Disease)", null,
+            resolve (uri+"/links(kind=ix.idg.models.Disease)", params,
                      kn, kg, this::resolveLinks);
             // extract the id from the uri
             int pos = uri.lastIndexOf("/targets(");
@@ -134,6 +137,7 @@ public class PharosKSource implements KSource {
         else if (kn.getName() != null) {
             Map<String, String> query = new HashMap<>();
             query.put("filter", "name='"+kn.getName()+"'");
+            query.put("top", "20");
             resolve (ksp.getUri()+"/targets", query, 
                      kn, kg, this::resolveTargets);
         }
@@ -143,14 +147,17 @@ public class PharosKSource implements KSource {
         Logger.debug(">>> seedLigand \""+kn.getName()+"\"");
         String uri = (String) kn.get(URI_P);
         if (uri != null && uri.startsWith(ksp.getUri())) {
-            resolve (uri+"/links(kind=ix.idg.models.Target)", null,
+            Map<String, String> params = new HashMap<>();
+            params.put("top", "20");
+            resolve (uri+"/links(kind=ix.idg.models.Target)", params,
                      kn, kg, this::resolveLinks);
-            resolve (uri+"/links(kind=ix.idg.models.Disease)", null,
+            resolve (uri+"/links(kind=ix.idg.models.Disease)", params,
                      kn, kg, this::resolveLinks);
         }
         else if (kn.getName() != null) {
             Map<String, String> query = new HashMap<>();
             query.put("filter", "name='"+kn.getName()+"'");
+            query.put("top", "20");
             resolve (ksp.getUri()+"/ligands", query,
                      kn, kg, this::resolveLigands);
         }
@@ -159,15 +166,21 @@ public class PharosKSource implements KSource {
     void seedDisease (KNode kn, KGraph kg) {
         Logger.debug(">>> seedDisease \""+kn.getName()+"\"");
         String uri = (String) kn.get(URI_P);
-        if (uri != null && uri.startsWith(ksp.getUri())) {      
-            resolve (uri+"/links(kind=ix.idg.models.Target)", null,
+        if (uri != null && uri.startsWith(ksp.getUri())) {
+            Map<String, String> params = new HashMap<>();
+            params.put("top", "10"); // return 20 max
+            resolve (uri+"/links(kind=ix.idg.models.Target)", params,
                      kn, kg, this::resolveLinks);
-            resolve (uri+"/links(kind=ix.idg.models.Ligand)", null,
+            resolve (uri+"/links(kind=ix.idg.models.Ligand)", params,
                      kn, kg, this::resolveLinks);
+            params.put("top","999999");
+            resolve (uri+"/links(kind=ix.idg.models.Target)", params,
+                    kn, kg, this::resolveLinks);
         }
         else if (kn.getName() != null) {
             Map<String, String> query = new HashMap<>();
             query.put("filter", "name='"+kn.getName()+"'");
+            query.put("top","20");
             resolve (ksp.getUri()+"/diseases", query,
                      kn, kg, this::resolveDiseases);
         }
@@ -187,6 +200,7 @@ public class PharosKSource implements KSource {
         
         try {   
             WSResponse res = req.get().toCompletableFuture().get();
+            Logger.debug("+++ url: "+res.getUri());
             JsonNode json = res.asJson();
             resolver.resolve(json, kn, kg);
         }
@@ -512,5 +526,56 @@ public class PharosKSource implements KSource {
             Logger.error("Can't get Json value for "+url, ex);
         }
         return null;
+    }
+    HashSet<String> retrieveDiseaseIds(String term)
+    {
+        HashSet<String> diseaseIds = new HashSet<>();
+        WSRequest req = wsclient.url(ksp.getUri()+"/diseases/search");
+            req.setQueryParameter("q",term);
+        try
+        {
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode diseaseNode = res.asJson();
+            JsonNode diseaseContent = diseaseNode.get("content");
+            if(diseaseContent.isArray())
+            {
+                for(int i=0;i<diseaseContent.size();i++)
+                {
+                    JsonNode currentContent = diseaseContent.get(i);
+                    diseaseIds.add(currentContent.get("id").asText());
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            Logger.error(ex.getStackTrace().toString());
+        }
+        return diseaseIds;
+    }
+    HashSet<String>retrieveDiseaseTargets(HashSet<String> diseaseIds)
+    {
+        HashSet<String> diseaseTargets = new HashSet<>();
+        diseaseIds.forEach(disease->{
+            WSRequest req = wsclient.url(ksp.getUri()+"/diseases("+disease+")/links");
+            try
+            {
+                WSResponse res = req.get().toCompletableFuture().get();
+                JsonNode links = res.asJson();
+                for(int i = 0;i<links.size();i++)
+                {
+                    JsonNode currentLink = links.get(i);
+                    if(currentLink.get("kind").asText().equals("ix.idg.models.Target"))
+                    {
+                        diseaseTargets.add(currentLink.get("refid").asText());
+                    }
+                }
+
+            }
+            catch(Exception ex)
+            {
+                Logger.error(ex.getStackTrace().toString());
+            }
+        });
+        return diseaseTargets;
     }
 }

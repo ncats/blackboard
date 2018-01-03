@@ -1,28 +1,35 @@
 package blackboard.pubmed;
 
 import java.io.*;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
 //import com.sun.xml.internal.bind.v2.TODO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeCreator;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.joda.time.DateTime;
+import org.json.JSONObject;
+import org.json.JSONWriter;
 import play.Logger;
-import play.Configuration;
-import play.libs.ws.*;
 import play.libs.Json;
+import play.libs.ws.*;
 import play.inject.ApplicationLifecycle;
 import play.libs.F;
 import akka.actor.ActorSystem;
+import org.json.XML;
+
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -40,6 +47,7 @@ import javax.xml.xpath.XPathFactory;
 
 import blackboard.*;
 import play.libs.ws.ahc.AhcWSClient;
+import play.mvc.BodyParser;
 
 import static blackboard.KEntity.*;
 
@@ -64,6 +72,12 @@ public class PubMedKSource implements KSource {
             "A11.251.210"/*cell lines*/,"I03"/*exercise*/,"G07.690.773.875", "G07.690.936.500",/*Drug Dose Relationship*/
             "G02.111.570", "G02.466"/*Molecular Structure*/, "G07.690.936.563" /*Area Under Curve*/,"A18","A19","A13"/*Plants and animals*/));
 
+
+    interface Resolver {
+        void resolve (JsonNode json, KNode kn, KGraph kg);
+    }
+    interface XMLReadables{
+    }
     static Map<String, Set<String>> MESHCATS;
     static ActorSystem system = ActorSystem.create("WSClient");
 
@@ -81,7 +95,6 @@ public class PubMedKSource implements KSource {
         return new AhcWSClient(config, materializer);
     }
 
-    @Inject
     public static void main(String[] args) throws Exception
     {
 //        getReferencedPapers(4423606);
@@ -459,20 +472,22 @@ public class PubMedKSource implements KSource {
                      +": executing on KGraph "+kgraph.getId()
                      +" \""+kgraph.getName()+"\"");
         try {
-            for (KNode n : nodes) {
-                switch (n.getType()) {
-                case "query":
-                    //seedQuery (kgraph, n);
-                    //No-oping this for now, until reasonable performance can be achieved
-                    break;
-                    
-                case "disease":
-                    break;
-                case "drug":
-                    break;
-                case "protein":
-                    break;
-                }
+            for (KNode kn : nodes) {
+                seedGeneric(kn,kgraph);
+//                switch (kn.getType()) {
+//                case "query":
+//                    //seedQuery (kgraph, n);
+//                    //No-oping this for now, until reasonable performance can be achieved
+//                    seedGeneric(kn,kgraph);
+//                    break;
+//
+//                case "disease":
+//                    break;
+//                case "drug":
+//                    break;
+//                case "protein":
+//                    break;
+//                }
             }
         }
         catch (Exception ex) {
@@ -480,7 +495,313 @@ public class PubMedKSource implements KSource {
                          +kgraph.getId(), ex);
         }
     }
+    protected void seedGeneric (KNode kn, KGraph kg)
+    {
+        String term;
+        if(kn.get("term")!=null) {
+            term = kn.get("term").toString();
+        }
+        else {
+            term = kn.get("name").toString();
+        }
+            String url = ksp.getUri() + "/esearch.fcgi";
+            try {
+                Map<String, String> q = new HashMap<>();
+                q.put("db", "pubmed");
+                q.put("retmax", "50");
+                q.put("retmode", "json");
+                q.put("sort","relevance");
+                q.put("term", term);
+                resolve(ksp.getUri() + "/esearch.fcgi", q, kn, kg, this::resolveGeneric);
+            } catch (Exception ex) {
+                Logger.error("Can't resolve url: " + url, ex);
+            }
+    }
+    protected void resolveGeneric(JsonNode json, KNode kn, KGraph kg)
+    {
+        JsonNode esearchresult = json.get("esearchresult");
+        JsonNode idList = esearchresult.get("idlist");
+        seedDrug(idList,kn,kg);
+        seedGene(idList,kn,kg);
+        //resolveMesh(idList,kn,kg);
+    }
+    protected void resolveMesh(JsonNode idList, KNode kn, KGraph kg)
+    {
+        Map<String, Object> props = new TreeMap<>();
+//        for(int i =0;i<idList.size();i++)
+        //currently limiting to 10, otherwise it gets large quickly
+        for(int i=0;i<10;i++)
+        {
+            WSClient client = createWSClient ();
+            WSRequest req = client.url("https://www.ncbi.nlm.nih.gov/pubmed/"+idList.get(i).asText())
+                    .setFollowRedirects(true)
+                    .setQueryParameter("report", "xml")
+                    .setQueryParameter("format", "text");
+            try {
 
+                WSResponse res = req.get().toCompletableFuture().get();
+                System.out.println(res.getUri());
+                if (200 != res.getStatus()) {
+                    Logger.warn(res.getUri() + " returns status " + res.getStatus());
+                    return;
+                }
+                ObjectMapper mapper = new ObjectMapper();
+                String XMLString =res.getBody().replaceAll("<!DOCTYPE[^>]*>\n", "");
+                XMLString=XMLString.replaceAll("&lt;","<")
+                        .replaceAll("&gt;",">")
+                        .replace("<pre>","")
+                        .replace("</pre>","");
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = factory.newDocumentBuilder();
+                InputSource is = new InputSource(new StringReader(XMLString));
+                Document doc = builder.parse(is);
+                NodeList nodes = doc.getElementsByTagName("MeshHeading");
+                if(nodes.getLength()>0)
+                {
+                    for(int j = 0; j < nodes.getLength(); j++)
+                    {
+                        //add if-has element
+                        Element element = (Element) nodes.item(j);
+                        NodeList headings = element.getElementsByTagName("DescriptorName");
+                        for(int k = 0; k<headings.getLength(); k++)
+                        {
+                            Element heading = (Element) headings.item(k);
+                            String meshId = heading.getAttribute("UI");
+                            String topic = heading.getTextContent();
+                            props.put(NAME_P,topic);
+                            props.put(TYPE_P,"UNKNOWN");
+                            props.put(URI_P,"https://www.ncbi.nlm.nih.gov/mesh/?term="+meshId);
+                            KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                            if (xn.getId() != kn.getId()) {
+                                xn.addTag("KS:"+ksp.getId());
+                                kg.createEdgeIfAbsent(kn, xn, "resolve");
+                            }
+                        }
+                    }
+                }
+
+            }
+            catch(Exception ex)
+            {
+                ex.printStackTrace();
+            }
+            try {
+                client.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    protected void seedDrug(JsonNode idList, KNode kn, KGraph kg)
+    {
+        Map<String, String> params = new HashMap<>();
+        params.put("dbfrom","pubmed");
+        params.put("db","pccompound");
+        params.put("retmode","json");
+        String url = ksp.getUri()+"/elink.fcgi";
+        if(idList.isArray())
+        {
+            for(int i=0;i<idList.size();++i)
+            {
+                JsonNode currentId = idList.get(i);
+                params.put("id",currentId.asText());
+                resolve(url,params,kn,kg,this::resolveDrug);
+
+            }
+        }
+    }
+    protected void resolveDrug(JsonNode json, KNode kn, KGraph kg)
+    {
+        Optional<JsonNode> links = resolveELink(json, kn, kg, "pubmed_pccompound_mesh");
+        if(links.isPresent())
+        {
+            seedPubChem(links.get(),kn,kg);
+        }
+
+    }
+    //This is currently working under the assumption that while it is an array, LinkSets is only
+    //ever of size one.
+    protected Optional<JsonNode> resolveELink(JsonNode json, KNode kn, KGraph kg, String linkName) {
+        JsonNode linkSets = json.get("linksets");
+        if(linkSets.size()>1)
+        {
+            Logger.error("Unexpected result in resolveELink");
+        }
+        if (linkSets.isArray()) {
+            for (int i = 0; i < linkSets.size(); ++i) {
+                if (linkSets.get(i).has("linksetdbs")) {
+                    JsonNode linkSetDbs = linkSets.get(i).get("linksetdbs");
+                    if (linkSetDbs.isArray()) {
+                        for (int j = 0; j < linkSetDbs.size(); ++j) {
+                            JsonNode currentNode = linkSetDbs.get(i);
+                            if (currentNode.get("linkname").asText().equals(linkName)) {
+                                JsonNode links = currentNode.get("links");
+                                return Optional.of(links);
+                            }
+                        }
+                    } else {
+                        JsonNode links = linkSetDbs.get("links");
+                        return Optional.of(links);
+                    }
+                }
+            }
+
+        }
+        return Optional.empty();
+    }
+    protected void seedPubChem(JsonNode json, KNode kn, KGraph kg)
+    {
+        Map<String,String> params = new HashMap<>();
+        params.put("db","pccompound");
+        params.put("retmode","json");
+        String url = ksp.getUri()+"/esummary.fcgi";
+        if(json.isArray())
+        {
+            for(int i = 0; i<json.size();i++)
+            {
+                params.put("id",json.get(i).asText());
+                resolve(url,params,kn,kg,this::resolvePubChem);
+            }
+        }
+    }
+    protected void resolvePubChem(JsonNode json, KNode kn, KGraph kg)
+    {
+        JsonNode results = json.get("result");
+        JsonNode uids = results.get("uids");
+        Map<String,Object> props = new HashMap<>();
+        if(uids.isArray())
+        {
+            for(int i = 0;i<uids.size();i++)
+            {
+                JsonNode result = results.get(uids.get(i).asText());
+                System.out.println(result.get("synonymlist").get(0).asText());
+                props.put(NAME_P,result.get("synonymlist").get(0).asText());
+                props.put(TYPE_P,"drug");
+                props.put(URI_P,"https://pubchem.ncbi.nlm.nih.gov/compound/"+uids.get(i).asText());
+                KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                if (xn.getId() != kn.getId()) {
+                    xn.addTag("KS:" + ksp.getId());
+                    kg.createEdgeIfAbsent(kn, xn, "resolve");
+                }
+            }
+        }
+
+    }
+    protected void seedGene(JsonNode idList, KNode kn, KGraph kg)
+    {
+        String url = ksp.getUri()+"/elink.fcgi";
+        Map<String,String> params = new HashMap<>();
+        params.put("dbfrom","pubmed");
+        params.put("db","gene");
+        params.put("retmode","json");
+        if(idList.isArray())
+        {
+            for(int i=0;i<idList.size();++i)
+            {
+                JsonNode currentId = idList.get(i);
+                params.put("id",currentId.asText());
+                resolve(url,params,kn,kg,this::resolveGeneList);
+            }
+        }
+
+    }
+    protected void resolveGeneList(JsonNode json, KNode kn, KGraph kg)
+    {
+        Optional<JsonNode> links = resolveELink(json, kn, kg, "pubmed_gene");
+        if(links.isPresent())
+        {
+            JsonNode linkNode = links.get();
+            String url = "https://www.ncbi.nlm.nih.gov/gene/";
+            Map<String,String> params = new HashMap<>();
+            params.put("report","xml");
+            params.put("format","text");
+            System.out.println("LINKSIZE: "+linkNode.size());
+            for(int i =0;i<linkNode.size();i++)
+            {
+                params.put("term",linkNode.get(i).asText());
+                resolveXml(url,params,kn,kg,this::resolveGene);
+            }
+
+        }
+    }
+    protected void resolveGene(JsonNode json, KNode kn, KGraph kg)
+    {
+        String geneId =
+                json.get("Entrezgene")
+                .get("Entrezgene_track-info")
+                .get("Gene-track")
+                .get("Gene-track_geneid")
+                .asText();
+        String geneName = json.get("Entrezgene")
+                .get("Entrezgene_gene")
+                .get("Gene-ref")
+                .get("Gene-ref_locus")
+                .asText();
+        Map<String,Object> props = new HashMap<>();
+        props.put(NAME_P,geneName);
+        props.put(TYPE_P,"gene");
+        props.put(URI_P,"https://www.ncbi.nlm.nih.gov/gene/"+geneId);
+        KNode xn = kg.createNodeIfAbsent(props, URI_P);
+        if (xn.getId() != kn.getId()) {
+            xn.addTag("KS:" + ksp.getId());
+            kg.createEdgeIfAbsent(kn, xn, "resolve");
+        }
+
+    }
+    void resolve (String url, Map<String, String> params,
+                  KNode kn, KGraph kg, Resolver resolver) {
+        WSRequest req = wsclient.url(url).setFollowRedirects(true);
+        if (params != null) {
+            for (Map.Entry<String, String> me : params.entrySet()) {
+                Logger.debug(".."+me.getKey()+": "+me.getValue());
+                req = req.setQueryParameter(me.getKey(), me.getValue());
+                Logger.debug(me.getKey()+", "+me.getValue());
+            }
+        }
+        Logger.debug("+++ resolving..."+req.getUrl());
+
+        try {
+            System.out.println(req.get().toCompletableFuture().get().getUri());
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode json = res.asJson();
+            resolver.resolve(json, kn, kg);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't resolve url: "+url, ex);
+        }
+    }
+
+    //This method is a travesty
+    void resolveXml (String url, Map<String, String> params,
+                  KNode kn, KGraph kg, Resolver resolver) {
+        WSRequest req = wsclient.url(url).setFollowRedirects(true);
+        if (params != null) {
+            for (Map.Entry<String, String> me : params.entrySet()) {
+                Logger.debug(".."+me.getKey()+": "+me.getValue());
+                req = req.setQueryParameter(me.getKey(), me.getValue());
+                Logger.debug(me.getKey()+", "+me.getValue());
+            }
+        }
+        Logger.debug("+++ resolving..."+req.getUrl());
+
+        try {
+            System.out.println(req.get().toCompletableFuture().get().getUri());
+            WSResponse res = req.get().toCompletableFuture().get();
+            ObjectMapper mapper = new ObjectMapper();
+            String XMLString =res.getBody().replaceAll("<!DOCTYPE[^>]*>\n", "");
+            XMLString=XMLString.replaceAll("&lt;","<")
+                    .replaceAll("&gt;",">")
+                    .replace("<pre>","")
+                    .replace("</pre>","");
+
+            JSONObject jsonObject = XML.toJSONObject(XMLString);
+            JsonNode json = mapper.readValue(jsonObject.toString(), JsonNode.class);
+            resolver.resolve(json, kn, kg);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't resolve url: "+url, ex);
+        }
+    }
     protected void seedQuery (KGraph kgraph, KNode node) throws Exception {
         WSRequest req = wsclient.url(ksp.getUri()+"/esearch.fcgi")
             .setFollowRedirects(true)
@@ -656,6 +977,20 @@ public class PubMedKSource implements KSource {
                 System.out.println(cat);
             });
         });
+    }
+    public String prettyPrint (JsonNode json)
+    {
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> i = json.fieldNames();
+        while(i.hasNext())
+        {
+            String next = i.next();
+            sb.append(next);
+            sb.append(": ");
+            sb.append(json.get(next));
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
 }
