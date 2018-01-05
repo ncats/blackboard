@@ -530,7 +530,6 @@ public class PubMedKSource implements KSource {
             q.put("db", "pubmed");
             q.put("retmax", "50");
             q.put("retmode", "json");
-            q.put("sort","relevance");
             q.put("term", term);
             resolve(ksp.getUri() + "/esearch.fcgi",
                     q, kn, kg, this::resolveGeneric);
