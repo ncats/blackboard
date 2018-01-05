@@ -25,7 +25,7 @@ function nodehtml (nid, n) {
 	'   <table class="table table-condensed">';
     for (var f in n.data()) {
 	html += '   <tr><td><b>'+f+'</b></td><td>';
-	if (f === 'uri') {
+	if (f === 'uri' || f === 'xref') {
 	    html += '<a href="'+n.data(f)+'">'+n.data(f)+'</a>';
 	}
 	else {

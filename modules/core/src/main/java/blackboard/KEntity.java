@@ -13,6 +13,7 @@ public interface KEntity {
     public static final String ID_P = "id";
     public static final String SYNONYMS_P = "synonyms";
     public static final String KGRAPH_P = "kgraph";
+    public static final String XREF_P = "xref";
 
     @JsonAnyGetter
     Map<String, Object> getProperties ();

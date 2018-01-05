@@ -27,6 +27,7 @@ import play.libs.Json;
 import play.libs.ws.*;
 import play.inject.ApplicationLifecycle;
 import play.libs.F;
+import play.cache.*;
 import akka.actor.ActorSystem;
 import org.json.XML;
 
@@ -54,6 +55,11 @@ import static blackboard.KEntity.*;
 public class PubMedKSource implements KSource {
     private final WSClient wsclient;
     private final KSourceProvider ksp;
+    private final CacheApi cache;
+    
+    private final String EUTILS_BASE;
+    private final String MESH_BASE;
+    
     private final HashMap<Character,String>meshMap;
 
     private static final Set<String> MOLECULE = new HashSet<>(Arrays.asList(
@@ -443,12 +449,25 @@ public class PubMedKSource implements KSource {
         }
         return categories;
     }
+    
     @Inject
-    public PubMedKSource (WSClient wsclient,
+    public PubMedKSource (WSClient wsclient, CacheApi cache,
                           @Named("pubmed") KSourceProvider ksp,
                           ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
+        this.cache = cache;
+
+        Map<String, String> props = ksp.getProperties();
+        EUTILS_BASE = props.get("uri");
+        MESH_BASE = props.get("mesh");
+
+        if (EUTILS_BASE == null)
+            throw new IllegalArgumentException
+                (ksp.getId()+" doesn't have \"uri\" property defined!");
+        if (MESH_BASE == null)
+            throw new IllegalArgumentException
+                (ksp.getId()+" doesn't have \"mesh\" property defined!");
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -458,8 +477,8 @@ public class PubMedKSource implements KSource {
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());
     }
-    public HashMap<Character,String> createMeshMap()
-    {
+    
+    public HashMap<Character,String> createMeshMap() {
         HashMap<Character,String> meshMap = new HashMap<Character, String>();
         meshMap.put('C',"Diseases");
         meshMap.put('D',"Chemicals and Drugs");
@@ -467,6 +486,7 @@ public class PubMedKSource implements KSource {
         meshMap.put('E',"Analytical, Diagnostic and Therapeutic Techniques, and Equipment");
         return meshMap;
     }
+    
     public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()
@@ -495,8 +515,8 @@ public class PubMedKSource implements KSource {
                          +kgraph.getId(), ex);
         }
     }
-    protected void seedGeneric (KNode kn, KGraph kg)
-    {
+
+    protected void seedGeneric (KNode kn, KGraph kg) {
         String term;
         if(kn.get("term")!=null) {
             term = kn.get("term").toString();
@@ -504,94 +524,170 @@ public class PubMedKSource implements KSource {
         else {
             term = kn.get("name").toString();
         }
-            String url = ksp.getUri() + "/esearch.fcgi";
-            try {
-                Map<String, String> q = new HashMap<>();
-                q.put("db", "pubmed");
-                q.put("retmax", "50");
-                q.put("retmode", "json");
-                q.put("sort","relevance");
-                q.put("term", term);
-                resolve(ksp.getUri() + "/esearch.fcgi", q, kn, kg, this::resolveGeneric);
-            } catch (Exception ex) {
-                Logger.error("Can't resolve url: " + url, ex);
-            }
+        String url = ksp.getUri() + "/esearch.fcgi";
+        try {
+            Map<String, String> q = new HashMap<>();
+            q.put("db", "pubmed");
+            q.put("retmax", "50");
+            q.put("retmode", "json");
+            q.put("sort","relevance");
+            q.put("term", term);
+            resolve(ksp.getUri() + "/esearch.fcgi",
+                    q, kn, kg, this::resolveGeneric);
+        } catch (Exception ex) {
+            Logger.error("Can't resolve url: " + url, ex);
+        }
     }
-    protected void resolveGeneric(JsonNode json, KNode kn, KGraph kg)
-    {
+    
+    protected void resolveGeneric (JsonNode json, KNode kn, KGraph kg) {
         JsonNode esearchresult = json.get("esearchresult");
         JsonNode idList = esearchresult.get("idlist");
-        seedDrug(idList,kn,kg);
-        seedGene(idList,kn,kg);
-        //resolveMesh(idList,kn,kg);
+        //seedDrug (idList,kn,kg);
+        //seedGene (idList,kn,kg);
+        resolveMesh (idList,kn,kg);
     }
-    protected void resolveMesh(JsonNode idList, KNode kn, KGraph kg)
-    {
+    
+    protected void resolveMesh(JsonNode idList, KNode kn, KGraph kg) {
         Map<String, Object> props = new TreeMap<>();
-//        for(int i =0;i<idList.size();i++)
-        //currently limiting to 10, otherwise it gets large quickly
-        for(int i=0;i<10;i++)
-        {
-            WSClient client = createWSClient ();
-            WSRequest req = client.url("https://www.ncbi.nlm.nih.gov/pubmed/"+idList.get(i).asText())
-                    .setFollowRedirects(true)
-                    .setQueryParameter("report", "xml")
-                    .setQueryParameter("format", "text");
-            try {
+        // FIXME: put this in config like uri & mesh
+        for(int i = 0; i < 10; ++i) {
+            resolveMesh (idList.get(i).asText(), kn, kg);
+        }
+    }
 
-                WSResponse res = req.get().toCompletableFuture().get();
-                System.out.println(res.getUri());
-                if (200 != res.getStatus()) {
-                    Logger.warn(res.getUri() + " returns status " + res.getStatus());
-                    return;
-                }
-                ObjectMapper mapper = new ObjectMapper();
-                String XMLString =res.getBody().replaceAll("<!DOCTYPE[^>]*>\n", "");
-                XMLString=XMLString.replaceAll("&lt;","<")
-                        .replaceAll("&gt;",">")
-                        .replace("<pre>","")
-                        .replace("</pre>","");
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder builder = factory.newDocumentBuilder();
-                InputSource is = new InputSource(new StringReader(XMLString));
-                Document doc = builder.parse(is);
-                NodeList nodes = doc.getElementsByTagName("MeshHeading");
-                if(nodes.getLength()>0)
-                {
-                    for(int j = 0; j < nodes.getLength(); j++)
-                    {
-                        //add if-has element
-                        Element element = (Element) nodes.item(j);
-                        NodeList headings = element.getElementsByTagName("DescriptorName");
-                        for(int k = 0; k<headings.getLength(); k++)
-                        {
-                            Element heading = (Element) headings.item(k);
-                            String meshId = heading.getAttribute("UI");
-                            String topic = heading.getTextContent();
-                            props.put(NAME_P,topic);
-                            props.put(TYPE_P,"UNKNOWN");
-                            props.put(URI_P,"https://www.ncbi.nlm.nih.gov/mesh/?term="+meshId);
-                            KNode xn = kg.createNodeIfAbsent(props, URI_P);
-                            if (xn.getId() != kn.getId()) {
-                                xn.addTag("KS:"+ksp.getId());
-                                kg.createEdgeIfAbsent(kn, xn, "resolve");
-                            }
+    public static Document fromInputSource (InputSource source)
+        throws Exception {
+        DocumentBuilderFactory factory =
+            DocumentBuilderFactory.newInstance();
+        factory.setFeature
+            ("http://apache.org/xml/features/disallow-doctype-decl", false);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        
+        return builder.parse(source);
+    }
+    
+    void resolveMesh (String pmid, KNode kn, KGraph kg) {
+        WSRequest req = wsclient.url(EUTILS_BASE+"/efetch.fcgi")
+            .setFollowRedirects(true)
+            .setQueryParameter("db", "pubmed")
+            .setQueryParameter("rettype", "xml")
+            .setQueryParameter("id", pmid)
+            ;
+        Logger.debug("+++ resolving..."+req.getUrl());
+        
+        try {
+            WSResponse res = req.get().toCompletableFuture().get();
+            Logger.debug("+++ parsing..."+res.getUri());
+            
+            if (200 != res.getStatus()) {
+                Logger.warn(res.getUri() + " returns status "
+                            + res.getStatus());
+                return;
+            }
+                
+            Document doc = fromInputSource
+                (new InputSource (new ByteArrayInputStream
+                                  (res.asByteArray())));
+            
+            NodeList nodes = doc.getElementsByTagName("MeshHeading");
+            if (nodes.getLength() > 0) {
+                for(int j = 0; j < nodes.getLength(); j++) {
+                    //add if-has element
+                    Element element = (Element) nodes.item(j);
+                    NodeList headings =
+                        element.getElementsByTagName("DescriptorName");
+                    for(int k = 0; k<headings.getLength(); k++) {
+                        Element heading = (Element) headings.item(k);
+                        final String meshId = heading.getAttribute("UI");
+                        Set<String> treeNums = cache.getOrElse
+                            (meshId, new Callable<Set<String>> () {
+                                    public Set<String> call ()
+                                        throws Exception {
+                                        return getTreeNumbers (meshId);
+                                    }
+                                });
+                        
+                        String topic = heading.getTextContent();
+                        Map<String, Object> props = new TreeMap<>();
+                        props.put(NAME_P, topic);
+                        props.put(TYPE_P, "MeSH");
+                        props.put(XREF_P,
+                                  "https://ncbi.nlm.nih.gov/pubmed/"+pmid);
+                        props.put(URI_P, MESH_BASE+"/"+meshId);
+                        KNode xn = kg.createNodeIfAbsent(props, URI_P);
+                        if (xn.getId() != kn.getId()) {
+                            xn.addTag("KS:"+ksp.getId());
+                            kg.createEdgeIfAbsent(kn, xn, meshId);
                         }
                     }
                 }
-
-            }
-            catch(Exception ex)
-            {
-                ex.printStackTrace();
-            }
-            try {
-                client.close();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
+        catch(Exception ex) {
+            ex.printStackTrace();
+            Logger.error("Can't resolve MeSH for "+pmid, ex);
+        }
     }
+
+    Set<String> getTreeNumbers (String ui) throws Exception {
+        return getTreeNumbers (ui, null);
+    }
+    
+    Set<String> getTreeNumbers (String ui, Set<String> treeNums)
+        throws Exception {
+        if (treeNums == null)
+            treeNums = new TreeSet<>();
+        
+        // https://hhs.github.io/meshrdf/sample-queries
+        WSRequest req = wsclient.url("https://id.nlm.nih.gov/mesh/sparql")
+            .setFollowRedirects(true)
+            .setQueryParameter
+            ("query",
+             "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"+
+             "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"+
+             "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n"+
+             "PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"+
+             "PREFIX meshv: <http://id.nlm.nih.gov/mesh/vocab#>\n"+
+             "PREFIX mesh: <http://id.nlm.nih.gov/mesh/>\n"+
+             "PREFIX mesh2015: <http://id.nlm.nih.gov/mesh/2015/>\n"+
+             "PREFIX mesh2016: <http://id.nlm.nih.gov/mesh/2016/>\n"+
+             "PREFIX mesh2017: <http://id.nlm.nih.gov/mesh/2017/>\n"+
+             "SELECT *\n"+
+             "FROM <http://id.nlm.nih.gov/mesh>\n"+
+             "WHERE {\n"+
+             "  mesh:"+ui+" meshv:treeNumber ?treeNum .\n"+
+             "}\n"+
+             "ORDER BY ?label")
+            .setQueryParameter("format", "json")
+            .setQueryParameter("limit", "50")
+            ;
+        Logger.debug(" ++ checking tree number: "+ui);
+
+        WSResponse res = req.get().toCompletableFuture().get();
+        if (200 != res.getStatus()) {
+            Logger.warn(res.getUri() + " returns status "
+                        + res.getStatus());
+        }
+        else {
+            JsonNode json = res.asJson().get("results").get("bindings");
+            for (int i = 0; i < json.size(); ++i) {
+                String url = json.get(i).get("treeNum").get("value").asText();
+                int pos = url.lastIndexOf('/');
+                if (pos > 0) {
+                    String treeNum = url.substring(pos+1);
+                    Logger.debug(" => "+treeNum);
+                    treeNums.add(treeNum);
+                }
+                else {
+                    Logger.warn("Bogus treeNum: "+url);
+                }
+            }
+        }
+        
+        return treeNums;
+    }
+    
+    
     protected void seedDrug(JsonNode idList, KNode kn, KGraph kg)
     {
         Map<String, String> params = new HashMap<>();

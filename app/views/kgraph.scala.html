@@ -19,7 +19,7 @@
     <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
       <ul class="nav navbar-nav">
         <li><a href="https://spotlite.nih.gov/ncats/blackboard">Code</a>
-	</li>
+        </li>
       </ul>
     </div>
   </div>
@@ -27,9 +27,9 @@
 <div class="container-fluid">  
   <div class="page-header">
     <h1>@kg.getName <span class="pull-right">
-	<button type="button" class="btn btn-primary" id="btn-ks"
-		data-target="#controller-modal" data-toggle="modal">
-	  Knowledge Source <i class="fa fa-sitemap"></i></button></span></h1>
+        <button type="button" class="btn btn-primary" id="btn-ks"
+                data-target="#controller-modal" data-toggle="modal">
+          Knowledge Source <i class="fa fa-sitemap"></i></button></span></h1>
     <p>This is currently the state of the knowledge graph for the query
       <code>@kg.getName</code>. As you explore the knowledge graph
       interactively, you can select nodes as knowledge seeds to further
@@ -37,20 +37,20 @@
       in the graph; detailed information on each selected node is displayed
       in the right panel. Next, select one or more
       <a href="#"  data-target="#controller-modal"
-	 data-toggle="modal">knowledge sources</a> to expand on.
+         data-toggle="modal">knowledge sources</a> to expand on.
   </div>
   <div class="row" style="margin-top:5px;">
     <div class="col-md-8"> <!-- content panel -->
       <div class="panel panel-primary">
-	<div class="panel-body">
-	  <div id="kgraph"></div>
-	</div>
+        <div class="panel-body">
+          <div id="kgraph"></div>
+        </div>
       </div>
     </div>
     <div class="col-md-4"> <!-- left panel -->
       <div class="panel panel-info bbquery">
-	<div id="selection-panel" class="panel-body">
-	</div>
+        <div id="selection-panel" class="panel-body">
+        </div>
       </div>
     </div>
   </div>
@@ -64,13 +64,13 @@
         <h4 class="modal-title">Knowledge Sources</h4>
       </div>
       <div class="modal-body">
-	<div id="panel-ks" style="overflow-y:auto;"></div>
+        <div id="panel-ks" style="overflow-y:auto;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default"
-		data-dismiss="modal">Close</button>
+                data-dismiss="modal">Close</button>
         <button type="button"
-		class="btn btn-primary" id="ks-apply">Apply</button>
+                class="btn btn-primary" id="ks-apply">Apply</button>
       </div>
     </div>
   </div>
@@ -85,47 +85,49 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default"
-		data-dismiss="modal">Close</button>
+                data-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
 }{
 function kshtml (data) {
+    console.log('rendering '+data);
     var html = '<div class="panel panel-default">'+
-	'<div class="panel-heading">'+
-	' <h1 class="panel-title"><a href="'+data.uri+'">'+data.id+'</a>'+
-	' <span class="pull-right">'+
-	'   <input type="checkbox" name="'+data.id+'"></span>'+
-	'</div>'+
-	'<div class="panel-body">'+
-	' <div class="table-responsive">'+
-	'  <table class="table table-condensed">';
+        '<div class="panel-heading">'+
+        ' <h1 class="panel-title"><a href="'+data.uri+'">'+data.id+'</a>'+
+        ' <span class="pull-right">'+
+        '   <input type="checkbox" name="'+data.id+'"></span>'+
+        '</div>'+
+        '<div class="panel-body">'+
+        ' <div class="table-responsive">'+
+        '  <table class="table table-condensed">';
     for (var f in data) {
-	html += '  <tr><td><b>'+f+'</b></td><td>';
-	if (f === 'uri') {
-	    html += '<a href="'+data[f]+'">'+data[f]+'</a>';
-	}
-	else {
-	    html += data[f];
-	}
-	html += '</td></tr>';
+        html += '  <tr><td><b>'+f+'</b></td><td>';
+        if (f === 'uri' || data[f].startsWith('http://')
+            || data[f].startsWith('https://')) {
+            html += '<a href="'+data[f]+'">'+data[f]+'</a>';
+        }
+        else {
+            html += data[f];
+        }
+        html += '</td></tr>';
     }
     html += '</table></div></div></div>';
     return html;
 }
 
 function execKS (url) {
-    console.log('executing '+url);	
+    console.log('executing '+url);      
     $.ajax({
-	method: 'PUT',
-	url: url,
-	error: function (xhr, status, err) {
-	    console.log(url+': '+stats+' '+err);
-	},
-	success: function (data, status, xhr) {
-	    console.log(url+' '+data);
-	}
+        method: 'PUT',
+        url: url,
+        error: function (xhr, status, err) {
+            console.log(url+': '+stats+' '+err);
+        },
+        success: function (data, status, xhr) {
+            console.log(url+' '+data);
+        }
     });
 }
 
@@ -136,33 +138,33 @@ $(document).ready(function() {
     renderKGraph('#kgraph', url+'?view=full', wsurl);
     
     $('#controller-modal').on('show.bs.modal', function () {
-	$.get('@controllers.ks.routes.KnowledgeSource.index', function (data) {
+        $.get('@controllers.ks.routes.KnowledgeSource.index', function (data) {
             $('#panel-ks').empty();
-	    for (var ks in data) {
-		$('#panel-ks').append(kshtml(data[ks]));
-	    }
-	});
+            for (var ks in data) {
+                $('#panel-ks').append(kshtml(data[ks]));
+            }
+        });
     });
 
     $('#ks-apply').on('click', function () {
-	var nodes = $('div[id^="panel-n"');
-	$('input:checkbox').each(function() {
-	    var ks = $(this).attr("name");
-	    console.log(ks+': '+$(this).is(':checked')+' nodes='+nodes.length);
-	    if ($(this).is(':checked')) {
-		if (nodes.length == 0) { // do everything
-		}
-		else {
-		    nodes.each(function () {
-			var url = '@controllers.api.routes.BlackboardSystem.runKSNodeSeed(kg.getId,0,"")'+ks;
-			var nid = $(this).attr('id').substring(7); // panel-n###
-			url = url.replace('/0/', '/'+nid+'/');
-			execKS (url);
-		    });
-		}
-	    }
-	});
-	$('#controller-modal').modal('hide');
+        var nodes = $('div[id^="panel-n"');
+        $('input:checkbox').each(function() {
+            var ks = $(this).attr("name");
+            console.log(ks+': '+$(this).is(':checked')+' nodes='+nodes.length);
+            if ($(this).is(':checked')) {
+                if (nodes.length == 0) { // do everything
+                }
+                else {
+                    nodes.each(function () {
+                        var url = '@controllers.api.routes.BlackboardSystem.runKSNodeSeed(kg.getId,0,"")'+ks;
+                        var nid = $(this).attr('id').substring(7); // panel-n###
+                        url = url.replace('/0/', '/'+nid+'/');
+                        execKS (url);
+                    });
+                }
+            }
+        });
+        $('#controller-modal').modal('hide');
     });
 });
 }
