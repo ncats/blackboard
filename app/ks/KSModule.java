@@ -1,5 +1,7 @@
 package ks;
 
+import java.io.File;
+import java.net.URL;
 import java.util.Set;
 import java.util.Map;
 import java.util.TreeMap;
@@ -15,11 +17,13 @@ import play.api.Environment;
 import play.api.inject.Binding;
 import play.api.inject.Module;
 import play.libs.Scala;
+import play.libs.Json;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigValue;
 import com.google.common.collect.ImmutableList;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import blackboard.KSourceProvider;
 import blackboard.KSource;
@@ -40,6 +44,7 @@ public class KSModule extends Module {
         public final String klass;
         @JsonIgnore
         public final Map<String, String> properties = new TreeMap<>();
+        public JsonNode data;
         
         public KSourceProviderImpl (String klass) {
             if (klass == null)
@@ -69,6 +74,7 @@ public class KSModule extends Module {
         public String getImplClass () { return klass; }
         public Map<String, String> getProperties () { return properties; }
         public KSourceProvider get () { return this; }
+        public JsonNode getData () { return data; }
     }
     
     @Override
@@ -105,6 +111,21 @@ public class KSModule extends Module {
                                 ksp.uri = val;
                             default:
                                 ksp.properties.put(me.getKey(), val);
+                            }
+                        }
+
+                        scala.Option<URL> data =
+                            environment.resource(ks+".json");
+                        if (!data.isEmpty()) {
+                            URL url = data.get();
+                            Logger.debug("loading data for \""+ks+"\"..."
+                                         +url);
+                            try {
+                                ksp.data = Json.parse(url.openStream());
+                            }
+                            catch (Exception ex) {
+                                Logger.error("Can't load data for \""
+                                             +ks+"\"!", ex);
                             }
                         }
                         

@@ -104,12 +104,12 @@ function kshtml (data) {
         '  <table class="table table-condensed">';
     for (var f in data) {
         html += '  <tr><td><b>'+f+'</b></td><td>';
-        if (f === 'uri' || data[f].startsWith('http://')
-            || data[f].startsWith('https://')) {
-            html += '<a href="'+data[f]+'">'+data[f]+'</a>';
+        val = ''+data[f];
+        if (f === 'uri' || val.startsWith('http://') || val.startsWith('https://')) {
+            html += '<a href="'+val+'" target="'+f+'">'+val+'</a>';
         }
         else {
-            html += data[f];
+            html += val;
         }
         html += '</td></tr>';
     }

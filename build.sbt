@@ -9,7 +9,8 @@ lazy val appVersion = "%s-%s-%s".format(branch, buildDate, commit)
 lazy val commonDependencies = Seq(
   cache,
   javaWs,
-  "org.neo4j" % "neo4j" % "3.1.0",
+  // can't seem to get beyond version 3.2.1; getting npe in netty!
+  "org.neo4j" % "neo4j" % "3.2.1", 
   "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.3.7",
   "org.webjars" % "jquery" % "3.2.0",
