@@ -202,7 +202,6 @@ public class PubMedKSource implements KSource {
         q.put("term", query);
         resolve(ksp.getUri() + "/esearch.fcgi",
                 q, kn, kg, this::resolveGeneric);
-        
     }
 
     protected void seedMeSH (KNode kn, KGraph kg) throws Exception {
