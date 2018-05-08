@@ -84,6 +84,7 @@ public class PubMedKSource implements KSource {
         public Map<String, Object> encode (Map<String, Object> props) {
             props.put(NAME_P, name);
             props.put(TYPE_P, "mesh");
+            props.put("ui", ui);
             props.put(URI_P, MESH_BASE+"/"+ui);
             props.put("treeNumbers", treeNumbers.toArray(new String[0]));
             return props;
@@ -243,8 +244,20 @@ public class PubMedKSource implements KSource {
         if (nodes.getLength() < 1) 
             throw new IllegalArgumentException ("Not a valid PubMed XML!");
         String pmid = ((Element)nodes.item(0)).getTextContent();
+
+        String title = "";
+        String type = "article";
         nodes = doc.getElementsByTagName("ArticleTitle");
-        String title = ((Element)nodes.item(0)).getTextContent();
+        if (nodes.getLength() > 0) 
+            title = ((Element)nodes.item(0)).getTextContent();
+        else {
+            // perhaps book?
+            nodes = doc.getElementsByTagName("BookTitle");
+            if (nodes.getLength() > 0) {
+                title = ((Element)nodes.item(0)).getTextContent();
+                type = "book";
+            }
+        }
             
         Logger.debug("+++++ instrumenting pubmed..."+pmid+": "+title);
         
@@ -299,7 +312,7 @@ public class PubMedKSource implements KSource {
         if (!meshes.isEmpty()) {
             Map<String, Object> props = new TreeMap<>();
             props.put("pmid", pmid);
-            props.put(TYPE_P, "article");
+            props.put(TYPE_P, type);
             props.put(URI_P, "https://ncbi.nlm.nih.gov/pubmed/"+pmid);
             props.put(NAME_P, title);
             
@@ -309,9 +322,15 @@ public class PubMedKSource implements KSource {
                 nodes = journal.getElementsByTagName("Title");
                 props.put("journal", ((Element)nodes.item(0)).getTextContent());
                 nodes = journal.getElementsByTagName("Year");
-                if (nodes.getLength() > 0)
-                    props.put("year",
-                              ((Element)nodes.item(0)).getTextContent());
+                if (nodes.getLength() > 0) {
+                    String year = ((Element)nodes.item(0)).getTextContent();
+                    try {
+                        props.put("year", Integer.parseInt(year));
+                    }
+                    catch (NumberFormatException ex) {
+                        Logger.warn("Bogus year: "+year);
+                    }
+                }
             }
             
             dn = kg.createNodeIfAbsent(props, URI_P);
@@ -321,9 +340,10 @@ public class PubMedKSource implements KSource {
                 KNode xn = createMeshNode (kg, mesh);
                 if (xn.getId() != dn.getId()) {
                     xn.addTag("KS:"+ksp.getId());
-                    KEdge e = kg.createEdgeIfAbsent(dn, xn, mesh.ui);
+                    KEdge e = kg.createEdgeIfAbsent(dn, xn, mesh.name);
                     if (me.getValue().length > 0)
                         e.put("qualifier", me.getValue());
+                    e.put("ui", mesh.ui);
                 }
             }
         }
@@ -465,25 +485,25 @@ public class PubMedKSource implements KSource {
             .setFollowRedirects(true)
             .setQueryParameter
             ("query",
-"PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"+
-"PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"+
-"PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n"+
-"PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"+
-"PREFIX meshv: <http://id.nlm.nih.gov/mesh/vocab#>\n"+
-"PREFIX mesh: <http://id.nlm.nih.gov/mesh/>\n"+
-"PREFIX mesh2015: <http://id.nlm.nih.gov/mesh/2015/>\n"+
-"PREFIX mesh2016: <http://id.nlm.nih.gov/mesh/2016/>\n"+
-"PREFIX mesh2017: <http://id.nlm.nih.gov/mesh/2017/>\n"+
-" SELECT ?d ?dName ?treeNumber\n"+
-" FROM <http://id.nlm.nih.gov/mesh>\n"+
-" WHERE {\n"+
-" ?d a meshv:Descriptor .\n"+
-" ?d meshv:active 1 .\n"+
-" ?d rdfs:label ?dName .\n"+
-" ?d meshv:treeNumber ?treeNumber\n"+
-" FILTER(REGEX(?dName,\""+query+"\",\"i\"))\n"+
-" }\n"+
-" ORDER BY ?d ?treeNumber\n")
+             "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"+
+             "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"+
+             "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n"+
+             "PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"+
+             "PREFIX meshv: <http://id.nlm.nih.gov/mesh/vocab#>\n"+
+             "PREFIX mesh: <http://id.nlm.nih.gov/mesh/>\n"+
+             "PREFIX mesh2015: <http://id.nlm.nih.gov/mesh/2015/>\n"+
+             "PREFIX mesh2016: <http://id.nlm.nih.gov/mesh/2016/>\n"+
+             "PREFIX mesh2017: <http://id.nlm.nih.gov/mesh/2017/>\n"+
+             " SELECT ?d ?dName ?treeNumber\n"+
+             " FROM <http://id.nlm.nih.gov/mesh>\n"+
+             " WHERE {\n"+
+             " ?d a meshv:Descriptor .\n"+
+             " ?d meshv:active 1 .\n"+
+             " ?d rdfs:label ?dName .\n"+
+             " ?d meshv:treeNumber ?treeNumber\n"+
+             " FILTER(REGEX(?dName,\""+query+"\",\"i\"))\n"+
+             " }\n"+
+             " ORDER BY ?d ?treeNumber\n")
             .setQueryParameter("format", "json")
             .setQueryParameter("limit", "50")
             .setQueryParameter("inference", "true")

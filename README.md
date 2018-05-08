@@ -71,3 +71,10 @@ match(n:`KG:1`) return n
 This should return a knowledge graph similar to the one shown here:
 
 ![Asthma Knowledge Graph](asthma1.png)
+
+To expand on a specific node in the KG:
+
+```
+curl -X PUT http://localhost:9000/blackboard/api/kg/1/nodes/2/ks.pubmed
+```
+
