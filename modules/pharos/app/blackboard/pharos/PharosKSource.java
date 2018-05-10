@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import blackboard.*;
+import blackboard.pubmed.PubMedKSource;
 import static blackboard.KEntity.*;
 
 public class PharosKSource implements KSource {
@@ -31,14 +32,18 @@ public class PharosKSource implements KSource {
     private final ActorSystem actorSystem;
     private final WSClient wsclient;
     private final KSourceProvider ksp;
+    private final PubMedKSource pubmedKS;
+    
     
     @Inject
     public PharosKSource (ActorSystem actorSystem, WSClient wsclient,
                           @Named("pharos") KSourceProvider ksp,
+                          PubMedKSource pubmedKS,
                           ApplicationLifecycle lifecycle) {
         this.actorSystem = actorSystem;
         this.wsclient = wsclient;
         this.ksp = ksp;
+        this.pubmedKS = pubmedKS;
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -231,6 +236,9 @@ public class PharosKSource implements KSource {
                 props.clear();
                 props.put("value", uri);
                 kg.createEdgeIfAbsent(kn, node, "resolve", props, null);
+                
+                if ("targets".equals(entity))
+                    resolveTargetGeneRIF (id, node, kg);
                 Logger.debug(node.getId()+"..."+name);
             }
         }
@@ -242,6 +250,10 @@ public class PharosKSource implements KSource {
                 props.put(TYPE_P, "protein");       
                 props.put("family", jn.get("idgFamily").asText());
                 props.put("tdl", jn.get("idgTDL").asText());
+                if (jn.hasNonNull("accession"))
+                    props.put("uniprot", jn.get("accession").asText());
+                if (jn.hasNonNull("gene"))
+                    props.put("gene", jn.get("gene").asText());
                 if (jn.hasNonNull("description"))
                     props.put("description", jn.get("description").asText());
                 String[] syns = retrieveSynonyms
@@ -274,7 +286,31 @@ public class PharosKSource implements KSource {
         catch (Exception ex) {
             Logger.error("Can't resolve PPI for "+id, ex);
         }
-    }   
+    }
+
+    void resolveTargetGeneRIF (long id, KNode kn, KGraph kg) {
+        WSRequest req = wsclient.url
+            (ksp.getUri()+"/targets/"+id+"/links(kind=ix.core.models.Text)");
+        Logger.debug("Resolving geneRIF for target "+id+"...");
+        try {
+            WSResponse res = req.get().toCompletableFuture().get();
+            JsonNode content = res.asJson();
+            // TODO: parameterize this!
+            for (int i = 0; i < Math.min(20, content.size()); ++i) {
+                JsonNode n = content.get(i).get("properties");
+                for (int j = 0; j < n.size(); ++j) {
+                    JsonNode p = n.get(j);
+                    if ("PubMed ID".equals(p.get("label").asText())) {
+                        String pmid = p.get("intval").asText();
+                        pubmedKS.resolvePubmed(pmid, kn, kg);
+                    }
+                }
+            }
+        }
+        catch (Exception ex) {
+            Logger.error("Can't resolve geneRIF for "+id, ex);
+        }
+    }
 
     void resolveLigands (JsonNode json, KNode kn, KGraph kg) {
         instrument ("ligands", json, kn, kg, (jn, props) -> {

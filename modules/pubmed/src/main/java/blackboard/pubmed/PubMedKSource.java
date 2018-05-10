@@ -153,21 +153,17 @@ public class PubMedKSource implements KSource {
             for (KNode kn : nodes) {
                 switch (kn.getType()) {
                 case "query":
-                    seedQuery (kn, kgraph);
-                    //seedGeneric(kn,kgraph);
+                    seedQuery ((String)kn.get("term"), kn, kgraph);
                     break;
                     
-                case "mesh":
-                    seedMeSH (kn, kgraph);
-                    
-                case "disease":
-                    break;
-                    
-                case "drug":
-                    break;
-                    
-                case "protein":
-                    break;
+                default:
+                    { String query = (String)kn.get("name");
+                        if (query != null)
+                            seedQuery (query, kn, kgraph);
+                        else
+                            Logger.warn("Can't expand node "+kn.getId()
+                                        +"; type="+kn.getType());
+                    }
                 }
             }
         }
@@ -177,11 +173,8 @@ public class PubMedKSource implements KSource {
         }
     }
 
-    protected void seedQuery (KNode kn, KGraph kg) throws Exception {
-        String query = (String)kn.get("term");
-        if (query == null)
-            throw new IllegalArgumentException ("Not a query node!");
-
+    protected void seedQuery (String query, KNode kn, KGraph kg)
+        throws Exception {
         // resolve through mesh
         MeSH[] meshes = queryMeSH (query);
         for (MeSH m : meshes) {
@@ -199,7 +192,7 @@ public class PubMedKSource implements KSource {
         q.put("db", "pubmed");
         q.put("retmax", String.valueOf(MAX_RESULTS));
         q.put("retmode", "json");
-        //q.put("sort","relevance");
+        q.put("sort","relevance");
         q.put("term", query);
         resolve(ksp.getUri() + "/esearch.fcgi",
                 q, kn, kg, this::resolveGeneric);
@@ -258,8 +251,6 @@ public class PubMedKSource implements KSource {
                 type = "book";
             }
         }
-            
-        Logger.debug("+++++ instrumenting pubmed..."+pmid+": "+title);
         
         Map<MeSH, String[]> meshes = new HashMap<>();
         nodes = doc.getElementsByTagName("MeshHeading");
@@ -307,6 +298,10 @@ public class PubMedKSource implements KSource {
                 }
             }
         }
+        
+        Logger.debug("+++++ instrumenting pubmed..."
+                     +pmid+": "+title+" mesh="+nodes.getLength()
+                     +"/"+meshes.size());
 
         KNode dn = null;
         if (!meshes.isEmpty()) {
@@ -386,7 +381,8 @@ public class PubMedKSource implements KSource {
         return xn;
     }
 
-    void resolvePubmed (String pmid, KNode kn, KGraph kg) throws Exception {
+    public void resolvePubmed (String pmid, KNode kn, KGraph kg)
+        throws Exception {
         WSRequest req = wsclient.url(EUTILS_BASE+"/efetch.fcgi")
             .setFollowRedirects(true)
             .setQueryParameter("db", "pubmed")
@@ -433,6 +429,7 @@ public class PubMedKSource implements KSource {
 
     String[] getTreeNumbers (String ui) throws Exception {
         Set<String> treeNums = new TreeSet<>();
+        Logger.debug(" ++ checking tree number: "+ui);
         
         // https://hhs.github.io/meshrdf/sample-queries
         WSRequest req = wsclient.url("https://id.nlm.nih.gov/mesh/sparql")
@@ -448,6 +445,7 @@ public class PubMedKSource implements KSource {
              "PREFIX mesh2015: <http://id.nlm.nih.gov/mesh/2015/>\n"+
              "PREFIX mesh2016: <http://id.nlm.nih.gov/mesh/2016/>\n"+
              "PREFIX mesh2017: <http://id.nlm.nih.gov/mesh/2017/>\n"+
+             "PREFIX mesh2018: <http://id.nlm.nih.gov/mesh/2018/>\n"+
              "SELECT *\n"+
              "FROM <http://id.nlm.nih.gov/mesh>\n"+
              "WHERE {\n"+
@@ -457,9 +455,10 @@ public class PubMedKSource implements KSource {
             .setQueryParameter("format", "json")
             .setQueryParameter("limit", "50")
             ;
-        Logger.debug(" ++ checking tree number: "+ui);
-
+        
         WSResponse res = req.get().toCompletableFuture().get();
+        Logger.debug("  ++++ "+req.getUrl()+"..."+res.getStatus());
+        
         if (200 != res.getStatus()) {
             Logger.warn(res.getUri() + " returns status "
                         + res.getStatus());
@@ -494,6 +493,7 @@ public class PubMedKSource implements KSource {
              "PREFIX mesh2015: <http://id.nlm.nih.gov/mesh/2015/>\n"+
              "PREFIX mesh2016: <http://id.nlm.nih.gov/mesh/2016/>\n"+
              "PREFIX mesh2017: <http://id.nlm.nih.gov/mesh/2017/>\n"+
+             "PREFIX mesh2018: <http://id.nlm.nih.gov/mesh/2018/>\n"+
              " SELECT ?d ?dName ?treeNumber\n"+
              " FROM <http://id.nlm.nih.gov/mesh>\n"+
              " WHERE {\n"+

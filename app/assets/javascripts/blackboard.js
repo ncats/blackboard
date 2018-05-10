@@ -136,6 +136,12 @@ function kgraph (id) {
                 }
             },
             {
+                selector: 'node[type="concept"]',
+                style: {
+                    'background-color': '#b780f2'
+                }
+            },
+            {
                 selector: 'node[type="drug"]',
                 style: {
                     'background-color': '#0f5'

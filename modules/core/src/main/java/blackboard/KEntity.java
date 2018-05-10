@@ -14,6 +14,7 @@ public interface KEntity {
     public static final String SYNONYMS_P = "synonyms";
     public static final String KGRAPH_P = "kgraph";
     public static final String XREF_P = "xref";
+    public static final String SOURCE_P = "source";
 
     @JsonAnyGetter
     Map<String, Object> getProperties ();

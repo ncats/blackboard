@@ -35,8 +35,8 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
-  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,chembl)
-  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,chembl)
+  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,umls,chembl)
+  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,umls,chembl)
 
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
@@ -72,7 +72,7 @@ lazy val pharos = (project in file("modules/pharos"))
     name := "blackboard-pharos",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
+).dependsOn(core,pubmed).aggregate(core, pubmed)
 
 lazy val biothings = (project in file("modules/biothings"))
   .settings(commonSettings: _*)
@@ -96,6 +96,14 @@ lazy val pubmed = (project in file("modules/pubmed"))
   name := "blackboard-pubmed",
     libraryDependencies ++= commonDependencies,
     libraryDependencies +=   "org.json" % "json" % "20090211",
+    javacOptions ++= javaBuildOptions
+).dependsOn(core).aggregate(core)
+
+lazy val umls = (project in file("modules/umls"))
+  .settings(commonSettings: _*)
+  .settings(
+  name := "blackboard-umls",
+    libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)
 
