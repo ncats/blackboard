@@ -1,0 +1,3 @@
+GET /info   controllers.UMLSController.index
+GET /ticket controllers.UMLSController.ticket
+GET /search/:q  controllers.UMLSController.search(q: String)
