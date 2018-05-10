@@ -1,3 +1,7 @@
 GET /info   controllers.UMLSController.index
 GET /ticket controllers.UMLSController.ticket
 GET /search/:q  controllers.UMLSController.search(q: String)
+GET /:cui controllers.UMLSController.cui(cui: String)
+GET /:cui/atoms controllers.UMLSController.atoms(cui: String)
+GET /:cui/definitions controllers.UMLSController.definitions(cui: String)
+GET /:cui/relations   controllers.UMLSController.relations(cui: String)

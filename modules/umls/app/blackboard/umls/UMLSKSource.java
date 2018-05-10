@@ -234,4 +234,18 @@ public class UMLSKSource implements KSource {
             .setQueryParameter("ticket", ticket)
             ;
     }
+
+    public WSRequest cui (String cui) throws Exception {
+        String ticket = tgt.ticket();
+        String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui;
+        Logger.debug("++ CUI: ticket="+ticket+" cui="+cui);
+        return wsclient.url(url).setQueryParameter("ticket", ticket);
+    }
+
+    public WSRequest content (String cui, String context) throws Exception {
+        String ticket = tgt.ticket();
+        String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui+"/"+context;
+        Logger.debug("++ "+context+": ticket="+ticket+" cui="+cui);
+        return wsclient.url(url).setQueryParameter("ticket", ticket);
+    }
 }
