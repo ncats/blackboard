@@ -33,8 +33,8 @@ import play.mvc.Http;
 import static blackboard.KEntity.*;
 
 public class UMLSKSource implements KSource {
-    private final WSClient wsclient;
-    private final KSourceProvider ksp;
+    public final WSClient wsclient;
+    public final KSourceProvider ksp;
     private final CacheApi cache;
     private final TGT tgt;
     
@@ -197,15 +197,7 @@ public class UMLSKSource implements KSource {
 
     protected void seedQuery (String query, KNode kn, KGraph kg)
         throws Exception {
-        String ticket = tgt.ticket();
-        String url = ksp.getUri()+"/search/"+APIVER;
-            
-        Logger.debug("++ ticket="+ticket+" query="+query);            
-        WSRequest req = wsclient.url(url)
-            .setQueryParameter("string", query)
-            .setQueryParameter("ticket", ticket)
-            ;
-        
+        WSRequest req = search (query);
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
             Logger.warn(res.getUri()+": status="+res.getStatus());
@@ -226,5 +218,20 @@ public class UMLSKSource implements KSource {
                 kg.createEdgeIfAbsent(kn, xn, "resolve", props, null);
             }
         }
+    }
+
+    public String ticket () throws Exception {
+        return tgt.ticket();
+    }
+
+    public WSRequest search (String query) throws Exception {
+        String ticket = tgt.ticket();
+        String url = ksp.getUri()+"/search/"+APIVER;
+            
+        Logger.debug("++ ticket="+ticket+" query="+query);            
+        return wsclient.url(url)
+            .setQueryParameter("string", query)
+            .setQueryParameter("ticket", ticket)
+            ;
     }
 }

@@ -33,7 +33,7 @@ public class PharosKSource implements KSource {
     private final WSClient wsclient;
     private final KSourceProvider ksp;
     private final PubMedKSource pubmedKS;
-    
+    private final int MAXGENERIF;
     
     @Inject
     public PharosKSource (ActorSystem actorSystem, WSClient wsclient,
@@ -44,6 +44,10 @@ public class PharosKSource implements KSource {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.pubmedKS = pubmedKS;
+
+        Map<String, String> props = ksp.getProperties();
+        MAXGENERIF = props.containsKey("max-generif")
+            ? Integer.parseInt(props.get("max-generif")) : 100;
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -295,8 +299,7 @@ public class PharosKSource implements KSource {
         try {
             WSResponse res = req.get().toCompletableFuture().get();
             JsonNode content = res.asJson();
-            // TODO: parameterize this!
-            for (int i = 0; i < Math.min(20, content.size()); ++i) {
+            for (int i = 0; i < Math.min(MAXGENERIF, content.size()); ++i) {
                 JsonNode n = content.get(i).get("properties");
                 for (int j = 0; j < n.size(); ++j) {
                     JsonNode p = n.get(j);

@@ -100,6 +100,7 @@ lazy val pubmed = (project in file("modules/pubmed"))
 ).dependsOn(core).aggregate(core)
 
 lazy val umls = (project in file("modules/umls"))
+  .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .settings(
   name := "blackboard-umls",

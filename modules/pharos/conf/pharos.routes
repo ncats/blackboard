@@ -1,1 +1,1 @@
-GET     /	controllers.PharosController.index
+GET     /info	controllers.PharosController.index

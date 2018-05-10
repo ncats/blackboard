@@ -1,2 +1,5 @@
 GET	/	controllers.ks.KnowledgeSource.index
 GET	/:ks	controllers.ks.KnowledgeSource.getKS(ks: String)
+
+->  /pharos  pharos.Routes
+->  /umls    umls.Routes
