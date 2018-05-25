@@ -2,6 +2,7 @@ GET /info   controllers.umls.Controller.index
 GET /ticket controllers.umls.Controller.ticket
 GET /search/*q  controllers.umls.Controller.search(q: String, top: Int ?= 100, skip: Int ?= 0)
 GET /:cui controllers.umls.Controller.cui(cui: String)
+GET /:cui/full controllers.umls.Controller.full(cui: String)
 GET /:cui/atoms controllers.umls.Controller.atoms(cui: String)
 GET /:cui/definitions controllers.umls.Controller.definitions(cui: String)
 GET /:cui/relations   controllers.umls.Controller.relations(cui: String)

@@ -40,7 +40,7 @@ public class Controller extends play.mvc.Controller {
         }
     }
 
-    static ObjectNode instrument (JsonNode node) {
+    static ObjectNode toObject (JsonNode node) {
         Map<String, JsonNode> fields = new HashMap<>();
         for (Iterator<Map.Entry<String, JsonNode>> it =
                  node.fields(); it.hasNext();) {
@@ -49,7 +49,11 @@ public class Controller extends play.mvc.Controller {
         }
         ObjectNode n = Json.newObject();
         n.setAll(fields);
-        
+        return n;
+    }
+    
+    static ObjectNode instrument (JsonNode node) {
+        ObjectNode n = toObject (node);
         String cui = n.get("ui").asText();
         n.put("_cui", controllers.umls.routes.Controller.cui(cui).url());
         n.put("_atoms", routes.Controller.atoms(cui).url());
@@ -88,9 +92,31 @@ public class Controller extends play.mvc.Controller {
     public Result cui (String cui) {
         try {
             JsonNode json = ks.getCui(cui);
-            return json != null ? ok (json) : notFound(request().uri());
+            return json != null ? ok (json)
+                : notFound("Request not matched: "+request().uri());
         }
         catch (Exception ex) {
+            Logger.error("Can't retrieve "+cui, ex);
+            return internalServerError (ex.getMessage());
+        }
+    }
+
+    public Result full (String cui) {
+        try {
+            JsonNode json = ks.getCui(cui);
+            if (json != null) {
+                ObjectNode n = toObject (json);
+                n.put("definitions", ks.getContent(cui, "definitions"));
+                n.put("atoms", ks.getContent(cui, "atoms"));
+                n.put("relations", ks.getContent(cui, "relations"));
+                json = n;
+            }
+                
+            return json != null ? ok (json)
+                : notFound("Request not matched: "+request().uri());
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve "+cui, ex);
             return internalServerError (ex.getMessage());
         }
     }

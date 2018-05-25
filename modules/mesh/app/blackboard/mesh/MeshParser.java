@@ -3,6 +3,7 @@ package blackboard.mesh;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 import java.io.*;
+import java.util.zip.*;
 import java.util.*;
 import java.net.URI;
 import java.net.URL;
@@ -14,10 +15,14 @@ import org.xml.sax.*;
 
 import play.libs.Json;
 
+/*
+ * parse XML MeSH files (desc, supp, qual, and pa) available from 
+ *    https://www.nlm.nih.gov/mesh/download_mesh.html
+ */
 public class MeshParser extends DefaultHandler {
     static final Logger logger = Logger.getLogger(MeshParser.class.getName());
 
-    static class MeshEntry implements Comparable<MeshEntry> {
+    static class Entry implements Comparable<Entry> {
         public String ui;
         public String name;
         public Date created;
@@ -25,24 +30,24 @@ public class MeshParser extends DefaultHandler {
         public Date established;
         public boolean preferred;
         
-        MeshEntry () {}
-        MeshEntry (String ui) {
+        Entry () {}
+        Entry (String ui) {
             this (ui, null);
         }
-        MeshEntry (String ui, String name) {
+        Entry (String ui, String name) {
             this.ui = ui;
             this.name = name;
         }
 
         public boolean equals (Object obj) {
-            if (obj instanceof MeshEntry) {
-                MeshEntry me =(MeshEntry)obj;
+            if (obj instanceof Entry) {
+                Entry me =(Entry)obj;
                 return ui.equals(me.ui) && name.equals(me.name);
             }
             return false;
         }
 
-        public int compareTo (MeshEntry me) {
+        public int compareTo (Entry me) {
             int d = ui.compareTo(me.ui);
             if (d == 0)
                 d = name.compareTo(me.name);
@@ -50,7 +55,7 @@ public class MeshParser extends DefaultHandler {
         }
     }
 
-    public static class Term extends MeshEntry {
+    public static class Term extends Entry {
         Term () {}
         Term (String ui) {
             this (ui, null);
@@ -60,25 +65,14 @@ public class MeshParser extends DefaultHandler {
         }
     }
 
-    public static class Qualifier extends MeshEntry {
-        public String abbr;        
-        Qualifier () {}
-        Qualifier (String ui) {
-            this (ui, null);
-        }
-        Qualifier (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class Relation extends MeshEntry {
+    public static class Relation extends Entry {
         Relation () {}
         Relation (String ui, String name) {
             super (ui, name);
         }
     }
 
-    public static class Concept extends MeshEntry {
+    public static class Concept extends Entry {
         public String casn1;
         public String regno;
         public String note;
@@ -93,13 +87,25 @@ public class MeshParser extends DefaultHandler {
             super (ui, name);
         }
     }
-        
-    public static class Descriptor extends MeshEntry {
+
+    public static class Qualifier extends Entry {
         public String annotation;
-        public List<Qualifier> qualifiers = new ArrayList<>();
+        public String abbr;
         public List<Concept> concepts = new ArrayList<>();
-        public List<MeshEntry> pharm = new ArrayList<>();
         public List<String> treeNumbers = new ArrayList<>();
+        
+        Qualifier () {}
+        Qualifier (String ui) {
+            this (ui, null);
+        }
+        Qualifier (String ui, String name) {
+            super (ui, name);
+        }
+    }
+        
+    public static class Descriptor extends Qualifier {
+        public List<Qualifier> qualifiers = new ArrayList<>();
+        public List<Entry> pharm = new ArrayList<>();
         
         Descriptor () {
         }
@@ -111,11 +117,11 @@ public class MeshParser extends DefaultHandler {
         }
     }
 
-    public static class SupplementDescriptor extends MeshEntry {
+    public static class SupplementDescriptor extends Entry {
         public Integer freq;
         public List<Descriptor> mapped = new ArrayList<>();
         public List<Descriptor> indexed = new ArrayList<>();
-        public List<MeshEntry> pharm = new ArrayList<>();
+        public List<Entry> pharm = new ArrayList<>();
         public List<String> sources = new ArrayList<>();
         SupplementDescriptor () {}
         SupplementDescriptor (String ui) {
@@ -125,66 +131,107 @@ public class MeshParser extends DefaultHandler {
             super (ui, name);
         }
     }
+
+    public static class PharmacologicalAction extends Entry {
+        public List<Entry> substances = new ArrayList<>();
+        PharmacologicalAction () {}
+        PharmacologicalAction (String ui, String name) {
+            super (ui, name);
+        }
+    }
     
     StringBuilder content = new StringBuilder ();
-    Consumer<MeshEntry> consumer;
+    Map<String, Consumer<Entry>> consumers = new HashMap<>();
     LinkedList<String> path = new LinkedList<String>();
     
     Descriptor desc;
     SupplementDescriptor suppl;
+    PharmacologicalAction pa;
     Concept concept;
     Term term;
     Qualifier qualifier;
-    MeshEntry entry;
+    Entry entry;
     Relation relation;
     Calendar date = Calendar.getInstance();
     
     public MeshParser () {
         this (null);
     }
-    public MeshParser (Consumer<MeshEntry> consumer) {
-        this.consumer = consumer;
-    }
-
-    public void setConsumer (Consumer<MeshEntry> consumer) {
-        this.consumer = consumer;
-    }
-    public Consumer<MeshEntry> getConsumer () { return consumer; }
-
-    public void parse (String uri) throws Exception {
-        parse (uri, null);
+    
+    public MeshParser (Consumer<Entry> consumer) {
+        this (consumer, "DescriptorRecord", "SupplementalRecord",
+              "QualifierRecord", "PharmacologicalAction");
     }
     
-    public void parse (String uri, Consumer<MeshEntry> consumer)
-        throws Exception {
+    public MeshParser (Consumer<Entry> consumer, String... names) {
+        setConsumer (consumer, names);
+    }
+
+    public void setConsumer (Consumer<Entry> consumer, String... names) {
+        for (String n : names)
+            consumers.put(n, consumer);
+    }
+    public Consumer<Entry> getConsumer (String name) {
+        return consumers.get(name);
+    }
+
+    public void parse (String uri) throws Exception {
         URI u = new URI (uri);
-        parse (u.toURL().openStream(), consumer);
+        parse (u.toURL().openStream());
     }
 
     public void parse (File file) throws Exception {
-        parse (file, null);
+        if (file.isDirectory()) {
+            for (File f : file.listFiles()) {
+                if (f.isFile()) {
+                    parseFile (f);
+                }
+            }
+        }
+        else {
+            parseFile (file);
+        }
     }
-    
-    public void parse (File file, Consumer<MeshEntry> consumer)
-        throws Exception {
-        parse (new FileInputStream (file), consumer);
+
+    public void parseFile (File file) throws Exception {
+        if (file.getName().endsWith(".zip")) {
+            try (ZipInputStream zis = new ZipInputStream
+                 (new FileInputStream (file))) {
+                ZipEntry ze = zis.getNextEntry();
+                logger.info("## parsing "+ze.getName()
+                            +"/"+file.getName()+"...");
+                parse (zis);
+            }
+        }
+        else if (file.getName().endsWith(".gz")) {
+            try (InputStream is = new GZIPInputStream
+                 (new FileInputStream (file))) {
+                logger.info("## parsing "+file.getName()+"...");
+                parse (is);
+            }
+        }
+        else {
+            try (InputStream is = new FileInputStream (file)) {
+                logger.info("## parsing "+file.getName()+"...");
+                parse (is);
+            }
+        }
     }
 
     public void parse (InputStream is) throws Exception {
-        parse (is, null);
-    }
-    
-    public void parse (InputStream is, Consumer<MeshEntry> consumer)
-        throws Exception {
         SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
-        if (consumer != null)
-            this.consumer = consumer;
         parser.parse(is, this);
     }
 
     /**
      * DefaultHandler
      */
+    @Override
+    public InputSource resolveEntity (String pubId, String sysId) {
+        logger.warning("** Ignore external ref "+pubId+"/"+sysId);
+        return new InputSource(new StringReader(""));
+    }
+    
     @Override
     public void characters (char[] ch, int start, int length) {
         for (int i = start, j = 0; j < length; ++j, ++i) {
@@ -213,12 +260,19 @@ public class MeshParser extends DefaultHandler {
             qualifier = null;
             break;
 
+        case "QualifierRecord":
+            qualifier = new Qualifier ();
+            break;
+
         case "HeadingMappedTo":
             suppl.mapped.add(desc = new Descriptor ());
             break;
             
         case "Concept":
-            desc.concepts.add(concept = new Concept ());
+            if (isChildOf ("QualifierRecord"))
+                qualifier.concepts.add(concept = new Concept ());
+            else
+                desc.concepts.add(concept = new Concept ());
             pref = attrs.getValue("PreferredConceptYN");
             concept.preferred = "Y".equals(pref);
             break;
@@ -235,9 +289,20 @@ public class MeshParser extends DefaultHandler {
             
         case "PharmacologicalAction":            
             break;
+
+        case "PharmacologicalActionSubstanceList":
+            if (entry == null)
+                throw new RuntimeException
+                    ("No entry for PharmalogicalAction created!");
+            pa = new PharmacologicalAction (entry.ui, entry.name);
+            break;
+
+        case "Substance":
+            pa.substances.add(entry = new Entry ());
+            break;
             
         case "DescriptorReferredTo":
-            entry = new MeshEntry ();
+            entry = new Entry ();
             break;
             
         case "ConceptRelation":
@@ -264,6 +329,8 @@ public class MeshParser extends DefaultHandler {
             return;
         
         String parent = path.peek();
+        Consumer<Entry> consumer = consumers.get(qName);
+        
         switch (qName) {
         case "DescriptorUI":
             if (isChildOf ("HeadingMappedTo")) {
@@ -284,7 +351,12 @@ public class MeshParser extends DefaultHandler {
         case "ConceptUI":
             concept.ui = value;
             break;
-            
+
+        case "RecordUI":
+            if (parent.equals("Substance"))
+                entry.ui = value;
+            break;
+
         case "Concept1UI":
             /*
             if (!value.equals(concept.ui)) {
@@ -323,7 +395,10 @@ public class MeshParser extends DefaultHandler {
             break;
             
         case "TreeNumber":
-            desc.treeNumbers.add(value);
+            if (isChildOf ("QualifierRecord"))
+                qualifier.treeNumbers.add(value);
+            else
+                desc.treeNumbers.add(value);
             break;
             
         case "CASN1Name":
@@ -347,7 +422,7 @@ public class MeshParser extends DefaultHandler {
                     entry.name = value;
                     if (isChildOf ("SupplementalRecord"))
                         suppl.pharm.add(entry);
-                    else
+                    else if (desc != null)
                         desc.pharm.add(entry);
                 }
                 else
@@ -369,6 +444,10 @@ public class MeshParser extends DefaultHandler {
             case "Term":
                 term.name = value;
                 break;
+
+            case "RecordName":
+                entry.name = value;
+                break;
             }
             break;
             
@@ -385,50 +464,47 @@ public class MeshParser extends DefaultHandler {
             break;
 
         case "DateCreated":
-            for (String t : path) {
-                switch (t) {
-                case "Term":
-                    term.created = date.getTime();
-                    break;
-                case "DescriptorRecord":
-                    desc.created = date.getTime();
-                    break;
-                case "SupplementalRecord":
-                    suppl.created = date.getTime();
-                    break;
-                }
+            if (isChildOf ("Term")) {
+                term.created = date.getTime();
+            }
+            else if (isChildOf ("QualifierRecord")) {
+                qualifier.created = date.getTime();
+            }
+            else if (isChildOf ("DescriptorRecord")) {
+                desc.created = date.getTime();
+            }
+            else if (isChildOf ("SupplementalRecord")) {
+                suppl.created = date.getTime();
             }
             break;
 
         case "DateRevised":
-            for (String t : path) {
-                switch (t) {
-                case "Term":
-                    term.revised = date.getTime();
-                    break;
-                case "DescriptorRecord":
-                    desc.revised = date.getTime();
-                    break;
-                case "SupplementalRecord":
-                    suppl.revised = date.getTime();
-                    break;
-                }
-            }            
+            if (isChildOf ("Term")) {
+                term.revised = date.getTime();
+            }
+            else if (isChildOf ("QualifierRecord")) {
+                qualifier.revised = date.getTime();
+            }
+            else if (isChildOf ("DescriptorRecord")) {
+                desc.revised = date.getTime();
+            }
+            else if (isChildOf ("SupplementalRecord")) {
+                suppl.revised = date.getTime();
+            }
             break;
 
         case "DateEstablished":
-            for (String t : path) {
-                switch (t) {
-                case "Term":
-                    term.established = date.getTime();
-                    break;
-                case "DescriptorRecord":
-                    desc.established = date.getTime();
-                    break;
-                case "SupplementalRecord":
-                    suppl.established = date.getTime();
-                    break;
-                }
+            if (isChildOf ("Term")) {
+                term.established = date.getTime();
+            }
+            else if (isChildOf ("QualifierRecord")) {
+                qualifier.established = date.getTime();
+            }
+            else if (isChildOf ("DescriptorRecord")) {
+                desc.established = date.getTime();
+            }
+            else if (isChildOf ("SupplementalRecord")) {
+                suppl.established = date.getTime();
             }
             break;
 
@@ -438,13 +514,23 @@ public class MeshParser extends DefaultHandler {
             break;
             
         case "DescriptorRecord":
-            if (consumer != null)
+            if (consumer != null && desc != null)
                 consumer.accept(desc);
             break;
 
         case "SupplementalRecord":
-            if (consumer != null)
+            if (consumer != null && suppl != null)
                 consumer.accept(suppl);
+            break;
+
+        case "PharmacologicalAction":
+            if (consumer != null && pa != null)
+                consumer.accept(pa);
+            break;
+
+        case "QualifierRecord":
+            if (consumer != null && qualifier != null)
+                consumer.accept(qualifier);
             break;
         }
     }
@@ -465,7 +551,7 @@ public class MeshParser extends DefaultHandler {
                   System.out.println(d.pharm.size()+" pharmalogical actions");
                   System.out.println(d.treeNumbers);
                 */
-                System.out.println(Json.prettyPrint(Json.toJson(d)));
+                //System.out.println(Json.prettyPrint(Json.toJson(d)));
             });
         
         if (argv.length == 0) {
@@ -473,12 +559,7 @@ public class MeshParser extends DefaultHandler {
             parser.parse(System.in);            
         }
         else {
-            File file = new File (argv[0]);
-            if (file.isDirectory()) {
-            }
-            else {
-                parser.parse(file);
-            }
+            parser.parse(new File (argv[0]));
         }
     }
 }

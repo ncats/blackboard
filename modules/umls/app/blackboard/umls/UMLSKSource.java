@@ -319,7 +319,7 @@ public class UMLSKSource implements KSource {
     }
 
     public JsonNode getCui (final String cui) throws Exception {
-        return cache.getOrElse(cui, new Callable<JsonNode> () {
+        return cache.getOrElse("umls/"+cui, new Callable<JsonNode> () {
                 public JsonNode call () throws Exception {
                     WSResponse res =
                         cui(cui).get().toCompletableFuture().get();
@@ -340,13 +340,14 @@ public class UMLSKSource implements KSource {
 
     public JsonNode getContent (final String cui, final String context)
         throws Exception {
-        return cache.getOrElse(context+"/"+cui, new Callable<JsonNode>() {
-                public JsonNode call () throws Exception {
-                    WSResponse res = content(cui, context)
-                        .get().toCompletableFuture().get();
-                    return 200 == res.getStatus()
-                        ? res.asJson().get("result") : null;
-                }
-            });
+        return cache.getOrElse
+            ("umls/"+context+"/"+cui, new Callable<JsonNode>() {
+                    public JsonNode call () throws Exception {
+                        WSResponse res = content(cui, context)
+                            .get().toCompletableFuture().get();
+                        return 200 == res.getStatus()
+                            ? res.asJson().get("result") : null;
+                    }
+                });
     }
 }
