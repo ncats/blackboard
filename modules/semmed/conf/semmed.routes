@@ -1,0 +1,1 @@
+GET /info   controllers.semmed.Controller.index

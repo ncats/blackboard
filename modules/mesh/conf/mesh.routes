@@ -1,0 +1,3 @@
+GET /info   controllers.mesh.Controller.index
+GET /search/*q  controllers.mesh.Controller.search(q: String)
+GET /:ui        controllers.mesh.Controller.mesh(ui: String)

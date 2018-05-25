@@ -83,9 +83,13 @@ public class PharosKSource implements KSource {
             case "drug":
                 seedLigand (kn, kgraph);
                 break;
+
+            case "article":
+                seedArticle (kn, kgraph);
+                break;
+                
             default:
-                if(kn.get("name")!=null)
-                {
+                if(kn.get("name")!=null) {
                     seedQuery(kn.get("name").toString(),kn,kgraph);
                 }
                 break;
@@ -134,6 +138,7 @@ public class PharosKSource implements KSource {
                 try {
                     long id = Long.parseLong(s);
                     resolveTargetPPI (id, kn, kg);
+                    resolveTargetGeneRIF (id, kn, kg);
                 }
                 catch (NumberFormatException ex) {
                     Logger.debug("Bogus target id: "+s);
@@ -195,6 +200,21 @@ public class PharosKSource implements KSource {
         }
     }
 
+    void seedArticle (KNode kn, KGraph kg) {
+        String pmid = (String) kn.get("pmid");
+        if (pmid == null) {
+            Logger.warn("Can't resolve article node with no pmid!");
+            return;
+        }
+        Logger.debug(">>> seedArticle \""+pmid+"\"");
+        Map<String, String> query = new HashMap<>();
+        query.put("filter", "properties.label='PubMed ID' "
+                  +"AND properties.intval="+pmid);
+        query.put("top", "20");
+        resolve (ksp.getUri()+"/targets", query, 
+                 kn, kg, this::resolveTargets);
+    }
+
     void resolve (String url, Map<String, String> params,
                   KNode kn, KGraph kg, Resolver resolver) {
         WSRequest req = wsclient.url(url).setFollowRedirects(true);
@@ -240,9 +260,12 @@ public class PharosKSource implements KSource {
                 props.clear();
                 props.put("value", uri);
                 kg.createEdgeIfAbsent(kn, node, "resolve", props, null);
-                
-                if ("targets".equals(entity))
+                /*
+                if ("targets".equals(entity)) {
                     resolveTargetGeneRIF (id, node, kg);
+                    resolveTargetPPI (id, node, kg);
+                }
+                */
                 Logger.debug(node.getId()+"..."+name);
             }
         }

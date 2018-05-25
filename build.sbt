@@ -9,6 +9,8 @@ lazy val appVersion = "%s-%s-%s".format(branch, buildDate, commit)
 lazy val commonDependencies = Seq(
   cache,
   javaWs,
+  javaJdbc,
+  "mysql" % "mysql-connector-java" % "5.1.31",
   // can't seem to get beyond version 3.2.1; getting npe in netty!
   "org.neo4j" % "neo4j" % "3.2.1", 
   "org.webjars" %% "webjars-play" % "2.5.0",
@@ -35,8 +37,8 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
-  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,umls,chembl)
-  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,umls,chembl)
+  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,umls,semmed,chembl)
+  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,umls,semmed,chembl)
 
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
@@ -90,14 +92,24 @@ lazy val beacons = (project in file("modules/beacons"))
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)
 
+lazy val mesh = (project in file("modules/mesh"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+  name := "blackboard-mesh",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(core).aggregate(core)
+
 lazy val pubmed = (project in file("modules/pubmed"))
+  .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .settings(
   name := "blackboard-pubmed",
     libraryDependencies ++= commonDependencies,
     libraryDependencies +=   "org.json" % "json" % "20090211",
     javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
+).dependsOn(mesh).aggregate(mesh)
 
 lazy val umls = (project in file("modules/umls"))
   .enablePlugins(PlayJava)
@@ -107,6 +119,15 @@ lazy val umls = (project in file("modules/umls"))
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 ).dependsOn(core).aggregate(core)
+
+lazy val semmed = (project in file("modules/semmed"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+  name := "blackboard-semmed",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(core, umls).aggregate(core, umls)
 
 lazy val chembl = (project in file("modules/chembl"))
   .settings(commonSettings: _*)

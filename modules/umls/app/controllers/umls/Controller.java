@@ -80,16 +80,15 @@ public class Controller extends play.mvc.Controller {
             return status (res.getStatus(), json);
         }
         catch (Exception ex) {
+            Logger.error("Can't process search \""+q+"\"", ex);
             return internalServerError (ex.getMessage());
         }
     }
 
     public Result cui (String cui) {
         try {
-            WSResponse res = ks.cui(cui).get().toCompletableFuture().get();
-            JsonNode json = res.asJson();
-            return status (res.getStatus(), json.hasNonNull("result")
-                           ? json.get("result") : Json.newObject());
+            JsonNode json = ks.getCui(cui);
+            return json != null ? ok (json) : notFound(request().uri());
         }
         catch (Exception ex) {
             return internalServerError (ex.getMessage());
@@ -98,11 +97,9 @@ public class Controller extends play.mvc.Controller {
 
     Result content (String cui, String context) {
         try {
-            WSResponse res = ks.content(cui, context)
-                .get().toCompletableFuture().get();
-            JsonNode json = res.asJson();
-            return status (res.getStatus(), json.hasNonNull("result") ?
-                           json.get("result") : Json.newObject());   
+            JsonNode json = ks.getContent(cui, context);
+            return json != null ? ok (json)
+                : notFound("Request not matched: "+request().uri());
         }
         catch (Exception ex) {
             return internalServerError (ex.getMessage());
@@ -119,6 +116,22 @@ public class Controller extends play.mvc.Controller {
     
     public Result relations (String cui) {
         return content (cui, "relations");
+    }
+
+    public Result source (String src, String id) {
+        try {
+            WSResponse res = ks.source(src, id, "atoms/preferred")
+                .get().toCompletableFuture().get();
+            JsonNode json = res.asJson();
+            if (json.hasNonNull("result")) {
+                return status (res.getStatus(), json.get("result"));
+            }
+            return notFound ("Request not matched: "+request().uri());
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve "+id+" for source "+src, ex);
+            return internalServerError (ex.getMessage());
+        }
     }
 }
 

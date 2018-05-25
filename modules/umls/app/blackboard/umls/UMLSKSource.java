@@ -4,18 +4,9 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import java.util.regex.*;
 import java.util.*;
+import java.net.URLEncoder;
+import java.util.concurrent.Callable;
 
-import org.w3c.dom.Document;
-import org.xml.sax.InputSource;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Element;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpression;
-import javax.xml.xpath.XPathFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import play.Logger;
@@ -84,17 +75,6 @@ public class UMLSKSource implements KSource {
             }
             return null;
         }
-    }
-    
-    static Document fromInputSource (InputSource source)
-        throws Exception {
-        DocumentBuilderFactory factory =
-            DocumentBuilderFactory.newInstance();
-        factory.setFeature
-            ("http://apache.org/xml/features/disallow-doctype-decl", false);
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        
-        return builder.parse(source);
     }
     
     String getTGTUrl () throws Exception {
@@ -173,7 +153,8 @@ public class UMLSKSource implements KSource {
                     break;
 
                 case "concept":
-                    break; // 
+                    expand (kgraph, kn);
+                    break;
                     
                 default:
                     { String name = (String)kn.get("name");
@@ -206,18 +187,95 @@ public class UMLSKSource implements KSource {
             JsonNode results = res.asJson().get("result").get("results");
             for (int i = 0; i < results.size(); ++i) {
                 JsonNode n = results.get(i);
+                KNode xn = createConceptNodeIfAbsent (kg, n.get("ui").asText());
                 Map<String, Object> props = new HashMap<>();
-                props.put("cui", n.get("ui").asText());
-                props.put(SOURCE_P, n.get("rootSource").asText());
-                props.put(URI_P, n.get("uri").asText());
-                props.put(NAME_P, n.get("name").asText());
-                props.put(TYPE_P, "concept");
-                KNode xn = kg.createNodeIfAbsent(props, URI_P);
-                props.clear();
                 props.put("value", req.getUrl()+"?string="+query);
                 kg.createEdgeIfAbsent(kn, xn, "resolve", props, null);
             }
         }
+    }
+
+    public KNode createConceptNodeIfAbsent (KGraph kg, String cui)
+        throws Exception {
+        JsonNode n = getCui (cui);
+        if (n == null)
+            return null;
+            
+        Map<String, Object> props = new HashMap<>();
+        props.put("cui", n.get("ui").asText());
+        String uri = n.get("atoms").asText();
+        int pos = uri.lastIndexOf('/');
+        if (pos > 0) {
+            uri = uri.substring(0, pos);
+        }
+        
+        props.put(URI_P, uri);
+        props.put(NAME_P, n.get("name").asText());
+        props.put(TYPE_P, "concept");
+        List<String> types = new ArrayList<>();
+        Set<String> semtypes = new TreeSet<>();
+        JsonNode sn = n.get("semanticTypes");        
+        for (int i = 0; i < sn.size(); ++i) {
+            String t = sn.get(i).get("uri").asText();
+            pos = t.lastIndexOf('/');
+            if (pos > 0)
+                t = t.substring(pos+1);
+            types.add(t);
+            semtypes.add(sn.get(i).get("name").asText());
+        }
+        props.put("semtypes", types.toArray(new String[0]));
+        KNode kn = kg.createNodeIfAbsent(props, URI_P);
+        for (String t : kn.getTags())
+            semtypes.remove(t);
+
+        if (!semtypes.isEmpty())
+            kn.addTag(semtypes.toArray(new String[0]));
+        
+        return kn;
+    }
+
+    public Map<String, String> getRelatedCuis (String cui) throws Exception {
+        JsonNode json = getContent (cui, "relations");
+        Map<String, String> relations = new HashMap<>();
+        if (json != null) {
+            for (int i = 0; i < json.size(); ++i) {
+                JsonNode n = json.get(i);
+                if (!n.get("obsolete").asBoolean()) {
+                    String rel = n.get("relationLabel").asText();
+                    String uri = n.get("relatedId").asText();
+                    String ui = n.get("ui").asText();
+                    int pos = uri.lastIndexOf('/');
+                    if (pos > 0)
+                        uri = uri.substring(pos+1);
+                    relations.put(ui, rel+":"+uri);
+                }
+            }
+        }
+        return relations;
+    }
+
+    public List<KEdge> expand (KGraph kg, KNode node, String... types)
+        throws Exception {
+        String cui = (String) node.get("cui");
+        if (cui == null)
+            throw new IllegalArgumentException
+                ("Node doesn't have CUI defined!");
+        Set<String> _types = new HashSet<>();
+        for (String t : types)
+            _types.add(t.toUpperCase());
+        
+        List<KEdge> edges = new ArrayList<>();
+        Map<String, String> relations = getRelatedCuis (cui);
+        for (Map.Entry<String, String> me : relations.entrySet()) {
+            String[] toks = me.getValue().split(":");
+            if (_types.isEmpty() || _types.contains(toks[0])) {
+                KNode n = createConceptNodeIfAbsent (kg, toks[1]);
+                KEdge edge = kg.createEdgeIfAbsent(node, n, me.getKey());
+                edge.put("scope", toks[0]);
+                edges.add(edge);
+            }
+        }
+        return edges;
     }
 
     public String ticket () throws Exception {
@@ -228,9 +286,9 @@ public class UMLSKSource implements KSource {
         String ticket = tgt.ticket();
         String url = ksp.getUri()+"/search/"+APIVER;
             
-        Logger.debug("++ ticket="+ticket+" query="+query);            
+        Logger.debug("++ ticket="+ticket+" query="+query);
         return wsclient.url(url)
-            .setQueryParameter("string", query)
+            .setQueryParameter("string", query.replaceAll("%20", "+"))
             .setQueryParameter("ticket", ticket)
             ;
     }
@@ -247,5 +305,48 @@ public class UMLSKSource implements KSource {
         String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui+"/"+context;
         Logger.debug("++ "+context+": ticket="+ticket+" cui="+cui);
         return wsclient.url(url).setQueryParameter("ticket", ticket);
+    }
+
+    public WSRequest source (String src, String id, String context)
+        throws Exception {
+        String ticket = tgt.ticket();
+        String url = ksp.getUri()+"/content/"+APIVER+"/source/"+src+"/"+id;
+        if (context != null)
+            url += "/"+context;
+        Logger.debug("++ "+src+": ticket="+ticket
+                     +" id="+id+" context="+context);
+        return wsclient.url(url).setQueryParameter("ticket", ticket);
+    }
+
+    public JsonNode getCui (final String cui) throws Exception {
+        return cache.getOrElse(cui, new Callable<JsonNode> () {
+                public JsonNode call () throws Exception {
+                    WSResponse res =
+                        cui(cui).get().toCompletableFuture().get();
+                    try {
+                        if (res.getStatus() == 200) {
+                            return res.asJson().get("result");
+                        }
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Can't retrieve CUI "+cui+" ==> "
+                                     +res.getBody(), ex);
+                    }
+                    Logger.warn("** Can't retrieve CUI "+cui);
+                    return null;
+                }
+            });
+    }
+
+    public JsonNode getContent (final String cui, final String context)
+        throws Exception {
+        return cache.getOrElse(context+"/"+cui, new Callable<JsonNode>() {
+                public JsonNode call () throws Exception {
+                    WSResponse res = content(cui, context)
+                        .get().toCompletableFuture().get();
+                    return 200 == res.getStatus()
+                        ? res.asJson().get("result") : null;
+                }
+            });
     }
 }
