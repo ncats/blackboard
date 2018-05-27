@@ -121,6 +121,7 @@ public class MeshParser extends DefaultHandler {
         public Integer freq;
         public List<Descriptor> mapped = new ArrayList<>();
         public List<Descriptor> indexed = new ArrayList<>();
+        public List<Concept> concepts = new ArrayList<>();
         public List<Entry> pharm = new ArrayList<>();
         public List<String> sources = new ArrayList<>();
         SupplementDescriptor () {}
@@ -228,7 +229,8 @@ public class MeshParser extends DefaultHandler {
      */
     @Override
     public InputSource resolveEntity (String pubId, String sysId) {
-        logger.warning("** Ignore external ref "+pubId+"/"+sysId);
+        logger.warning("** Ignore external ref "
+                       +(pubId != null ? pubId+":":"")+sysId);
         return new InputSource(new StringReader(""));
     }
     
@@ -267,10 +269,16 @@ public class MeshParser extends DefaultHandler {
         case "HeadingMappedTo":
             suppl.mapped.add(desc = new Descriptor ());
             break;
+
+        case "IndexingInformation":
+            suppl.indexed.add(desc = new Descriptor ());
+            break;
             
         case "Concept":
             if (isChildOf ("QualifierRecord"))
                 qualifier.concepts.add(concept = new Concept ());
+            else if (isChildOf ("SupplementalRecord"))
+                suppl.concepts.add(concept = new Concept ());
             else
                 desc.concepts.add(concept = new Concept ());
             pref = attrs.getValue("PreferredConceptYN");
@@ -333,7 +341,8 @@ public class MeshParser extends DefaultHandler {
         
         switch (qName) {
         case "DescriptorUI":
-            if (isChildOf ("HeadingMappedTo")) {
+            if (isChildOf ("HeadingMappedTo")
+                || isChildOf ("IndexingInformation")) {
                 desc.ui = value;
             }
             else if (parent.equals("DescriptorReferredTo")) {
@@ -551,7 +560,7 @@ public class MeshParser extends DefaultHandler {
                   System.out.println(d.pharm.size()+" pharmalogical actions");
                   System.out.println(d.treeNumbers);
                 */
-                //System.out.println(Json.prettyPrint(Json.toJson(d)));
+                System.out.println(Json.prettyPrint(Json.toJson(d)));
             });
         
         if (argv.length == 0) {
