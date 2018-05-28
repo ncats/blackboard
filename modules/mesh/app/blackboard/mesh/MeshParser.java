@@ -8,6 +8,8 @@ import java.util.*;
 import java.net.URI;
 import java.net.URL;
 import java.util.function.Consumer;
+import java.security.MessageDigest;
+import java.security.DigestInputStream;
 
 import javax.xml.parsers.*;
 import org.xml.sax.helpers.*;
@@ -194,10 +196,11 @@ public class MeshParser extends DefaultHandler {
         }
     }
 
-    public void parseFile (File file) throws Exception {
+    public String parseFile (File file) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("sha");
         if (file.getName().endsWith(".zip")) {
             try (ZipInputStream zis = new ZipInputStream
-                 (new FileInputStream (file))) {
+                 (new DigestInputStream (new FileInputStream (file), md))) {
                 ZipEntry ze = zis.getNextEntry();
                 logger.info("## parsing "+ze.getName()
                             +"/"+file.getName()+"...");
@@ -206,17 +209,24 @@ public class MeshParser extends DefaultHandler {
         }
         else if (file.getName().endsWith(".gz")) {
             try (InputStream is = new GZIPInputStream
-                 (new FileInputStream (file))) {
+                 (new DigestInputStream (new FileInputStream (file), md))) {
                 logger.info("## parsing "+file.getName()+"...");
                 parse (is);
             }
         }
         else {
-            try (InputStream is = new FileInputStream (file)) {
+            try (InputStream is = new DigestInputStream
+                 (new FileInputStream (file), md)) {
                 logger.info("## parsing "+file.getName()+"...");
                 parse (is);
             }
         }
+        
+        byte[] digest = md.digest();
+        StringBuilder sha = new StringBuilder ();
+        for (int i = 0; i < digest.length; ++i)
+            sha.append(String.format("%1$02x", digest[i] & 0xff));
+        return sha.toString();
     }
 
     public void parse (InputStream is) throws Exception {

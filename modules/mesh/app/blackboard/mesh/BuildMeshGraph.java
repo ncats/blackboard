@@ -36,6 +36,10 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
     GraphDatabaseService gdb;
     File indir;
     File outdir;
+    AtomicInteger pacnt = new AtomicInteger ();
+    AtomicInteger qualcnt = new AtomicInteger ();
+    AtomicInteger desccnt = new AtomicInteger ();
+    AtomicInteger suppcnt = new AtomicInteger ();
 
     public BuildMeshGraph (File outdir, File indir) throws IOException {
         this.indir = indir;
@@ -57,41 +61,64 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
     public void build () throws Exception {
         for (File f : indir.listFiles()) {
             String fname = f.getName();
+            String sha = null;
+            int count = 0;
             if (fname.startsWith("pa")) {
-                buildPharmacologicalAction (f);
+                sha = buildPharmacologicalAction (f);
+                count = pacnt.get();
             }
             else if (fname.startsWith("desc")) {
-                buildDescriptor (f);
+                sha = buildDescriptor (f);
+                count = desccnt.get();
             }
             else if (fname.startsWith("supp")) {
-                buildSupplementDescriptor (f);
+                sha = buildSupplementDescriptor (f);
+                count = suppcnt.get();
             }
             else if (fname.startsWith("qual")) {
-                buildQualifier (f);
+                sha = buildQualifier (f);
+                count = qualcnt.get();
             }
             else {
                 logger.warning("Unknown file: "+f);
             }
+
+            logger.info("## "+fname+": count="+count+" sha="+sha);
+            if (sha != null) {
+                try (Transaction tx = gdb.beginTx()) {
+                    Node node = gdb.createNode(Label.label("InputFile"));
+                    node.setProperty("sha", sha);
+                    node.setProperty("name", fname);
+                    node.setProperty("count", count);
+                    tx.success();
+                }
+            }
         }
 
         try (Transaction tx = gdb.beginTx()) {
-            gdb.schema().indexFor(Label.label(Entry.class.getSimpleName()))
-                .on("ui").create();
+            for (String l : new String[]{"Descriptor", "PharmacologicalAction",
+                                         "SupplementDescriptor", "Concept",
+                                         "Qualifier", "Term"}) {
+                gdb.schema().indexFor(Label.label(l))
+                    .on("ui").create();
+            }
             tx.success();
         }
     }
 
-    void buildPharmacologicalAction (File file) {
+    String buildPharmacologicalAction (File file) {
         logger.info("### parsing pharmacological action file "+file+"...");
+        String sha = null;
         try {
             MeshParser parser = new MeshParser
                 (this::createNodePharmacologicalAction,
                  "PharmacologicalAction");
-            parser.parse(file);
+            sha = parser.parseFile(file);
         }
         catch (Exception ex) {
             logger.log(Level.SEVERE, "Can't parse file: "+file, ex);
         }
+        return sha;
     }
 
     void createNodePharmacologicalAction (Entry entry) {
@@ -107,19 +134,23 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                     Relationship r = node.createRelationshipTo
                         (n, RelationshipType.withName("substance"));
                 }
+                
+                pacnt.incrementAndGet();
             });
     }
 
-    void buildDescriptor (File file) {
+    String buildDescriptor (File file) {
         logger.info("### parsing descriptor file "+file+"...");
+        String sha = null;
         try {
             MeshParser parser = new MeshParser
                 (this::createNodeDescriptor, "DescriptorRecord");
-            parser.parse(file);
+            sha = parser.parseFile(file);
         }
         catch (Exception ex) {
             logger.log(Level.SEVERE, "Can't parse file: "+file, ex);
         }
+        return sha;
     }
 
     void createNodeDescriptor (Entry entry) {
@@ -132,9 +163,11 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                 Descriptor desc = (Descriptor)e;
                 if (desc.annotation != null)
                     node.setProperty("annotation", desc.annotation);
-                if (!desc.treeNumbers.isEmpty())
-                    setProperty (index, node, "treeNumbers",
-                                 desc.treeNumbers.toArray(new String[0]));
+                if (!desc.treeNumbers.isEmpty()) {
+                    indexTreeNumbers (index, node,
+                                      desc.treeNumbers.toArray(new String[0]));
+                }
+                
                 for (Concept c : desc.concepts) {
                     Node nc = createNodeConcept (c);
                     Relationship rel = node.createRelationshipTo
@@ -143,16 +176,25 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                         rel.setProperty("preferred", true);
                 }
 
+                List<String> qualifiers = new ArrayList<>();
                 for (Qualifier q : desc.qualifiers) {
                     // create qualifier node placeholder
+                    /*
                     createNodeIfAbsent (q, (i, n, ent) -> {
                            Relationship rel = node.createRelationshipTo
                                (n, RelationshipType.withName("qualifier"));
                            if (q.preferred)
                                rel.setProperty("preferred", true);
                         });
+                    */
+                    createNodeIfAbsent (q);
+                    qualifiers.add(q.name);
+                    if (q.preferred)
+                        setProperty (index, node, "qual_preferred", q.name);
                 }
-
+                setProperty (index, node, "qualifiers",
+                             qualifiers.toArray(new String[0]));
+                
                 /*
                 for (Entry pa : desc.pharm) {
                     createNodeIfAbsent (pa, (i, n, ent) -> {
@@ -162,7 +204,46 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                         });
                 }
                 */
+                
+                desccnt.incrementAndGet();
             });
+    }
+
+    void indexTreeNumbers (Index<Node> index,
+                           Node node, String... treeNumbers) {
+        RelationshipType type = RelationshipType.withName("parent");
+        for (String tr : treeNumbers) {
+            // identify child nodes
+            try (IndexHits<Node> hits = index.get("parent", tr)) {
+                for (Node child : hits) {
+                    Relationship rel = child.createRelationshipTo
+                        (node, type);
+                    rel.setProperty("name", tr);
+                }
+            }
+
+            // now search for parent nodes
+            String[] path = tr.split("\\.");
+            if (path.length > 1) {
+                StringBuilder p = new StringBuilder (path[0]);
+                for (int i = 1; i < path.length-1; ++i) {
+                    p.append("."+path[i]);
+                }
+                    
+                String tn = p.toString();
+                try (IndexHits<Node> hits = index.get("treeNumbers", tn)) {
+                    for (Node parent : hits) {
+                        Relationship rel = node.createRelationshipTo
+                            (parent, type);
+                        rel.setProperty("name", tn);
+                    }
+                }
+                
+                // index this node
+                index (index, node, "parent", tn);
+            }
+        }
+        setProperty (index, node, "treeNumbers", treeNumbers);        
     }
 
     Node createNodeConcept (final Concept c) {
@@ -246,9 +327,12 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                     node.setProperty("annotation", q.annotation);
                 if (q.abbr != null)
                     setProperty (index, node, "abbr", q.abbr);
-                if (!q.treeNumbers.isEmpty())
-                    setProperty (index, node, "treeNumbers",
-                                 q.treeNumbers.toArray(new String[0]));
+                
+                if (!q.treeNumbers.isEmpty()) {
+                    indexTreeNumbers (index, node,
+                                      q.treeNumbers.toArray(new String[0]));
+                }
+
                 for (Concept c : q.concepts) {
                     Node nc = createNodeConcept (c);
                     Relationship rel = node.createRelationshipTo
@@ -256,31 +340,37 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                     if (c.preferred)
                         rel.setProperty("preferred", true);                    
                 }
+                
+                qualcnt.incrementAndGet();
             });
     }
 
-    void buildSupplementDescriptor (File file) {
+    String buildSupplementDescriptor (File file) {
         logger.info("### parsing supplement descriptor file "+file+"...");
+        String sha = null;
         try {
             MeshParser parser = new MeshParser
                 (this::createNodeSupplementDescriptor, "SupplementalRecord");
-            parser.parse(file);
+            sha = parser.parseFile(file);
         }
         catch (Exception ex) {
             logger.log(Level.SEVERE, "Can't parse file: "+file, ex);
-        }        
+        }
+        return sha;
     }
 
-    void buildQualifier (File file) {
+    String buildQualifier (File file) {
         logger.info("### parsing qualifier file "+file+"...");
+        String sha = null;
         try {
             MeshParser parser = new MeshParser
                 (this::createNodeQualifier, "QualifierRecord");
-            parser.parse(file);
+            sha = parser.parseFile(file);
         }
         catch (Exception ex) {
             logger.log(Level.SEVERE, "Can't parse file: "+file, ex);
-        }        
+        }
+        return sha;
     }
 
     void createNodeSupplementDescriptor (Entry entry) {
@@ -299,24 +389,44 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                 RelationshipType type = RelationshipType.withName("mapped");
                 for (Descriptor d : supp.mapped) {
                     Node a = createNodeIfAbsent (d);
-                    createRelationshipIfAbsent (node, a, type);
-                    
-                    for (Qualifier q : d.qualifiers) {
-                        Node n = createNodeIfAbsent (q);
-                        createRelationshipIfAbsent (node, n, type);
-                        createRelationshipIfAbsent (n, a, type);
+                    Relationship rel = createRelationshipIfAbsent
+                        (node, a, type);
+
+                    if (!d.qualifiers.isEmpty()) {
+                        if (d.qualifiers.size() > 1) {
+                            List<String> qualifiers = new ArrayList<>();
+                            for (Qualifier q : d.qualifiers) {
+                                qualifiers.add(q.name);
+                            }
+                            rel.setProperty("qualifiers",
+                                            qualifiers.toArray(new String[0]));
+                        }
+                        else {
+                            rel.setProperty
+                                ("qualifier", d.qualifiers.get(0).name);
+                        }
                     }
                 }
 
                 type = RelationshipType.withName("indexed");
                 for (Descriptor d : supp.indexed) {
                     Node a = createNodeIfAbsent (d);
-                    createRelationshipIfAbsent (node, a, type);
-                    
-                    for (Qualifier q : d.qualifiers) {
-                        Node n = createNodeIfAbsent (q);
-                        createRelationshipIfAbsent (node, n, type);
-                        createRelationshipIfAbsent (n, a, type);
+                    Relationship rel = createRelationshipIfAbsent
+                        (node, a, type);
+
+                    if (!d.qualifiers.isEmpty()) {
+                        if (d.qualifiers.size() > 1) {
+                            List<String> qualifiers = new ArrayList<>();
+                            for (Qualifier q : d.qualifiers) {
+                                qualifiers.add(q.name);
+                            }
+                            rel.setProperty("qualifiers",
+                                            qualifiers.toArray(new String[0]));
+                        }
+                        else {
+                            rel.setProperty
+                                ("qualifier", d.qualifiers.get(0).name);
+                        }
                     }
                 }
 
@@ -327,6 +437,8 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                     if (c.preferred)
                         rel.setProperty("preferred", true);
                 }
+
+                suppcnt.incrementAndGet();
             });
     }
 
@@ -339,22 +451,31 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
         return from.createRelationshipTo(to, type);
     }
 
-    <T extends PropertyContainer>
-        void setProperty (Index<T> index, T e, String prop, Object value) {
+    static <T extends PropertyContainer> void setProperty
+        (Index<T> index, T e, String prop, Object value) {
         if (value != null) {
             e.setProperty(prop, value);
-            if (value.getClass().isArray()) {
-                int len = Array.getLength(value);
-                for (int i = 0; i < len; ++i)
-                    index.add(e, prop, Array.get(value, i));
-            }
-            else
-                index.add(e, prop, value);
         }
         else {
             // remove this
-            index.remove(e, prop);
             e.removeProperty(prop);
+        }
+        index (index, e, prop, value);
+    }
+
+    static <T extends PropertyContainer> void index
+        (Index<T> index, T e, String name, Object value) {
+        if (value != null) {
+            if (value.getClass().isArray()) {
+                int len = Array.getLength(value);
+                for (int i = 0; i < len; ++i)
+                    index.add(e, name, Array.get(value, i));
+            }
+            else
+                index.add(e, name, value);
+        }
+        else {
+            index.remove(e, name);
         }
     }
 
