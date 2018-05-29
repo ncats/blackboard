@@ -46,9 +46,10 @@ import play.mvc.BodyParser;
 import static blackboard.KEntity.*;
 
 public class MeshKSource implements KSource {
-    private final WSClient wsclient;
-    private final KSourceProvider ksp;
-    private final CacheApi cache;
+    final WSClient wsclient;
+    final KSourceProvider ksp;
+    final CacheApi cache;
+    final MeshDb mesh;
     
     @Inject
     public MeshKSource (WSClient wsclient, CacheApi cache,
@@ -57,14 +58,35 @@ public class MeshKSource implements KSource {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
+
+        Map<String, String> props = ksp.getProperties();
+        String param = props.get("db");
+        if (param == null)
+            throw new RuntimeException
+                ("No db specified in mesh configuration!");
+
+        File db = new File (param);
+        try {
+            mesh = new MeshDb (db);
+        }
+        catch (IOException ex) {
+            Logger.error("Can't initialize mesh database", ex);
+            throw new RuntimeException
+                ("Can't initialize MeSH database: "+db);
+        }
         
         lifecycle.addStopHook(() -> {
                 wsclient.close();
+                mesh.close();
                 return F.Promise.pure(null);
             });
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());
+    }
+
+    public MeshDb getMeshDb () {
+        return mesh;
     }
     
     public void execute (KGraph kgraph, KNode... nodes) {

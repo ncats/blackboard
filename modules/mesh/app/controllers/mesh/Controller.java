@@ -27,18 +27,22 @@ import javax.xml.transform.stream.*;
 import javax.xml.transform.dom.*;
 
 import blackboard.mesh.MeshKSource;
+import blackboard.mesh.MeshDb;
+import blackboard.mesh.Entry;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
     final MeshKSource ks;
     final WSClient wsclient;
     final CacheApi cache;
+    final MeshDb mesh;
     
     @Inject
     public Controller (WSClient wsclient, CacheApi cache, MeshKSource ks) {
         this.ks = ks;
         this.wsclient = wsclient;
         this.cache = cache;
+        mesh = ks.getMeshDb();
     }
 
     public Result index () {
@@ -51,7 +55,11 @@ public class Controller extends play.mvc.Controller {
     }
 
     public Result mesh (final String ui) {
-        return ok (ui);
+        Entry entry = mesh.getEntry(ui);
+        if (entry != null) {
+            return ok (Json.toJson(entry));
+        }
+        return notFound ("Unknown MeSH ui: "+ui);
     }
 }
 

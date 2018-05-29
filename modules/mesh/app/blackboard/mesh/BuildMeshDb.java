@@ -18,14 +18,13 @@ import org.neo4j.graphdb.index.*;
 import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.IndexCreator;
 
-import static blackboard.mesh.MeshParser.*;
 
 /*
- * sbt mesh/"run-main blackboard.mesh.BuildMeshGraph OUTDIR INDIR"
+ * sbt mesh/"run-main blackboard.mesh.BuildMeshDb OUTDIR INDIR"
  */
-public class BuildMeshGraph implements Mesh, AutoCloseable {
+public class BuildMeshDb implements Mesh, AutoCloseable {
     static final Logger logger =
-        Logger.getLogger(BuildMeshGraph.class.getName());
+        Logger.getLogger(BuildMeshDb.class.getName());
 
     static final String INDEX_LABEL = "MSH"; // MeSH source
 
@@ -41,7 +40,7 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
     AtomicInteger desccnt = new AtomicInteger ();
     AtomicInteger suppcnt = new AtomicInteger ();
 
-    public BuildMeshGraph (File outdir, File indir) throws IOException {
+    public BuildMeshDb (File outdir, File indir) throws IOException {
         this.indir = indir;
         this.outdir = outdir;
 
@@ -72,7 +71,7 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
                 count = desccnt.get();
             }
             else if (fname.startsWith("supp")) {
-                sha = buildSupplementDescriptor (f);
+                sha = buildSupplementalDescriptor (f);
                 count = suppcnt.get();
             }
             else if (fname.startsWith("qual")) {
@@ -97,7 +96,7 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
 
         try (Transaction tx = gdb.beginTx()) {
             for (String l : new String[]{"Descriptor", "PharmacologicalAction",
-                                         "SupplementDescriptor", "Concept",
+                                         "SupplementalDescriptor", "Concept",
                                          "Qualifier", "Term"}) {
                 gdb.schema().indexFor(Label.label(l))
                     .on("ui").create();
@@ -345,12 +344,12 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
             });
     }
 
-    String buildSupplementDescriptor (File file) {
+    String buildSupplementalDescriptor (File file) {
         logger.info("### parsing supplement descriptor file "+file+"...");
         String sha = null;
         try {
             MeshParser parser = new MeshParser
-                (this::createNodeSupplementDescriptor, "SupplementalRecord");
+                (this::createNodeSupplementalDescriptor, "SupplementalRecord");
             sha = parser.parseFile(file);
         }
         catch (Exception ex) {
@@ -373,15 +372,18 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
         return sha;
     }
 
-    void createNodeSupplementDescriptor (Entry entry) {
+    void createNodeSupplementalDescriptor (Entry entry) {
         createNodeIfAbsent (entry, (index, node, e) -> {
                 Label label = Label.label(SUPP);
                 if (node.hasLabel(label))
                     return;
 
                 node.addLabel(label);
-                SupplementDescriptor supp = (SupplementDescriptor)entry;
+                SupplementalDescriptor supp = (SupplementalDescriptor)entry;
                 setProperty (index, node, "freq", supp.freq);
+                if (supp.note != null)
+                    node.setProperty("note", supp.note);
+                
                 if (!supp.sources.isEmpty())
                     node.setProperty("sources",
                                      supp.sources.toArray(new String[0]));
@@ -479,21 +481,20 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
         }
     }
 
-    Node createNodeIfAbsent (MeshParser.Entry entry) {
+    Node createNodeIfAbsent (Entry entry) {
         return createNode (entry, true, null);
     }
-    Node createNodeIfAbsent (MeshParser.Entry entry, NodeInstr instr) {
+    Node createNodeIfAbsent (Entry entry, NodeInstr instr) {
         return createNode (entry, true, instr);
     }
-    Node createNode (MeshParser.Entry entry) {
+    Node createNode (Entry entry) {
         return createNode (entry, false, null);
     }
-    Node createNode (MeshParser.Entry entry, NodeInstr instr) {
+    Node createNode (Entry entry, NodeInstr instr) {
         return createNode (entry, false, instr);
     }
     
-    Node createNode (MeshParser.Entry entry,
-                     boolean check, NodeInstr nodeinstr) {
+    Node createNode (Entry entry, boolean check, NodeInstr nodeinstr) {
         String ui = entry.ui.charAt(0) == '*'
             ? entry.ui.substring(1) : entry.ui;
         
@@ -536,7 +537,7 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
     
     public static void main (String[] argv) throws Exception {
         if (argv.length < 2) {
-            System.out.println("Usage: "+BuildMeshGraph.class.getName()
+            System.out.println("Usage: "+BuildMeshDb.class.getName()
                                +" OUTDIR INDIR");
             System.out.println("where OUTDIR is the output index directory "
                                +"and INDIR is a directory contains XML files");
@@ -558,7 +559,7 @@ public class BuildMeshGraph implements Mesh, AutoCloseable {
         }
         
         File outdir = new File (argv[0]);
-        try (BuildMeshGraph mesh = new BuildMeshGraph (outdir, indir)) {
+        try (BuildMeshDb mesh = new BuildMeshDb (outdir, indir)) {
             mesh.build();
         }
     }

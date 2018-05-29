@@ -24,131 +24,12 @@ import play.libs.Json;
 public class MeshParser extends DefaultHandler {
     static final Logger logger = Logger.getLogger(MeshParser.class.getName());
 
-    static class Entry implements Comparable<Entry> {
-        public String ui;
-        public String name;
-        public Date created;
-        public Date revised;
-        public Date established;
-        public boolean preferred;
-        
-        Entry () {}
-        Entry (String ui) {
-            this (ui, null);
-        }
-        Entry (String ui, String name) {
-            this.ui = ui;
-            this.name = name;
-        }
-
-        public boolean equals (Object obj) {
-            if (obj instanceof Entry) {
-                Entry me =(Entry)obj;
-                return ui.equals(me.ui) && name.equals(me.name);
-            }
-            return false;
-        }
-
-        public int compareTo (Entry me) {
-            int d = ui.compareTo(me.ui);
-            if (d == 0)
-                d = name.compareTo(me.name);
-            return d;
-        }
-    }
-
-    public static class Term extends Entry {
-        Term () {}
-        Term (String ui) {
-            this (ui, null);
-        }
-        Term (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class Relation extends Entry {
-        Relation () {}
-        Relation (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class Concept extends Entry {
-        public String casn1;
-        public String regno;
-        public String note;
-        public List<Term> terms = new ArrayList<>();
-        public List<Relation> relations = new ArrayList<>();
-        public List<String> relatedRegno = new ArrayList<>();
-        Concept () {}
-        Concept (String ui) {
-            this (ui, null);
-        }
-        Concept (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class Qualifier extends Entry {
-        public String annotation;
-        public String abbr;
-        public List<Concept> concepts = new ArrayList<>();
-        public List<String> treeNumbers = new ArrayList<>();
-        
-        Qualifier () {}
-        Qualifier (String ui) {
-            this (ui, null);
-        }
-        Qualifier (String ui, String name) {
-            super (ui, name);
-        }
-    }
-        
-    public static class Descriptor extends Qualifier {
-        public List<Qualifier> qualifiers = new ArrayList<>();
-        public List<Entry> pharm = new ArrayList<>();
-        
-        Descriptor () {
-        }
-        Descriptor (String ui) {
-            this (ui, null);
-        }
-        Descriptor (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class SupplementDescriptor extends Entry {
-        public Integer freq;
-        public List<Descriptor> mapped = new ArrayList<>();
-        public List<Descriptor> indexed = new ArrayList<>();
-        public List<Concept> concepts = new ArrayList<>();
-        public List<Entry> pharm = new ArrayList<>();
-        public List<String> sources = new ArrayList<>();
-        SupplementDescriptor () {}
-        SupplementDescriptor (String ui) {
-            this (ui, null);
-        }
-        SupplementDescriptor (String ui, String name) {
-            super (ui, name);
-        }
-    }
-
-    public static class PharmacologicalAction extends Entry {
-        public List<Entry> substances = new ArrayList<>();
-        PharmacologicalAction () {}
-        PharmacologicalAction (String ui, String name) {
-            super (ui, name);
-        }
-    }
-    
     StringBuilder content = new StringBuilder ();
     Map<String, Consumer<Entry>> consumers = new HashMap<>();
     LinkedList<String> path = new LinkedList<String>();
     
     Descriptor desc;
-    SupplementDescriptor suppl;
+    SupplementalDescriptor suppl;
     PharmacologicalAction pa;
     Concept concept;
     Term term;
@@ -265,7 +146,7 @@ public class MeshParser extends DefaultHandler {
             break;
             
         case "SupplementalRecord":
-            suppl = new SupplementDescriptor ();
+            suppl = new SupplementalDescriptor ();
             desc = null;
             concept = null;
             term = null;
@@ -388,6 +269,11 @@ public class MeshParser extends DefaultHandler {
         case "Frequency":
             if (isChildOf ("SupplementalRecord"))
                 suppl.freq = Integer.parseInt(value);
+            break;
+            
+        case "Note":
+            if (isChildOf ("SupplementalRecord"))
+                suppl.note = value;
             break;
             
         case "Concept2UI":

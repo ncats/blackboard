@@ -5,3 +5,4 @@ GET	/:ks	controllers.ks.KnowledgeSource.getKS(ks: String)
 ->  /umls    umls.Routes
 ->  /semmed  semmed.Routes
 ->  /pubmed  pubmed.Routes
+->  /mesh    mesh.Routes
