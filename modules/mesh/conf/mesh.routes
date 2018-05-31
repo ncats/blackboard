@@ -1,3 +1,4 @@
 GET /info   controllers.mesh.Controller.index
-GET /search/*q  controllers.mesh.Controller.search(q: String)
+GET /search/*q  controllers.mesh.Controller.search(q: String, top: Integer ?= 10)
 GET /:ui        controllers.mesh.Controller.mesh(ui: String)
+GET /:ui/parents  controllers.mesh.Controller.parents(ui: String)

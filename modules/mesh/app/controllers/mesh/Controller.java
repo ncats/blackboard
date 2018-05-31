@@ -30,7 +30,6 @@ import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Entry;
 
-@Singleton
 public class Controller extends play.mvc.Controller {
     final MeshKSource ks;
     final WSClient wsclient;
@@ -50,16 +49,28 @@ public class Controller extends play.mvc.Controller {
             ("This is a basic implementation of the MeSH knowledge source!");
     }
 
-    public Result search (String q) {
-        return ok (q);
+    public Result search (String q, Integer top) {
+        Logger.debug(">> "+request().uri());
+        q = q.replaceAll("%20"," ").replaceAll("%22", "\"");
+        String[] context = request().queryString().get("context");
+        return ok (Json.toJson(mesh.search(q, top, context)));
     }
 
     public Result mesh (final String ui) {
+        Logger.debug(">> "+request().uri());        
         Entry entry = mesh.getEntry(ui);
         if (entry != null) {
             return ok (Json.toJson(entry));
         }
         return notFound ("Unknown MeSH ui: "+ui);
     }
-}
 
+    public Result parents (final String ui) {
+        Logger.debug(">> "+request().uri());
+        List<Entry> parents = mesh.getParents(ui);
+        if (parents != null) {
+            return ok (Json.toJson(parents));
+        }
+        return notFound ("Unknown MeSH ui: "+ui);
+    }
+}

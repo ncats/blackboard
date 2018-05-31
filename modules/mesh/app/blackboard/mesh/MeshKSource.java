@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.inject.Named;
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
@@ -45,6 +46,7 @@ import play.mvc.BodyParser;
 
 import static blackboard.KEntity.*;
 
+@Singleton
 public class MeshKSource implements KSource {
     final WSClient wsclient;
     final KSourceProvider ksp;
@@ -88,7 +90,7 @@ public class MeshKSource implements KSource {
     public MeshDb getMeshDb () {
         return mesh;
     }
-    
+
     public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()

@@ -26,8 +26,6 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
     static final Logger logger =
         Logger.getLogger(BuildMeshDb.class.getName());
 
-    static final String INDEX_LABEL = "MSH"; // MeSH source
-
     interface NodeInstr<T extends Entry> {
         void instrument (Index<Node> index, Node node, T entry);
     }
@@ -39,7 +37,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
     AtomicInteger qualcnt = new AtomicInteger ();
     AtomicInteger desccnt = new AtomicInteger ();
     AtomicInteger suppcnt = new AtomicInteger ();
-
+    Map<String, String> textIndexConfig;
+    
     public BuildMeshDb (File outdir, File indir) throws IOException {
         this.indir = indir;
         this.outdir = outdir;
@@ -51,10 +50,22 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
             .setConfig(GraphDatabaseSettings.dump_configuration, "true")
             .newGraphDatabase();
         //gdb.registerTransactionEventHandler(this);
+        textIndexConfig = new HashMap<>();
+        textIndexConfig.put(IndexManager.PROVIDER, "lucene");
+        textIndexConfig.put("type", "fulltext");
     }
 
-    Index<Node> nodeIndex () {
-        return gdb.index().forNodes(INDEX_LABEL);
+    Index<Node> exactNodeIndex () {
+        return gdb.index().forNodes(EXACT_INDEX);
+    }
+
+    Index<Node> textNodeIndex (Node n, String text) {
+        Index<Node> index = gdb.index().forNodes(TEXT_INDEX, textIndexConfig);
+        if (text != null)
+            index.add(n, "text", text);
+        else
+            index.remove(n, "text", text);
+        return index;
     }
 
     public void build () throws Exception {
@@ -160,8 +171,11 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
 
                 node.addLabel(label);
                 Descriptor desc = (Descriptor)e;
-                if (desc.annotation != null)
+                if (desc.annotation != null) {
                     node.setProperty("annotation", desc.annotation);
+                    textNodeIndex (node, desc.annotation);
+                }
+                
                 if (!desc.treeNumbers.isEmpty()) {
                     indexTreeNumbers (index, node,
                                       desc.treeNumbers.toArray(new String[0]));
@@ -171,8 +185,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     Node nc = createNodeConcept (c);
                     Relationship rel = node.createRelationshipTo
                         (nc, RelationshipType.withName("concept"));
-                    if (c.preferred)
-                        rel.setProperty("preferred", true);
+                    if (c.preferred != null)
+                        rel.setProperty("preferred",  c.preferred);
                 }
 
                 List<String> qualifiers = new ArrayList<>();
@@ -188,7 +202,7 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     */
                     createNodeIfAbsent (q);
                     qualifiers.add(q.name);
-                    if (q.preferred)
+                    if (q.preferred != null && q.preferred)
                         setProperty (index, node, "qual_preferred", q.name);
                 }
                 setProperty (index, node, "qualifiers",
@@ -262,8 +276,12 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     setProperty (index, n, "casn1", c.casn1);
                 if (c.regno != null)
                     setProperty (index, n, "regno", c.regno);
-                if (c.note != null)
+                
+                if (c.note != null) {
                     n.setProperty("note", c.note);
+                    textNodeIndex (n, c.note);
+                }
+                
                 if (!c.relatedRegno.isEmpty())
                     setProperty (index, n, "relatedRegno",
                                  c.relatedRegno.toArray(new String[0]));
@@ -283,9 +301,9 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     if (connected) {
                         // already connected to this term
                     }
-                    else if (t.preferred) {
+                    else if (t.preferred != null) {
                         Relationship rel = n.createRelationshipTo(nt, type);
-                        rel.setProperty("preferred", true);
+                        rel.setProperty("preferred",  t.preferred);
                     }
                     else {
                         nt.createRelationshipTo(n, type);
@@ -336,8 +354,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     Node nc = createNodeConcept (c);
                     Relationship rel = node.createRelationshipTo
                         (nc, RelationshipType.withName("concept"));
-                    if (c.preferred)
-                        rel.setProperty("preferred", true);                    
+                    if (c.preferred != null)
+                        rel.setProperty("preferred", c.preferred);
                 }
                 
                 qualcnt.incrementAndGet();
@@ -381,8 +399,10 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                 node.addLabel(label);
                 SupplementalDescriptor supp = (SupplementalDescriptor)entry;
                 setProperty (index, node, "freq", supp.freq);
-                if (supp.note != null)
+                if (supp.note != null) {
                     node.setProperty("note", supp.note);
+                    textNodeIndex (node, supp.note);
+                }
                 
                 if (!supp.sources.isEmpty())
                     node.setProperty("sources",
@@ -395,18 +415,12 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                         (node, a, type);
 
                     if (!d.qualifiers.isEmpty()) {
-                        if (d.qualifiers.size() > 1) {
-                            List<String> qualifiers = new ArrayList<>();
-                            for (Qualifier q : d.qualifiers) {
-                                qualifiers.add(q.name);
-                            }
-                            rel.setProperty("qualifiers",
-                                            qualifiers.toArray(new String[0]));
+                        List<String> qualifiers = new ArrayList<>();
+                        for (Qualifier q : d.qualifiers) {
+                            qualifiers.add(q.name);
                         }
-                        else {
-                            rel.setProperty
-                                ("qualifier", d.qualifiers.get(0).name);
-                        }
+                        rel.setProperty("qualifiers",
+                                        qualifiers.toArray(new String[0]));
                     }
                 }
 
@@ -417,18 +431,12 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                         (node, a, type);
 
                     if (!d.qualifiers.isEmpty()) {
-                        if (d.qualifiers.size() > 1) {
-                            List<String> qualifiers = new ArrayList<>();
-                            for (Qualifier q : d.qualifiers) {
-                                qualifiers.add(q.name);
-                            }
-                            rel.setProperty("qualifiers",
-                                            qualifiers.toArray(new String[0]));
+                        List<String> qualifiers = new ArrayList<>();
+                        for (Qualifier q : d.qualifiers) {
+                            qualifiers.add(q.name);
                         }
-                        else {
-                            rel.setProperty
-                                ("qualifier", d.qualifiers.get(0).name);
-                        }
+                        rel.setProperty("qualifiers",
+                                        qualifiers.toArray(new String[0]));
                     }
                 }
 
@@ -436,8 +444,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     Node nc = createNodeConcept (c);
                     Relationship rel = node.createRelationshipTo
                         (nc, RelationshipType.withName("concept"));
-                    if (c.preferred)
-                        rel.setProperty("preferred", true);
+                    if (c.preferred != null)
+                        rel.setProperty("preferred", c.preferred);
                 }
 
                 suppcnt.incrementAndGet();
@@ -499,7 +507,7 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
             ? entry.ui.substring(1) : entry.ui;
         
         try (Transaction tx = gdb.beginTx()) {
-            Index<Node> index = nodeIndex ();
+            Index<Node> index = exactNodeIndex ();
             
             Node n = null;
             if (check) {
@@ -516,11 +524,15 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     setProperty (index, n, "created", entry.created.getTime());
                 if (entry.revised != null)
                     setProperty (index, n, "revised", entry.revised.getTime());
+                /*
                 if (entry.established != null)
                     setProperty (index, n, "established",
                                  entry.established.getTime());
+                */
                 if (nodeinstr != null)
                     nodeinstr.instrument(index, n, entry);
+                textNodeIndex (n, entry.name);
+                textNodeIndex (n, ui);
             }
             else if (nodeinstr != null)
                 nodeinstr.instrument(index, n, entry);

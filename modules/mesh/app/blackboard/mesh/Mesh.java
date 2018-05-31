@@ -7,4 +7,7 @@ public interface Mesh {
     String PA = "PharmacologicalAction";
     String CONCEPT = "Concept";
     String TERM = "Term";
+
+    String EXACT_INDEX = "MSH.exact";
+    String TEXT_INDEX = "MSH.text";
 }

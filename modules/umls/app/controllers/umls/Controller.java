@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.core.JsonParseException;
 
 import blackboard.umls.UMLSKSource;
 
@@ -148,11 +149,17 @@ public class Controller extends play.mvc.Controller {
         try {
             WSResponse res = ks.source(src, id, "atoms/preferred")
                 .get().toCompletableFuture().get();
-            JsonNode json = res.asJson();
-            if (json.hasNonNull("result")) {
-                return status (res.getStatus(), json.get("result"));
+            try {
+                JsonNode json = res.asJson();
+                if (json.hasNonNull("result")) {
+                    return status (res.getStatus(), json.get("result"));
+                }
+                return notFound ("Request not matched: "+request().uri());
             }
-            return notFound ("Request not matched: "+request().uri());
+            catch (RuntimeException ex) {
+                Logger.error("Can't parse json for "+id+" for source "+src, ex);
+                return internalServerError (res.getBody());
+            }
         }
         catch (Exception ex) {
             Logger.error("Can't retrieve "+id+" for source "+src, ex);

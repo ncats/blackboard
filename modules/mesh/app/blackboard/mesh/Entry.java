@@ -1,6 +1,7 @@
 package blackboard.mesh;
 
 import java.util.Date;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Entry implements Comparable<Entry> {
     public String ui;
@@ -8,7 +9,7 @@ public class Entry implements Comparable<Entry> {
     public Date created;
     public Date revised;
     public Date established;
-    public boolean preferred;
+    public Boolean preferred;
     
     protected Entry () {}
     protected Entry (String ui) {
@@ -33,4 +34,7 @@ public class Entry implements Comparable<Entry> {
             d = name.compareTo(me.name);
         return d;
     }
+
+    @JsonProperty(value="@type")
+    public String getType () { return getClass().getSimpleName(); }    
 }
