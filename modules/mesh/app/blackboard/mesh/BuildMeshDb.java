@@ -274,17 +274,22 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     
                 if (c.casn1 != null)
                     setProperty (index, n, "casn1", c.casn1);
-                if (c.regno != null)
+                if (c.regno != null) {
                     setProperty (index, n, "regno", c.regno);
+                    textNodeIndex (n, c.regno);
+                }
                 
                 if (c.note != null) {
                     n.setProperty("note", c.note);
                     textNodeIndex (n, c.note);
                 }
                 
-                if (!c.relatedRegno.isEmpty())
+                if (!c.relatedRegno.isEmpty()) {
                     setProperty (index, n, "relatedRegno",
                                  c.relatedRegno.toArray(new String[0]));
+                    for (String regno : c.relatedRegno)
+                        textNodeIndex (n, regno);
+                }
                 
                 RelationshipType type = RelationshipType.withName("term");
                 for (Term t : c.terms) {

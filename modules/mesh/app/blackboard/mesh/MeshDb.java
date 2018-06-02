@@ -334,8 +334,56 @@ public class MeshDb implements Mesh, AutoCloseable {
         return null;
     }
 
+    public List<Entry> getContext (String ui, int skip, int top) {
+        List<Entry> entries = new ArrayList<>();
+        Node node = getNode (ui);
+        if (node != null) {
+            try (Transaction tx = gdb.beginTx()) {
+                if (node.hasLabel(TERM_LABEL)) {
+                    // return concept
+                    Relationship rel = node.getSingleRelationship
+                        (TERM_RELTYPE, Direction.BOTH);
+                    entries.add(toEntry (rel.getOtherNode(node)));
+                }
+                else if (node.hasLabel(CONCEPT_LABEL)) {
+                    for (Relationship rel :
+                             node.getRelationships(CONCEPT_RELTYPE))
+                        entries.add(toEntry (rel.getOtherNode(node)));
+                }
+                else if (node.hasLabel(QUAL_LABEL)) {
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("q", node.getProperty("name"));
+                    try (Result result = gdb.execute
+                         ("match(n) where $q in n.qualifiers "
+                          +"return n order by id(n)", params)) {
+                        int cnt = 0, total = skip+top;
+                        while (result.hasNext() && cnt < total) {
+                            Map<String, Object> row = result.next();
+                            if (cnt < skip) {
+                            }
+                            else {
+                                Node n = (Node)row.get("n");
+                                entries.add(toEntry (n));
+                            }
+                            ++cnt;
+                        }
+                    }
+                }
+                else if (node.hasLabel(SUPP_LABEL)
+                         || node.hasLabel(DESC_LABEL)) {
+                    entries.add(toEntry (node));
+                }
+                else {
+                    Logger.warn("Unknown node: "+ui);
+                }
+                tx.success();
+            }
+        }
+        return entries;
+    }
+
     public List<Entry> search (String q,  int top, String... label) {
-        List<Entry> nodes = new ArrayList<>();
+        List<Entry> matches = new ArrayList<>();
         try (Transaction tx = gdb.beginTx()) {
             Index<Node> index = gdb.index().forNodes(TEXT_INDEX, indexConfig);
             Set<Label> labels = new HashSet<>();
@@ -350,11 +398,11 @@ public class MeshDb implements Mesh, AutoCloseable {
                 while (hits.hasNext()) {
                     Node n = hits.next();
                     if (labels.isEmpty())
-                        nodes.add(toEntry (n));
+                        matches.add(toEntry (n));
                     else {
                         for (Label l : labels) {
                             if (n.hasLabel(l)) {
-                                nodes.add(toEntry (n));
+                                matches.add(toEntry (n));
                                 break;
                             }
                         }
@@ -362,9 +410,10 @@ public class MeshDb implements Mesh, AutoCloseable {
                 }
             }
             tx.success();
-            Logger.debug("Query: ("+q+") => "+nodes.size()+" match(es)!");
+            Logger.debug("Query: ("+q+") => "+matches.size()+" match(es)!");
         }
-        return nodes;
+        
+        return matches;
     }
 
     public void close () throws Exception {

@@ -12,7 +12,14 @@ lazy val commonDependencies = Seq(
   javaJdbc,
   "mysql" % "mysql-connector-java" % "5.1.31",
   // can't seem to get beyond version 3.2.1; getting npe in netty!
-  "org.neo4j" % "neo4j" % "3.2.1", 
+  "org.neo4j" % "neo4j" % "3.2.1",
+  /*
+  "org.apache.lucene" % "lucene-core" % "5.4.0",
+  "org.apache.lucene" % "lucene-facet" % "5.4.0",
+  "org.apache.lucene" % "lucene-analyzers-common" % "5.4.0",
+  "org.apache.lucene" % "lucene-queryparser" % "5.4.0",
+  "org.apache.lucene" % "lucene-queries" % "5.4.0",  
+   */
   "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.3.7",
   "org.webjars" % "jquery" % "3.2.0",

@@ -73,4 +73,12 @@ public class Controller extends play.mvc.Controller {
         }
         return notFound ("Unknown MeSH ui: "+ui);
     }
+
+    public Result context (final String ui, Integer skip, Integer top) {
+        Logger.debug(">> "+request().uri());
+        List<Entry> entries = mesh.getContext(ui, skip, top);
+        if (!entries.isEmpty())
+            return ok (Json.toJson(entries));
+        return notFound ("Unknown MeSH ui: "+ui);
+    }
 }
