@@ -46,6 +46,11 @@ import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
 
 import blackboard.*;
+import blackboard.mesh.Entry;
+import blackboard.mesh.Descriptor;
+import blackboard.mesh.Qualifier;
+import blackboard.mesh.MeshDb;
+import blackboard.mesh.MeshKSource;
 import play.mvc.BodyParser;
 
 import static blackboard.KEntity.*;
@@ -54,6 +59,8 @@ public class PubMedKSource implements KSource {
     private final WSClient wsclient;
     private final KSourceProvider ksp;
     private final CacheApi cache;
+    private final MeshDb mesh;
+    
     private final String[] blacklist;
     private final String[] whitelist;
     
@@ -98,10 +105,12 @@ public class PubMedKSource implements KSource {
     @Inject
     public PubMedKSource (WSClient wsclient, CacheApi cache,
                           @Named("pubmed") KSourceProvider ksp,
+                          MeshKSource meshKS,
                           ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
+        this.mesh = meshKS.getMeshDb();
 
         Map<String, String> props = ksp.getProperties();
         EUTILS_BASE = props.get("uri");
@@ -435,7 +444,7 @@ public class PubMedKSource implements KSource {
         return s;
     }
 
-    String[] getTreeNumbers (String ui) throws Exception {
+    String[] _getTreeNumbers (String ui) throws Exception {
         Set<String> treeNums = new TreeSet<>();
         Logger.debug(" ++ checking tree number: "+ui);
         
@@ -486,6 +495,16 @@ public class PubMedKSource implements KSource {
         return treeNums.toArray(new String[0]);
     }
 
+    String[] getTreeNumbers (String ui) throws Exception {
+        Entry entry = mesh.getEntry(ui);
+        String[] treeNums = new String[0];
+        if (entry != null && entry instanceof Qualifier) {
+            Qualifier qual = (Qualifier)entry;
+            treeNums = qual.treeNumbers.toArray(new String[0]);
+        }
+        return treeNums;
+    }
+    
     public MeSH[] searchMeSH (String query) throws Exception {
         Map<String, MeSH> meshes = new TreeMap<>();
         WSRequest req = wsclient.url("https://id.nlm.nih.gov/mesh/sparql")

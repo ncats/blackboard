@@ -44,8 +44,26 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
-  .dependsOn(buildinfo,core,pharos,biothings,beacons,pubmed,umls,semmed,chembl)
-  .aggregate(buildinfo,core,pharos,biothings,beacons,pubmed,umls,semmed,chembl)
+  .dependsOn(
+    pharos,
+    biothings,
+    beacons,
+    pubmed,
+    umls,
+    semmed,
+    ct,
+    chembl
+  )
+  .aggregate(
+    pharos,
+    biothings,
+    beacons,
+    pubmed,
+    umls,
+    semmed,
+    ct,
+    chembl
+  )
 
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
@@ -72,7 +90,7 @@ lazy val core =  (project in file("modules/core"))
     name := "blackboard-core",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-)
+).dependsOn(buildinfo).aggregate(buildinfo)
 
 lazy val pharos = (project in file("modules/pharos"))
   .enablePlugins(PlayJava)
@@ -81,7 +99,7 @@ lazy val pharos = (project in file("modules/pharos"))
     name := "blackboard-pharos",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core,pubmed).aggregate(core, pubmed)
+).dependsOn(pubmed).aggregate(pubmed)
 
 lazy val biothings = (project in file("modules/biothings"))
   .settings(commonSettings: _*)
@@ -134,7 +152,16 @@ lazy val semmed = (project in file("modules/semmed"))
   name := "blackboard-semmed",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core, umls).aggregate(core, umls)
+  ).dependsOn(umls).aggregate(umls)
+
+lazy val ct = (project in file("modules/ct"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "blackboard-ct",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+  ).dependsOn(mesh,umls).aggregate(mesh,umls)
 
 lazy val chembl = (project in file("modules/chembl"))
   .settings(commonSettings: _*)

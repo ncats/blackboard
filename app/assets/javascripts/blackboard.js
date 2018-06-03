@@ -58,8 +58,9 @@ function renderKGraph (id, url, wsurl) {
         var ws = new WebSocket (wsurl);
         ws.onmessage = function (ev) {
             var data = JSON.parse(ev.data);
-            console.log(data);
-            
+            //console.log(data);
+            data.id = data['@id'];
+            data.type = data['@type'];
             switch (data.oper) {
             case "ADD":
                 switch (data.kind) {
@@ -72,7 +73,6 @@ function renderKGraph (id, url, wsurl) {
                     
                 case "kedge":
                     if (data.source != data.target) {
-                        delete data.id; // cy needs this to be globally unique
                         var e = cy.add({
                             group: "edges",
                             data: data
@@ -97,6 +97,9 @@ function renderKGraph (id, url, wsurl) {
         var i = 0, len = kdata.nodes.length;
         for (; i < len; ++i) {
             var kn = kdata.nodes[i];
+            kn.id = kn['@id'];
+            kn.type = kn['@type'];
+            //console.log('node added: '+kn);
             var n = cy.add({
                 group: "nodes",
                 data: kn
@@ -107,7 +110,7 @@ function renderKGraph (id, url, wsurl) {
         for (i = 0; i < len; ++i) {
             var e = kdata.edges[i];
             if (e.source != e.target) {
-                delete e.id;
+                e.type = e['@type'];
                 cy.add({
                     group: "edges",
                     data: e
@@ -136,19 +139,19 @@ function kgraph (id) {
                 }
             },
             {
-                selector: 'node[type="concept"]',
+                selector: "node[type='concept']",
                 style: {
                     'background-color': '#b780f2'
                 }
             },
             {
-                selector: 'node[type="drug"]',
+                selector: "node[type='drug']",
                 style: {
                     'background-color': '#0f5'
                 }
             },
             {
-                selector: 'node[type="article"]',
+                selector: "node[type='article']",
                 style: {
                     'shape': 'roundrectangle',
                     'background-color': '#ff8000',
@@ -157,19 +160,19 @@ function kgraph (id) {
                 }
             },
             {
-                selector: 'node[type="protein"]',
+                selector: "node[type='protein']",
                 style: {
                     'background-color': 'blue'
                 }
             },
             {
-                selector: 'node[type="adverse"],[type="disease"]',
+                selector: "node[type='adverse'],[type='disease']",
                 style: {
                     'background-color': '#f20'
                 }
             },
             {
-                selector: 'node[type="query"]',
+                selector: "node[type='query']",
                 style: {
                     'background-color': '#f5e',
                     'width': 50,

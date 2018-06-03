@@ -3,6 +3,7 @@ package blackboard;
 import java.util.Map;
 import java.util.function.Supplier;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public interface KEntity {
     public static final String NAME_P = "name";
@@ -18,9 +19,11 @@ public interface KEntity {
 
     @JsonAnyGetter
     Map<String, Object> getProperties ();
-    
+
+    @JsonProperty(value="@id")
     long getId ();
     long getCreated ();
+    @JsonProperty(value="@type")
     String getType ();
     String getName ();
     void put (String prop, Object value);

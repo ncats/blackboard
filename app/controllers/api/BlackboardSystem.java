@@ -58,8 +58,10 @@ public class BlackboardSystem extends Controller {
     @BodyParser.Of(value = BodyParser.Json.class)    
     public Result createKGraph () {
         JsonNode json = request().body().asJson();
-        if (!json.hasNonNull(TYPE_P)) 
-            return badRequest ("Json has not \""+TYPE_P+"\" field!");
+        if (!json.hasNonNull(TYPE_P)) {
+            Logger.warn("Request json has no \""+TYPE_P+"\" field!");
+            return badRequest ("Json has no \""+TYPE_P+"\" field!");
+        }
 
         Map<String, Object> props = new TreeMap<>();
         for (Iterator<String> it = json.fieldNames(); it.hasNext(); ) {
