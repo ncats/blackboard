@@ -6,9 +6,20 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
 public class Condition implements Comparable<Condition> {
+    public static class Entry {
+        public final String ui;
+        public final String name;
+        public String description;
+
+        Entry (String ui, String name) {
+            this.ui = ui;
+            this.name = name;
+        }
+    }
+    
     public String name;
-    public String meshUI;
-    public String umlsUI;
+    public Entry mesh;
+    public Entry umls;
     public Integer count;
     public Boolean rare;
 

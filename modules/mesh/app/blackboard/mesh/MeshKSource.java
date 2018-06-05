@@ -56,7 +56,7 @@ public class MeshKSource implements KSource {
     @Inject
     public MeshKSource (WSClient wsclient, CacheApi cache,
                         @Named("mesh") KSourceProvider ksp,
-                        ApplicationLifecycle lifecycle) {
+                        MeshFactory mfac, ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
@@ -67,19 +67,12 @@ public class MeshKSource implements KSource {
             throw new RuntimeException
                 ("No db specified in mesh configuration!");
 
+
         File db = new File (param);
-        try {
-            mesh = new MeshDb (db);
-        }
-        catch (IOException ex) {
-            Logger.error("Can't initialize mesh database", ex);
-            throw new RuntimeException
-                ("Can't initialize MeSH database: "+db);
-        }
+        mesh = mfac.get(db);        
         
         lifecycle.addStopHook(() -> {
                 wsclient.close();
-                mesh.close();
                 return F.Promise.pure(null);
             });
         
@@ -87,9 +80,7 @@ public class MeshKSource implements KSource {
                      +" initialized; provider is "+ksp.getImplClass());
     }
 
-    public MeshDb getMeshDb () {
-        return mesh;
-    }
+    public MeshDb getMeshDb () { return mesh; }
 
     public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()

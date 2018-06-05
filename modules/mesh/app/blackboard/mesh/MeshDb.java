@@ -5,6 +5,7 @@ import java.util.*;
 import java.lang.reflect.Array;
 import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
 
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -17,34 +18,20 @@ import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.IndexCreator;
 import org.neo4j.index.lucene.*;
 
+import javax.inject.Inject;
+
+import play.libs.F;
 import play.Logger;
+import play.inject.ApplicationLifecycle;
+import com.google.inject.assistedinject.Assisted;
 
-public class MeshDb implements Mesh, AutoCloseable {
-    static final Label DESC_LABEL = Label.label(DESC);
-    static final Label QUAL_LABEL = Label.label(QUAL);
-    static final Label SUPP_LABEL = Label.label(SUPP);
-    static final Label PA_LABEL = Label.label(PA);
-    static final Label TERM_LABEL = Label.label(TERM);
-    static final Label CONCEPT_LABEL = Label.label(CONCEPT);
-    
-    static final RelationshipType PARENT_RELTYPE =
-        RelationshipType.withName("parent");
-    static final RelationshipType CONCEPT_RELTYPE =
-        RelationshipType.withName("concept");
-    static final RelationshipType TERM_RELTYPE =
-        RelationshipType.withName("term");
-    static final RelationshipType SUBSTANCE_RELTYPE =
-        RelationshipType.withName("substance");
-    static final RelationshipType MAPPED_RELTYPE =
-        RelationshipType.withName("mapped");
-    static final RelationshipType INDEXED_RELTYPE =
-        RelationshipType.withName("indexed");
-
+public class MeshDb implements Mesh {
     final Map<String, String> indexConfig = new HashMap<>();
     final GraphDatabaseService gdb;
     final File dbdir;
 
-    public MeshDb (File dbdir) throws IOException {
+    @Inject
+    public MeshDb (ApplicationLifecycle lifecycle, @Assisted File dbdir) {
         gdb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbdir)
             //.setConfig(GraphDatabaseSettings.read_only, "true")
             .newGraphDatabase();
@@ -52,7 +39,7 @@ public class MeshDb implements Mesh, AutoCloseable {
         int files = 0;        
         try (Transaction tx = gdb.beginTx();
              ResourceIterator<Node> it =
-             gdb.findNodes(Label.label("InputFile"))) {
+             gdb.findNodes(Label.label(MeshDb.class.getName()))) {
             while (it.hasNext()) {
                 Node n = it.next();
                 Logger.debug("## name="+n.getProperty("name")
@@ -69,6 +56,11 @@ public class MeshDb implements Mesh, AutoCloseable {
         indexConfig.put("type", "fulltext");
         indexConfig.put("to_lower_case", "true");
 
+        lifecycle.addStopHook(() -> {
+                shutdown ();
+                return F.Promise.pure(null);
+            });
+        
         Logger.debug("## "+dbdir+" mesh database initialized...");
         this.dbdir = dbdir;
     }
@@ -416,8 +408,8 @@ public class MeshDb implements Mesh, AutoCloseable {
         return matches;
     }
 
-    public void close () throws Exception {
-        Logger.debug("## shutting down MeshDb instance...");
+    public void shutdown () throws Exception {
+        Logger.debug("## shutting down MeshDb instance "+dbdir+"...");
         gdb.shutdown();
     }
 }

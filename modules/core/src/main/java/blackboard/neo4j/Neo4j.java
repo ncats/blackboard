@@ -5,7 +5,9 @@ import java.util.TreeMap;
 import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import play.Logger;
+
 
 /**
  * Neo4j utilities

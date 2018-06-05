@@ -14,11 +14,11 @@ lazy val commonDependencies = Seq(
   // can't seem to get beyond version 3.2.1; getting npe in netty!
   "org.neo4j" % "neo4j" % "3.2.1",
   /*
-  "org.apache.lucene" % "lucene-core" % "5.4.0",
-  "org.apache.lucene" % "lucene-facet" % "5.4.0",
-  "org.apache.lucene" % "lucene-analyzers-common" % "5.4.0",
-  "org.apache.lucene" % "lucene-queryparser" % "5.4.0",
-  "org.apache.lucene" % "lucene-queries" % "5.4.0",  
+  "org.apache.lucene" % "lucene-core" % "5.5.0",
+  "org.apache.lucene" % "lucene-facet" % "5.5.0",
+  "org.apache.lucene" % "lucene-analyzers-common" % "5.5.0",
+  "org.apache.lucene" % "lucene-queryparser" % "5.5.0",
+  "org.apache.lucene" % "lucene-queries" % "5.5.0",  
    */
   "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.3.7",

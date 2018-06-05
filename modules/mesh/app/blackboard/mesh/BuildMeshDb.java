@@ -96,7 +96,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
             logger.info("## "+fname+": count="+count+" sha="+sha);
             if (sha != null) {
                 try (Transaction tx = gdb.beginTx()) {
-                    Node node = gdb.createNode(Label.label("InputFile"));
+                    Node node = gdb.createNode
+                        (Label.label(MeshDb.class.getName()));
                     node.setProperty("sha", sha);
                     node.setProperty("name", fname);
                     node.setProperty("count", count);

@@ -338,6 +338,21 @@ public class UMLSKSource implements KSource {
             });
     }
 
+    public JsonNode getSource (final String src, final String id,
+                               final String context)
+        throws Exception {
+        return cache.getOrElse
+            ("umls/"+src+"/"+id+(context!=null?context:""),
+             new Callable<JsonNode> () {
+                 public JsonNode call () throws Exception {
+                     WSResponse res = source(src, id, context)
+                         .get().toCompletableFuture().get();
+                     return res.getStatus() == 200
+                         ? res.asJson().get("result") : null;
+                 }
+             });
+    }
+
     public JsonNode getContent (final String cui, final String context)
         throws Exception {
         return cache.getOrElse
@@ -347,6 +362,24 @@ public class UMLSKSource implements KSource {
                             .get().toCompletableFuture().get();
                         return 200 == res.getStatus()
                             ? res.asJson().get("result") : null;
+                    }
+                });
+    }
+
+    public JsonNode getSearch (final String query,
+                               final int skip, final int top) throws Exception {
+        return cache.getOrElse
+            ("umls/search/"+query+"/"+top+"/"+skip, new Callable<JsonNode>() {
+                    public JsonNode call () throws Exception {
+                        WSResponse res = search(query)
+                            .setQueryParameter("pageSize", String.valueOf(top))
+                            .setQueryParameter("pageNumber",
+                                               String.valueOf(skip/top+1))
+                            .get().toCompletableFuture().get();
+                        if (200 == res.getStatus()) {
+                            return res.asJson().get("result").get("results");
+                        }
+                        return null;
                     }
                 });
     }

@@ -64,7 +64,7 @@ public class Controller extends play.mvc.Controller {
         return n;
     }
 
-    public Result search (String q, Integer top, Integer skip) {
+    public Result search (String q, Integer skip, Integer top) {
         try {
             WSResponse res = ks.search(q)
                 .setQueryParameter("pageSize", top.toString())

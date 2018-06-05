@@ -1,5 +1,5 @@
 GET /info   controllers.ct.Controller.index
-GET /conditions controllers.ct.Controller.conditions
+GET /build  controllers.ct.Controller.build(skip: Integer ?= 0, top: Integer ?= 10)
+GET /conditions controllers.ct.Controller.conditions(skip: Integer ?= 0, top: Integer ?= 10)
 GET /search/*q  controllers.ct.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /:id        controllers.ct.Controller.resolve(id: String)
-
