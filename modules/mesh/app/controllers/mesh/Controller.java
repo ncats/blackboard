@@ -3,6 +3,8 @@ package controllers.mesh;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionStage;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -14,6 +16,7 @@ import play.libs.ws.WSRequest;
 import play.Logger;
 import play.libs.Json;
 import play.cache.CacheApi;
+import play.libs.concurrent.HttpExecutionContext;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,54 +34,72 @@ import blackboard.mesh.MeshDb;
 import blackboard.mesh.Entry;
 
 public class Controller extends play.mvc.Controller {
+    final HttpExecutionContext ec;
     final MeshKSource ks;
     final WSClient wsclient;
     final CacheApi cache;
     final MeshDb mesh;
     
     @Inject
-    public Controller (WSClient wsclient, CacheApi cache, MeshKSource ks) {
+    public Controller (HttpExecutionContext ec, WSClient wsclient,
+                       CacheApi cache, MeshKSource ks) {
         this.ks = ks;
         this.wsclient = wsclient;
         this.cache = cache;
+        this.ec = ec;
         mesh = ks.getMeshDb();
     }
 
+    static protected CompletionStage<Result> async (Result result) {
+        return supplyAsync (() -> {
+                return result;
+            });
+    }
+    
     public Result index () {
         return ok
             ("This is a basic implementation of the MeSH knowledge source!");
     }
 
-    public Result search (String q, Integer top) {
+    public CompletionStage<Result> search (final String q, final Integer top) {
         Logger.debug(">> "+request().uri());
-        q = q.replaceAll("%20"," ").replaceAll("%22", "\"");
-        String[] context = request().queryString().get("context");
-        return ok (Json.toJson(mesh.search(q, top, context)));
+        return supplyAsync (() -> {
+                String query = q.replaceAll("%20"," ").replaceAll("%22", "\"");
+                String[] context = request().queryString().get("context");
+                return ok (Json.toJson(mesh.search(query, top, context)));
+            }, ec.current());
     }
 
-    public Result mesh (final String ui) {
-        Logger.debug(">> "+request().uri());        
-        Entry entry = mesh.getEntry(ui);
-        if (entry != null) {
-            return ok (Json.toJson(entry));
-        }
-        return notFound ("Unknown MeSH ui: "+ui);
+    public CompletionStage<Result> mesh (final String ui) {
+        Logger.debug(">> "+request().uri());
+        return supplyAsync (() -> {
+                Entry entry = mesh.getEntry(ui);
+                if (entry != null) {
+                    return ok (Json.toJson(entry));
+                }
+                return notFound ("Unknown MeSH ui: "+ui);
+            }, ec.current());
     }
 
-    public Result parents (final String ui) {
+    public CompletionStage<Result> parents (final String ui) {
         Logger.debug(">> "+request().uri());
-        List<Entry> parents = mesh.getParents(ui);
-        if (parents != null) {
-            return ok (Json.toJson(parents));
-        }
-        return notFound ("Unknown MeSH ui: "+ui);
+        return supplyAsync (() -> {
+                List<Entry> parents = mesh.getParents(ui);
+                if (parents != null) {
+                    return ok (Json.toJson(parents));
+                }
+                return notFound ("Unknown MeSH ui: "+ui);
+            }, ec.current());
     }
 
-    public Result context (final String ui, Integer skip, Integer top) {
+    public CompletionStage<Result> context
+        (final String ui, final Integer skip, final Integer top) {
         Logger.debug(">> "+request().uri());
-        List<Entry> entries = mesh.getContext(ui, skip, top);
-        if (!entries.isEmpty())
-            return ok (Json.toJson(entries));
-        return notFound ("Unknown MeSH ui: "+ui);
+        return supplyAsync (() -> {
+                List<Entry> entries = mesh.getContext(ui, skip, top);
+                if (!entries.isEmpty())
+                    return ok (Json.toJson(entries));
+                return notFound ("Unknown MeSH ui: "+ui);
+            }, ec.current());
     }
 }

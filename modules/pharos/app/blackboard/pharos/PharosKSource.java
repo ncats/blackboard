@@ -24,7 +24,7 @@ import blackboard.*;
 import blackboard.pubmed.PubMedKSource;
 import static blackboard.KEntity.*;
 
-public class PharosKSource implements KSource {
+public class PharosKSource implements KSource, KType {
     interface Resolver {
         void resolve (JsonNode json, KNode kn, KGraph kg);
     }
@@ -274,7 +274,7 @@ public class PharosKSource implements KSource {
 
     void resolveTargets (JsonNode json, KNode kn, KGraph kg) {
         instrument ("targets", json, kn, kg, (jn, props) -> {
-                props.put(TYPE_P, "protein");       
+                props.put(TYPE_P, PROTEIN_T);       
                 props.put("family", jn.get("idgFamily").asText());
                 props.put("tdl", jn.get("idgTDL").asText());
                 if (jn.hasNonNull("accession"))
@@ -340,7 +340,7 @@ public class PharosKSource implements KSource {
 
     void resolveLigands (JsonNode json, KNode kn, KGraph kg) {
         instrument ("ligands", json, kn, kg, (jn, props) -> {
-                props.put(TYPE_P, "drug");
+                props.put(TYPE_P, DRUG_T);
                 String[] syns = retrieveSynonyms
                     ((String)props.get(URI_P), null);
                 if (syns.length > 0)
@@ -350,7 +350,7 @@ public class PharosKSource implements KSource {
 
     void resolveDiseases (JsonNode json, KNode kn, KGraph kg) {
         instrument ("diseases", json, kn, kg, (jn, props) -> {
-                props.put(TYPE_P, "disease");
+                props.put(TYPE_P, DISEASE_T);
                 String[] syns = retrieveSynonyms
                     ((String)props.get(URI_P), null);
                 if (syns.length > 0)
@@ -408,7 +408,7 @@ public class PharosKSource implements KSource {
         // make
         if (type != null || pn.size() == 0) {
             Map<String, Object> props = new TreeMap<>();
-            props.put(TYPE_P, "drug");
+            props.put(TYPE_P, DRUG_T);
             String uri = ksp.getUri()+"/ligands("+id+")";
             props.put(URI_P, uri);
             if (name != null)
@@ -468,7 +468,7 @@ public class PharosKSource implements KSource {
 
         if (type != null || ds != null) {
             Map<String, Object> props = new TreeMap<>();
-            props.put(TYPE_P, "disease");
+            props.put(TYPE_P, DISEASE_T);
             String uri = ksp.getUri()+"/diseases("+id+")";
             props.put(URI_P, uri);
             props.put(NAME_P, disease);
@@ -523,7 +523,7 @@ public class PharosKSource implements KSource {
         //Logger.debug("link "+node.get("id").asText()+": type="+type+" tdl="+tdl);
         if (type != null || tdl != null) {
             Map<String, Object> props = new TreeMap<>();
-            props.put(TYPE_P, "protein");
+            props.put(TYPE_P, PROTEIN_T);
             String uri = ksp.getUri()+"/targets("+id+")";
             props.put(URI_P, uri);
             

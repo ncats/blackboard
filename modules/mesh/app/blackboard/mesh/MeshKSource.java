@@ -86,5 +86,5 @@ public class MeshKSource implements KSource {
         Logger.debug("$"+ksp.getId()
                      +": executing on KGraph "+kgraph.getId()
                      +" \""+kgraph.getName()+"\"");
-    }    
+    }
 }

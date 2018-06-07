@@ -55,7 +55,7 @@ import play.mvc.BodyParser;
 
 import static blackboard.KEntity.*;
 
-public class PubMedKSource implements KSource {
+public class PubMedKSource implements KSource, KType {
     private final WSClient wsclient;
     private final KSourceProvider ksp;
     private final CacheApi cache;
@@ -91,7 +91,7 @@ public class PubMedKSource implements KSource {
         public int compareTo (MeSH m) { return ui.compareTo(m.ui); }
         public Map<String, Object> encode (Map<String, Object> props) {
             props.put(NAME_P, name);
-            props.put(TYPE_P, "mesh");
+            props.put(TYPE_P, MESH_T);
             props.put("ui", ui);
             props.put(URI_P, MESH_BASE+"/"+ui);
             props.put("treeNumbers", treeNumbers.toArray(new String[0]));
@@ -249,7 +249,7 @@ public class PubMedKSource implements KSource {
         String pmid = ((Element)nodes.item(0)).getTextContent();
 
         String title = "";
-        String type = "article";
+        String type = ARTICLE_T;
         nodes = doc.getElementsByTagName("ArticleTitle");
         if (nodes.getLength() > 0) 
             title = ((Element)nodes.item(0)).getTextContent();
@@ -671,7 +671,7 @@ public class PubMedKSource implements KSource {
                 JsonNode result = results.get(uids.get(i).asText());
                 System.out.println(result.get("synonymlist").get(0).asText());
                 props.put(NAME_P,result.get("synonymlist").get(0).asText());
-                props.put(TYPE_P,"drug");
+                props.put(TYPE_P, DRUG_T);
                 props.put(URI_P,"https://pubchem.ncbi.nlm.nih.gov/compound/"+uids.get(i).asText());
                 KNode xn = kg.createNodeIfAbsent(props, URI_P);
                 if (xn.getId() != kn.getId()) {
@@ -734,7 +734,7 @@ public class PubMedKSource implements KSource {
                 .asText();
         Map<String,Object> props = new HashMap<>();
         props.put(NAME_P,geneName);
-        props.put(TYPE_P,"gene");
+        props.put(TYPE_P, GENE_T);
         props.put(URI_P,"https://www.ncbi.nlm.nih.gov/gene/"+geneId);
         KNode xn = kg.createNodeIfAbsent(props, URI_P);
         if (xn.getId() != kn.getId()) {
@@ -900,6 +900,7 @@ public class PubMedKSource implements KSource {
             Logger.debug(pmid+": "+nodes.item(0).getTextContent());
         }
     }
+    
     void resolveArticles (JsonNode json, KNode kn, KGraph kg) {
         Map<String, Object> props = new TreeMap<>();
         props.put(TYPE_P, "pubmed");

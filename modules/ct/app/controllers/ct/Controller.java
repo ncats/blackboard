@@ -3,6 +3,8 @@ package controllers.ct;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionStage;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -14,6 +16,7 @@ import play.libs.ws.WSRequest;
 import play.Logger;
 import play.libs.Json;
 import play.cache.CacheApi;
+import play.libs.concurrent.HttpExecutionContext;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,15 +33,18 @@ import blackboard.ct.ClinicalTrialKSource;
 import blackboard.ct.Condition;
 import blackboard.ct.ClinicalTrialDb;
 
+@Singleton
 public class Controller extends play.mvc.Controller {
+    final HttpExecutionContext ec;
     final WSClient wsclient;
     final CacheApi cache;
     final ClinicalTrialKSource ks;
     final ClinicalTrialDb ctdb;
 
     @Inject
-    public Controller (WSClient wsclient, CacheApi cache,
-                       ClinicalTrialKSource ks) {
+    public Controller (HttpExecutionContext ec, WSClient wsclient,
+                       CacheApi cache, ClinicalTrialKSource ks) {
+        this.ec = ec;
         this.ks = ks;
         this.wsclient = wsclient;
         this.cache = cache;
@@ -53,27 +59,39 @@ public class Controller extends play.mvc.Controller {
         return ok (query);
     }
 
-    public Result resolve (String id) {
-        return ok (id);
+    public CompletionStage<Result> resolve (final String id) {
+        return supplyAsync (() -> {
+                try {
+                    ctdb.resolve(id);
+                    return ok (id);
+                }
+                catch (Exception ex) {
+                    ex.printStackTrace();
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
     }
 
-    public Result conditions (Integer skip, Integer top) {
-        try {
-            List<Condition> conditions = cache.getOrElse
-                ("ct/conditions/"+skip+"/"+top,
-                 new Callable<List<Condition>> () {
-                     public List<Condition> call () throws Exception {
-                         return ks.getClinicalTrialDb()
-                         .getConditions(skip, top);
-                     }
-                 });
-            return ok (Json.toJson(conditions));
-        }
-        catch (Exception ex) {
-            Logger.error("getAllConditions", ex);
-            return internalServerError
-                ("Can't retrieve all conditions: "+ex.getMessage());
-        }
+    public CompletionStage<Result> conditions
+        (final Integer skip, final Integer top) {
+        return supplyAsync (() -> {
+                try {
+                    List<Condition> conditions = cache.getOrElse
+                        ("ct/conditions/"+skip+"/"+top,
+                         new Callable<List<Condition>> () {
+                             public List<Condition> call () throws Exception {
+                                 return ks.getClinicalTrialDb()
+                                 .getConditions(skip, top);
+                             }
+                         });
+                    return ok (Json.toJson(conditions));
+                }
+                catch (Exception ex) {
+                    Logger.error("getAllConditions", ex);
+                    return internalServerError
+                        ("Can't retrieve all conditions: "+ex.getMessage());
+                }
+            }, ec.current());
     }
 
     public Result build (Integer skip, Integer top) {
