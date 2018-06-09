@@ -1,5 +1,9 @@
 GET /info   controllers.umls.Controller.index
 GET /ticket controllers.umls.Controller.ticket
+GET /sources        controllers.umls.Controller.datasources
+GET /sources/:name  controllers.umls.Controller.datasource(name: String)
+GET /concepts/:src/:id controllers.umls.Controller.concept(src: String, id: String)
+GET /concepts/:term controllers.umls.Controller.findConcepts(term: String)
 GET /search/*q  controllers.umls.Controller.search(q: String, skip: Int ?= 0, top: Int ?= 10)
 GET /:cui controllers.umls.Controller.cui(cui: String)
 GET /:cui/full controllers.umls.Controller.full(cui: String)
@@ -7,5 +11,3 @@ GET /:cui/atoms controllers.umls.Controller.atoms(cui: String)
 GET /:cui/definitions controllers.umls.Controller.definitions(cui: String)
 GET /:cui/relations   controllers.umls.Controller.relations(cui: String)
 GET /source/:src/:id  controllers.umls.Controller.source(src: String, id: String)
-GET /concepts/:src/:id controllers.umls.Controller.concept(src: String, id: String)
-GET /concepts/:term controllers.umls.Controller.findConcepts(term: String)

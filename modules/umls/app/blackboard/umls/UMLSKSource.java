@@ -411,10 +411,17 @@ public class UMLSKSource implements KSource {
         List<Concept> matches = new ArrayList<>();
         try (Connection con = db.getConnection();
              // resolve term to cui
-             PreparedStatement pstm = con.prepareStatement
-             ("select distinct cui from MRCONSO where str=?")) {
-            pstm.setString(1, term);
-            ResultSet rset = pstm.executeQuery();
+             PreparedStatement pstm1 = con.prepareStatement
+             ("select distinct cui from MRCONSO where str=?");
+             // this assumes the following sql is run on the MRCONSO table:
+             // alter table MRCONSO add FULLTEXT INDEX X_STR_FULLTEXT (STR);
+             PreparedStatement pstm2 = con.prepareStatement
+             ("select cui,str from MRCONSO where match(str) against "
+              +"(? in natural language mode) and sab in "
+              +"('MSH','NCI','SNOMEDCT_US') and stt='PF' "
+              +"and lat='ENG' and ispref='Y' limit 10")) {
+            pstm1.setString(1, term);
+            ResultSet rset = pstm1.executeQuery();
             List<String> cuis = new ArrayList<>();
             while (rset.next()) {
                 String cui = rset.getString(1);
@@ -423,7 +430,25 @@ public class UMLSKSource implements KSource {
             rset.close();
 
             if (cuis.isEmpty()) {
-                Logger.debug("No concept matching \""+term+"\"!");
+                Logger.warn("No exact concept matching \""+term
+                            +"\"; trying fulltext search...");
+                try {
+                    pstm2.setString(1, term);
+                    rset = pstm2.executeQuery();
+                    while (rset.next()) {
+                        String cui = rset.getString("CUI");
+                        String str = rset.getString("STR");
+                        Logger.debug(cui+" "+str);
+                        Concept concept = getConcept (cui);
+                        if (concept != null)
+                            matches.add(concept);
+                    }
+                    rset.close();
+                }
+                catch (SQLException ex) {
+                    Logger.error("Can't execute fulltext search on \""+term
+                                 +"\"!", ex);
+                }
             }
             else {
                 // now identify the canonical cui
@@ -461,7 +486,9 @@ public class UMLSKSource implements KSource {
              ("select * from MRDEF where cui = ?");
              // semantic types
              PreparedStatement pstm3 = con.prepareStatement
-             ("select * from MRSTY where cui = ?")) {
+             ("select * from MRSTY where cui = ?");
+             PreparedStatement pstm4 = con.prepareStatement
+             ("select * from MRREL where cui1 = ?")) {
             pstm1.setString(1, cui);
             ResultSet rset = pstm1.executeQuery();
             List<Synonym> synonyms = new ArrayList<>();
@@ -503,6 +530,20 @@ public class UMLSKSource implements KSource {
                     String id = rset.getString("TUI");
                     String type = rset.getString("STY");
                     concept.semanticTypes.add(new SemanticType (id, type));
+                }
+                rset.close();
+
+                // relations
+                pstm4.setString(1, cui);
+                rset = pstm4.executeQuery();
+                while (rset.next()) {
+                    String rui = rset.getString("RUI");
+                    String ui = rset.getString("CUI2");
+                    String rel = rset.getString("REL");
+                    String rela = rset.getString("RELA");
+                    String sab = rset.getString("SAB");
+                    concept.relations.add
+                        (new Relation (rui, ui, rel, rela, sab));
                 }
                 rset.close();
             }
@@ -556,5 +597,30 @@ public class UMLSKSource implements KSource {
             }
         }
         return cui;
+    }
+
+    public List<DataSource> getDataSources () throws Exception {
+        return cache.getOrElse
+            ("umls/datasources", new Callable<List<DataSource>> () {
+                    public List<DataSource> call () throws Exception {
+                        return _getDataSources ();
+                    }
+                });
+    }
+    
+    public List<DataSource> _getDataSources () throws Exception {
+        List<DataSource> datasources = new ArrayList<>();
+        try (Connection con = db.getConnection();
+             Statement stm = con.createStatement()) {
+            ResultSet rset = stm.executeQuery("select * from MRSAB");
+            while (rset.next()) {
+                DataSource ds = new DataSource
+                    (rset.getString("RSAB"), rset.getString("VSAB"),
+                     rset.getString("SON"));
+                datasources.add(ds);
+            }
+            rset.close();
+        }
+        return datasources;
     }
 }

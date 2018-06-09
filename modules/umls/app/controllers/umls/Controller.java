@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import blackboard.umls.UMLSKSource;
 import blackboard.umls.Concept;
+import blackboard.umls.DataSource;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -225,6 +226,52 @@ public class Controller extends play.mvc.Controller {
                     Concept concept = ks.getConcept(src.toLowerCase(), id);
                     return concept != null ? ok (Json.toJson(concept))
                         : notFound ("Can't locate concept for "+src+"/"+id);
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> datasources () {
+        return supplyAsync (() -> {
+                try {
+                    Map<String, List<Map<String, String>>> data =
+                        new TreeMap<>();
+                    for (DataSource ds : ks.getDataSources()) {
+                        List<Map<String, String>> s = data.get(ds.name);
+                        if (s == null) {
+                            s = new ArrayList<>();
+                            data.put(ds.name, s);
+                        }
+                        Map<String, String> m = new TreeMap<>();
+                        m.put("version", ds.version);
+                        m.put("description", ds.description);
+                        s.add(m);
+                    }
+                    
+                    return ok (Json.toJson(data));
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> datasource (String name) {
+        return supplyAsync (() -> {
+                try {
+                    List<Map<String, String>> data = new ArrayList<>();
+                    for (DataSource ds : ks.getDataSources()) {
+                        if (name.equalsIgnoreCase(ds.name)) {
+                            Map<String, String> m = new TreeMap<>();
+                            m.put("version", ds.version);
+                            m.put("description", ds.description);
+                            data.add(m);
+                        }
+                    }
+                    
+                    return ok (Json.toJson(data));
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());
