@@ -4,6 +4,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import java.util.regex.*;
 import java.util.*;
+import java.sql.*;
 import java.net.URLEncoder;
 import java.util.concurrent.Callable;
 
@@ -15,6 +16,9 @@ import play.libs.ws.*;
 import play.inject.ApplicationLifecycle;
 import play.libs.F;
 import play.cache.*;
+import play.db.NamedDatabase;
+import play.db.Database;
+
 import akka.actor.ActorSystem;
 
 import blackboard.*;
@@ -27,6 +31,7 @@ public class UMLSKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     private final CacheApi cache;
+    private final Database db;
     private final TGT tgt;
     
     private final String APIKEY;
@@ -111,34 +116,50 @@ public class UMLSKSource implements KSource {
     @Inject
     public UMLSKSource (WSClient wsclient, CacheApi cache,
                         @Named("umls") KSourceProvider ksp,
+                        @NamedDatabase("umls") Database db,
                         ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
+        this.db = db;
 
         Map<String, String> props = ksp.getProperties();
         APIKEY = props.get("apikey");
-        if (APIKEY == null)
-            throw new IllegalArgumentException
-                ("No UMLS \"apikey\" specified!");
+        if (APIKEY == null) {
+            Logger.warn("No UMLS \"apikey\" specified!");
+        }
 
         APIVER = props.containsKey("umls-version")
             ? props.get("umls-version") : "current";
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
+                db.shutdown();
                 return F.Promise.pure(null);
             });
 
+        TGT _tgt = null;
+        try {
+            _tgt = new TGT ();
+        }
+        catch (Exception ex) {
+            Logger.warn("Can't initialize UMLS ticket granting ticket!");
+        }
+        tgt = _tgt;
+
+        try (Connection con = db.getConnection()) {
+            Logger.debug("Database connection ok!");
+        }
+        catch (SQLException ex) {
+            if (tgt == null)
+                throw new RuntimeException
+                    ("UMLS knowledge source is unusable without due to "
+                     +"neither API nor database availability!");
+            Logger.warn("Can't connect to database!");
+        }
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());
-        try {
-            tgt = new TGT ();
-        }
-        catch (Exception ex) {
-            throw new RuntimeException (ex);
-        }
     }
 
     public void execute (KGraph kgraph, KNode... nodes) {
@@ -279,11 +300,13 @@ public class UMLSKSource implements KSource {
     }
 
     public String ticket () throws Exception {
+        if (tgt == null)
+            throw new RuntimeException ("No APIKEY configured!");
         return tgt.ticket();
     }
 
     public WSRequest search (String query) throws Exception {
-        String ticket = tgt.ticket();
+        String ticket = ticket ();
         String url = ksp.getUri()+"/search/"+APIVER;
             
         Logger.debug("++ ticket="+ticket+" query="+query);
@@ -294,14 +317,14 @@ public class UMLSKSource implements KSource {
     }
 
     public WSRequest cui (String cui) throws Exception {
-        String ticket = tgt.ticket();
+        String ticket = ticket ();
         String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui;
         Logger.debug("++ CUI: ticket="+ticket+" cui="+cui);
         return wsclient.url(url).setQueryParameter("ticket", ticket);
     }
 
     public WSRequest content (String cui, String context) throws Exception {
-        String ticket = tgt.ticket();
+        String ticket = ticket ();
         String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui+"/"+context;
         Logger.debug("++ "+context+": ticket="+ticket+" cui="+cui);
         return wsclient.url(url).setQueryParameter("ticket", ticket);
@@ -309,7 +332,7 @@ public class UMLSKSource implements KSource {
 
     public WSRequest source (String src, String id, String context)
         throws Exception {
-        String ticket = tgt.ticket();
+        String ticket = ticket ();
         String url = ksp.getUri()+"/content/"+APIVER+"/source/"+src+"/"+id;
         if (context != null)
             url += "/"+context;
@@ -382,5 +405,156 @@ public class UMLSKSource implements KSource {
                         return null;
                     }
                 });
+    }
+
+    public List<Concept> findConcepts (final String term) throws Exception {
+        List<Concept> matches = new ArrayList<>();
+        try (Connection con = db.getConnection();
+             // resolve term to cui
+             PreparedStatement pstm = con.prepareStatement
+             ("select distinct cui from MRCONSO where str=?")) {
+            pstm.setString(1, term);
+            ResultSet rset = pstm.executeQuery();
+            List<String> cuis = new ArrayList<>();
+            while (rset.next()) {
+                String cui = rset.getString(1);
+                cuis.add(cui);
+            }
+            rset.close();
+
+            if (cuis.isEmpty()) {
+                Logger.debug("No concept matching \""+term+"\"!");
+            }
+            else {
+                // now identify the canonical cui
+                if (cuis.size() > 1) {
+                    Logger.warn("Term \""+term+"\" matches "
+                                +cuis.size()+" concepts;");
+                }
+
+                for (String c : cuis) {
+                    Concept cui = getConcept (c);
+                    if (cui != null)
+                        matches.add(cui);
+                }
+            }
+        }
+        return matches;
+    }
+
+    public Concept getConcept (final String cui) throws Exception {
+        return cache.getOrElse("umls/"+cui, new Callable<Concept> () {
+                public Concept call () throws Exception {
+                    return _getConcept (cui);
+                }
+            });
+    }
+    
+    public Concept _getConcept (String cui) throws Exception {
+        Concept concept = null;
+        try (Connection con = db.getConnection();
+             // get canonical name
+             PreparedStatement pstm1 = con.prepareStatement
+             ("select * from MRCONSO where lat='ENG' and cui = ?");
+             // definition
+             PreparedStatement pstm2 = con.prepareStatement
+             ("select * from MRDEF where cui = ?");
+             // semantic types
+             PreparedStatement pstm3 = con.prepareStatement
+             ("select * from MRSTY where cui = ?")) {
+            pstm1.setString(1, cui);
+            ResultSet rset = pstm1.executeQuery();
+            List<Synonym> synonyms = new ArrayList<>();
+            while (rset.next()) {
+                String stt = rset.getString("STT");
+                String ispref = rset.getString("ISPREF");
+                String ts = rset.getString("TS");
+                String name = rset.getString("STR");
+                String sab = rset.getString("SAB");
+                String scui = rset.getString("SCUI");
+                String sdui = rset.getString("SDUI");
+                Source source = new Source (sab, scui, sdui);
+                if ("PF".equals(stt)
+                    && "Y".equals(ispref) && "P".equals(ts)) {
+                    concept = new Concept (cui, name, source);
+                }
+                else { // synonym
+                    synonyms.add(new Synonym (name, source));
+                }
+            }
+            rset.close();
+            
+            if (concept != null) {
+                concept.synonyms.addAll(synonyms);
+                // definitions
+                pstm2.setString(1, cui);
+                rset = pstm2.executeQuery();
+                while (rset.next()) {
+                    String def = rset.getString("DEF");
+                    String sab = rset.getString("SAB");
+                    concept.definitions.add(new Definition (def, sab));
+                }
+                rset.close();
+                
+                // semantic types
+                pstm3.setString(1, cui);
+                rset = pstm3.executeQuery();
+                while (rset.next()) {
+                    String id = rset.getString("TUI");
+                    String type = rset.getString("STY");
+                    concept.semanticTypes.add(new SemanticType (id, type));
+                }
+                rset.close();
+            }
+            else {
+                Logger.error
+                    ("Concept \""+cui+"\" has no canonical name!");
+            }
+        }
+        return concept;
+    }
+
+    public Concept getConcept (final String src, final String id)
+        throws Exception {
+        return cache.getOrElse("umls/"+src+"/"+id, new Callable<Concept> () {
+                public Concept call () throws Exception {
+                    return _getConcept (src, id);
+                }
+            });
+    }
+    
+    public Concept _getConcept (final String src, final String id)
+        throws Exception {
+        Concept cui = null;
+        try (Connection con = db.getConnection()) {
+            switch (src) {
+            case "cui":
+                cui = getConcept (id);
+                break;
+                
+            case "lui":
+            case "sui":
+            case "aui":
+            case "scui":
+            case "sdui":
+                try (PreparedStatement pstm = con.prepareStatement
+                     ("select distinct cui from MRCONSO where "+src+" = ?")) {
+                    pstm.setString(1, id);
+                    ResultSet rset = pstm.executeQuery();
+                    if (rset.next()) {
+                        cui = getConcept (rset.getString(1));
+                    }
+                    else {
+                        Logger.warn("No concept mapping for "+src+"="+id);
+                    }
+                    rset.close();
+                }
+                break;
+
+            default:
+                Logger.warn("Unknown source: "+src);
+            }
+        }
+        return cui;
     }
 }

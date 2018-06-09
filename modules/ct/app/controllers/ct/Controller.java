@@ -94,13 +94,28 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public Result build (Integer skip, Integer top) {
-        try {
-            ctdb.build(skip, top);
-            return ok ("Building ClinicalTrialDb!");
-        }
-        catch (Exception ex) {
-            return internalServerError (ex.getMessage());
-        }
+    public CompletionStage<Result> build (final Integer skip,
+                                          final Integer top) {
+        return supplyAsync (() -> {
+                try {
+                    ctdb.build(skip, top);
+                    return ok ("Building ClinicalTrialDb!");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> mapCondition (final String name) {
+        return supplyAsync (() -> {
+                try {
+                    int n = ctdb.mapCondition(name);
+                    return ok (n+" clinical trial(s) mapped for \""+name+"\"");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
     }
 }

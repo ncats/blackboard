@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import blackboard.umls.UMLSKSource;
+import blackboard.umls.Concept;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -191,6 +192,41 @@ public class Controller extends play.mvc.Controller {
                 }
                 catch (Exception ex) {
                     Logger.error("Can't retrieve "+id+" for source "+src, ex);
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> findConcepts (final String term) {
+        return supplyAsync (() -> {
+                try {
+                    List<Concept> concepts = ks.findConcepts(term);
+                    return ok (Json.toJson(concepts));
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    /*
+     * src can be one of
+     * cui - concept ui
+     * lui - term id
+     * sui - string id
+     * aui - atom id
+     * scui - source concept id (e.g., mesh concept ui)
+     * sdui - source descriptor id (e.g., mesh descriptor ui)
+     */
+    public CompletionStage<Result> concept (final String src,
+                                            final String id) {
+        return supplyAsync (() -> {
+                try {
+                    Concept concept = ks.getConcept(src.toLowerCase(), id);
+                    return concept != null ? ok (Json.toJson(concept))
+                        : notFound ("Can't locate concept for "+src+"/"+id);
+                }
+                catch (Exception ex) {
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());
