@@ -51,7 +51,7 @@ import blackboard.mesh.Term;
 import blackboard.mesh.Descriptor;
 import blackboard.mesh.SupplementalDescriptor;
 import blackboard.umls.UMLSKSource;
-import blackboard.umls.MatchedConcepts;
+import blackboard.umls.MatchedConcept;
 
 import blackboard.KType;
 import blackboard.KEntity;
@@ -207,6 +207,7 @@ public class ClinicalTrialDb implements KType {
     }
     
     public void build (int skip, int top) throws Exception {
+        /*
         int count = 0;
         for (Condition cond : getConditionsFromCt (skip, top)) {
             try (Transaction tx = gdb.beginTx()) {
@@ -216,7 +217,8 @@ public class ClinicalTrialDb implements KType {
                 tx.success();
             }
         }
-        /*
+        */
+        
         try (Transaction tx = gdb.beginTx()) {
             for (String c : new String[]{
                     //"Chromosome 5q Deletion",
@@ -228,7 +230,6 @@ public class ClinicalTrialDb implements KType {
                 tx.success();
             }
         }
-        */
     }
 
     public List<Condition> getConditions (int skip, int top) throws Exception {
@@ -465,13 +466,17 @@ public class ClinicalTrialDb implements KType {
     }
     
     UniqueFactory.UniqueEntity<Node> getOrCreateNode
-        (Node node, blackboard.umls.Concept concept, boolean inexact) {
+        (Node node, blackboard.umls.MatchedConcept mc) {
         try (Transaction tx = gdb.beginTx()) {
-            UniqueFactory.UniqueEntity<Node> ent = getOrCreateNode (concept);
+            UniqueFactory.UniqueEntity<Node> ent = getOrCreateNode (mc.concept);
             if (ent.wasCreated()) {
                 Relationship rel = node.createRelationshipTo
                     (ent.entity(), UMLS_RELTYPE);
-                rel.setProperty("inexact", inexact);
+                if (mc.score != null) {
+                    rel.setProperty("score", mc.score);
+                    rel.setProperty("cui", mc.cui);
+                    rel.setProperty("name", mc.name);
+                }
             }
             else {
                 Node n = ent.entity();
@@ -485,7 +490,11 @@ public class ClinicalTrialDb implements KType {
                 if (n != null) {
                     Relationship rel = node.createRelationshipTo
                         (n, UMLS_RELTYPE);
-                    rel.setProperty("inexact", inexact);
+                    if (mc.score != null) {
+                        rel.setProperty("score", mc.score);
+                        rel.setProperty("cui", mc.cui);
+                        rel.setProperty("name", mc.name);
+                    }
                 }
             }
             tx.success();
@@ -495,15 +504,14 @@ public class ClinicalTrialDb implements KType {
 
     void resolveUMLS (Node node, Condition cond) {
         try {
-            MatchedConcepts result = umls.findConcepts(cond.name);
-            for (blackboard.umls.Concept concept : result.concepts) {
+            List<MatchedConcept> results = umls.findConcepts(cond.name);
+            for (blackboard.umls.MatchedConcept mc : results) {
                 Condition.Entry e = new Condition.Entry
-                    (concept.cui, concept.name);
-                Node n = getOrCreateNode
-                    (node, concept, result.inexact).entity();
+                    (mc.concept.cui, mc.concept.name);
+                Node n = getOrCreateNode(node, mc).entity();
                 Logger.debug
                     ("UMLS node "+n.getId()+": \""+cond.name+"\" => "
-                     +e.ui+" \""+e.name+"\" inexact="+result.inexact);
+                     +e.ui+" \""+e.name+"\" score="+mc.score);
                 cond.umls.add(e);
             }
             

@@ -422,8 +422,9 @@ public class UMLSKSource implements KSource {
                 });
     }
 
-    public MatchedConcepts findConcepts (final String term) throws Exception {
-        MatchedConcepts result = null;
+    public List<MatchedConcept> findConcepts (final String term)
+        throws Exception {
+        List<MatchedConcept> matches = new ArrayList<>();
         try (Connection con = db.getConnection();
              // resolve term to cui
              PreparedStatement pstm1 = con.prepareStatement
@@ -431,10 +432,11 @@ public class UMLSKSource implements KSource {
              // this assumes the following sql is run on the MRCONSO table:
              // alter table MRCONSO add FULLTEXT INDEX X_STR_FULLTEXT (STR);
              PreparedStatement pstm2 = con.prepareStatement
-             ("select distinct cui,str from MRCONSO where match(str) against "
+             ("select cui,str,match(str) against (? in natural language mode)"
+              +" as score from MRCONSO where match(str) against "
               +"(? in natural language mode) and sab in "
               +"('MSH','NCI','SNOMEDCT_US','NDFRT') and stt='PF' "
-              +"and lat='ENG' and ispref='Y' limit 10")) {
+              +"and lat='ENG' and ispref='Y' order by score desc limit 10")) {
             pstm1.setString(1, term);
             ResultSet rset = pstm1.executeQuery();
             List<String> cuis = new ArrayList<>();
@@ -445,19 +447,22 @@ public class UMLSKSource implements KSource {
             rset.close();
 
             if (cuis.isEmpty()) {
-                result = new MatchedConcepts (true);
                 Logger.warn("No exact concept matching \""+term
                             +"\"; trying fulltext search...");
                 try {
                     pstm2.setString(1, term);
+                    pstm2.setString(2, term);
                     rset = pstm2.executeQuery();
                     while (rset.next()) {
                         String cui = rset.getString("CUI");
                         String str = rset.getString("STR");
-                        Logger.debug(cui+" "+str);
+                        float score = rset.getFloat("SCORE");
+                        Logger.debug(cui+" "
+                                     +String.format("%1$.2f", score)+" "+str);
                         Concept concept = getConcept (cui);
                         if (concept != null) {
-                            result.concepts.add(concept);
+                            matches.add(new MatchedConcept
+                                        (concept, cui, str, score));
                         }
                     }
                     rset.close();
@@ -468,7 +473,6 @@ public class UMLSKSource implements KSource {
                 }
             }
             else {
-                result = new MatchedConcepts (false);
                 // now identify the canonical cui
                 if (cuis.size() > 1) {
                     Logger.warn("Term \""+term+"\" matches "
@@ -478,12 +482,12 @@ public class UMLSKSource implements KSource {
                 for (String c : cuis) {
                     Concept cui = getConcept (c);
                     if (cui != null)
-                        result.concepts.add(cui);
+                        matches.add(new MatchedConcept (cui));
                 }
             }
         }
         
-        return result;
+        return matches;
     }
 
     public Concept getConcept (final String cui) throws Exception {
