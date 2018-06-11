@@ -1,0 +1,30 @@
+{
+    "source": {
+        "blacklist": [
+            "MSHCZE",
+            "MSHDUT",
+            "MSHFIN",
+            "MSHFRE",
+            "MSHGER",
+            "MSHITA",
+            "MSHJPN",
+            "MSHLAV",
+            "MSHNOR",
+            "MSHPOL",
+            "MSHPOR",
+            "MSHRUS",
+            "MSHSCR",
+            "MSHSPA",
+            "MSHSWE",
+            "MDRCZE",
+            "MDRDUT",
+            "MDRFRE",
+            "MDRGER",
+            "MDRHUN",
+            "MDRITA",
+            "MDRJPN",
+            "MDRPOR",
+            "MDRSPA"
+        ]
+    }
+}

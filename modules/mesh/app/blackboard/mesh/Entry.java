@@ -4,6 +4,7 @@ import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Entry implements Comparable<Entry> {
+    public Float score;
     public String ui;
     public String name;
     public Date created;

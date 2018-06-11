@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import blackboard.umls.UMLSKSource;
 import blackboard.umls.Concept;
+import blackboard.umls.MatchedConcepts;
 import blackboard.umls.DataSource;
 
 @Singleton
@@ -201,8 +202,8 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> findConcepts (final String term) {
         return supplyAsync (() -> {
                 try {
-                    List<Concept> concepts = ks.findConcepts(term);
-                    return ok (Json.toJson(concepts));
+                    MatchedConcepts result = ks.findConcepts(term);
+                    return ok (Json.toJson(result));
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());

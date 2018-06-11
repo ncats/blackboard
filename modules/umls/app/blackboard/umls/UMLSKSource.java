@@ -7,6 +7,7 @@ import java.util.*;
 import java.sql.*;
 import java.net.URLEncoder;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -33,7 +34,8 @@ public class UMLSKSource implements KSource {
     private final CacheApi cache;
     private final Database db;
     private final TGT tgt;
-    
+
+    private final Map<String, Set<String>> blacklist;    
     private final String APIKEY;
     private final String APIVER;
 
@@ -132,6 +134,19 @@ public class UMLSKSource implements KSource {
         APIVER = props.containsKey("umls-version")
             ? props.get("umls-version") : "current";
 
+        blacklist = new ConcurrentHashMap<>();
+        if (ksp.getData() != null) {
+            JsonNode source = ksp.getData().get("source");
+            if (source != null) {
+                JsonNode n = source.get("blacklist");
+                Set<String> set = new HashSet<>();
+                for (int i = 0; i < n.size(); ++i)
+                    set.add(n.get(i).asText());
+                blacklist.put("source", set);
+                Logger.debug("source: "+set.size()+" blacklsit entries!");
+            }
+        }
+        
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
@@ -407,8 +422,8 @@ public class UMLSKSource implements KSource {
                 });
     }
 
-    public List<Concept> findConcepts (final String term) throws Exception {
-        List<Concept> matches = new ArrayList<>();
+    public MatchedConcepts findConcepts (final String term) throws Exception {
+        MatchedConcepts result = null;
         try (Connection con = db.getConnection();
              // resolve term to cui
              PreparedStatement pstm1 = con.prepareStatement
@@ -416,9 +431,9 @@ public class UMLSKSource implements KSource {
              // this assumes the following sql is run on the MRCONSO table:
              // alter table MRCONSO add FULLTEXT INDEX X_STR_FULLTEXT (STR);
              PreparedStatement pstm2 = con.prepareStatement
-             ("select cui,str from MRCONSO where match(str) against "
+             ("select distinct cui,str from MRCONSO where match(str) against "
               +"(? in natural language mode) and sab in "
-              +"('MSH','NCI','SNOMEDCT_US') and stt='PF' "
+              +"('MSH','NCI','SNOMEDCT_US','NDFRT') and stt='PF' "
               +"and lat='ENG' and ispref='Y' limit 10")) {
             pstm1.setString(1, term);
             ResultSet rset = pstm1.executeQuery();
@@ -430,6 +445,7 @@ public class UMLSKSource implements KSource {
             rset.close();
 
             if (cuis.isEmpty()) {
+                result = new MatchedConcepts (true);
                 Logger.warn("No exact concept matching \""+term
                             +"\"; trying fulltext search...");
                 try {
@@ -440,8 +456,9 @@ public class UMLSKSource implements KSource {
                         String str = rset.getString("STR");
                         Logger.debug(cui+" "+str);
                         Concept concept = getConcept (cui);
-                        if (concept != null)
-                            matches.add(concept);
+                        if (concept != null) {
+                            result.concepts.add(concept);
+                        }
                     }
                     rset.close();
                 }
@@ -451,20 +468,22 @@ public class UMLSKSource implements KSource {
                 }
             }
             else {
+                result = new MatchedConcepts (false);
                 // now identify the canonical cui
                 if (cuis.size() > 1) {
                     Logger.warn("Term \""+term+"\" matches "
-                                +cuis.size()+" concepts;");
+                                +cuis.size()+" concepts..."+cuis);
                 }
 
                 for (String c : cuis) {
                     Concept cui = getConcept (c);
                     if (cui != null)
-                        matches.add(cui);
+                        result.concepts.add(cui);
                 }
             }
         }
-        return matches;
+        
+        return result;
     }
 
     public Concept getConcept (final String cui) throws Exception {
@@ -477,6 +496,7 @@ public class UMLSKSource implements KSource {
     
     public Concept _getConcept (String cui) throws Exception {
         Concept concept = null;
+        Set<String> source = blacklist.get("source");        
         try (Connection con = db.getConnection();
              // get canonical name
              PreparedStatement pstm1 = con.prepareStatement
@@ -500,13 +520,15 @@ public class UMLSKSource implements KSource {
                 String sab = rset.getString("SAB");
                 String scui = rset.getString("SCUI");
                 String sdui = rset.getString("SDUI");
-                Source source = new Source (sab, scui, sdui);
-                if ("PF".equals(stt)
-                    && "Y".equals(ispref) && "P".equals(ts)) {
-                    concept = new Concept (cui, name, source);
-                }
-                else { // synonym
-                    synonyms.add(new Synonym (name, source));
+                if (source == null || !source.contains(sab)) {
+                    Source src = new Source (sab, scui, sdui);
+                    if ("PF".equals(stt)
+                        && "Y".equals(ispref) && "P".equals(ts)) {
+                        concept = new Concept (cui, name, src);
+                    }
+                    else { // synonym
+                        synonyms.add(new Synonym (name, src));
+                    }
                 }
             }
             rset.close();
@@ -519,7 +541,9 @@ public class UMLSKSource implements KSource {
                 while (rset.next()) {
                     String def = rset.getString("DEF");
                     String sab = rset.getString("SAB");
-                    concept.definitions.add(new Definition (def, sab));
+                    if (source == null || !source.contains(sab)) {
+                        concept.definitions.add(new Definition (def, sab));
+                    }
                 }
                 rset.close();
                 
@@ -542,8 +566,10 @@ public class UMLSKSource implements KSource {
                     String rel = rset.getString("REL");
                     String rela = rset.getString("RELA");
                     String sab = rset.getString("SAB");
-                    concept.relations.add
-                        (new Relation (rui, ui, rel, rela, sab));
+                    if (source == null || !source.contains(sab)) {
+                        concept.relations.add
+                            (new Relation (rui, ui, rel, rela, sab));
+                    }
                 }
                 rset.close();
             }

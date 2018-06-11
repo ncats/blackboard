@@ -51,6 +51,7 @@ import blackboard.mesh.Term;
 import blackboard.mesh.Descriptor;
 import blackboard.mesh.SupplementalDescriptor;
 import blackboard.umls.UMLSKSource;
+import blackboard.umls.MatchedConcepts;
 
 import blackboard.KType;
 import blackboard.KEntity;
@@ -217,9 +218,15 @@ public class ClinicalTrialDb implements KType {
         }
         /*
         try (Transaction tx = gdb.beginTx()) {
-            Condition cond = new Condition ("5q- syndrome");
-            createNodeIfAbsent (cond);
-            tx.success();
+            for (String c : new String[]{
+                    //"Chromosome 5q Deletion",
+                    //"5q- syndrome",
+                    "Amyloidosis AA",
+                    "Amyloidosis, Familial"
+                }) {
+                createNodeIfAbsent (new Condition (c));
+                tx.success();
+            }
         }
         */
     }
@@ -250,10 +257,10 @@ public class ClinicalTrialDb implements KType {
                         ((String)xn.getProperty("ui"),
                          (String)xn.getProperty("name"));
                     if (rel.isType(MESH_RELTYPE)) {
-                        cond.mesh = entry;
+                        cond.mesh.add(entry);
                     }
                     else { // UMLS
-                        cond.umls = entry;
+                        cond.umls.add(entry);
                     }
                 }
                 conditions.add(cond);
@@ -321,10 +328,54 @@ public class ClinicalTrialDb implements KType {
         return conditions;
     }
 
-    Node getOrCreateMeshNode (Node node, Entry entry) {
-        List<Entry> entries = mesh.getMeshDb().getContext(entry.ui, 0, 10);
-        Node meshnode = null;
+    UniqueFactory.UniqueEntity<Node> getOrCreateNode (Entry entry) {
         try (Transaction tx = gdb.beginTx()) {
+            UniqueFactory.UniqueEntity<Node> ent =
+                meshUF.getOrCreateWithOutcome("ui", entry.ui);
+            Node n = ent.entity();
+            if (ent.wasCreated()) {
+                n.setProperty("ui", entry.ui);
+                n.setProperty("name", entry.name);
+                n.setProperty(KEntity.TYPE_P, MESH_T);
+                if (entry instanceof Descriptor) {
+                    Descriptor desc = (Descriptor)entry;
+                    if (desc.annotation != null) {
+                        n.setProperty("annotation", desc.annotation);
+                        addTextIndex (n, desc.annotation);
+                    }
+                    
+                    if (!desc.treeNumbers.isEmpty()) {
+                        n.setProperty
+                            ("treeNumbers",
+                             desc.treeNumbers.toArray(new String[0]));
+                        for (String tr : desc.treeNumbers)
+                            addTextIndex (n, tr);
+                    }
+                    n.addLabel(Mesh.DESC_LABEL);
+                }
+                else if (entry instanceof SupplementalDescriptor) {
+                    SupplementalDescriptor supp = (SupplementalDescriptor)entry;
+                    if (supp.note != null) {
+                        n.setProperty("note", supp.note);
+                        addTextIndex (n, supp.note);
+                    }
+                    n.addLabel(Mesh.SUPP_LABEL);
+                }
+                
+                addTextIndex (n, entry.ui);
+                addTextIndex (n, entry.name);
+            }
+            tx.success();
+
+            return ent;
+        }
+    }
+    
+    UniqueFactory.UniqueEntity<Node> getOrCreateNode (Node node, Entry entry) {
+        // from MeSH's concept to Descriptor or SupplementalDescriptor
+        List<Entry> entries = mesh.getMeshDb().getContext(entry.ui, 0, 10);
+        try (Transaction tx = gdb.beginTx()) {
+            UniqueFactory.UniqueEntity<Node> ent = null;            
             if (!entries.isEmpty()) {
                 Entry e = null;
                 for (int i = 0; i < entries.size(); ++i) {
@@ -342,55 +393,20 @@ public class ClinicalTrialDb implements KType {
                     e = entries.get(0);
                 }
                 
-                UniqueFactory.UniqueEntity<Node> ent =
-                    meshUF.getOrCreateWithOutcome("ui", e.ui);
-                Node n = ent.entity();
+                ent = getOrCreateNode (e);
                 if (ent.wasCreated()) {
-                    n.setProperty("ui", e.ui);
-                    n.setProperty("name", e.name);
-                    n.setProperty(KEntity.TYPE_P, MESH_T);
-                    if (e instanceof Descriptor) {
-                        Descriptor desc = (Descriptor)e;
-                        if (desc.annotation != null) {
-                            n.setProperty("annotation", desc.annotation);
-                            addTextIndex (node, desc.annotation);
-                        }
-                        
-                        if (!desc.treeNumbers.isEmpty()) {
-                            n.setProperty
-                                ("treeNumbers",
-                                 desc.treeNumbers.toArray(new String[0]));
-                            for (String tr : desc.treeNumbers)
-                                addTextIndex (node, tr);
-                        }
-                        n.addLabel(Mesh.DESC_LABEL);
-                    }
-                    else if (e instanceof SupplementalDescriptor) {
-                        SupplementalDescriptor supp = (SupplementalDescriptor)e;
-                        if (supp.note != null) {
-                            n.setProperty("note", supp.note);
-                            addTextIndex (node, supp.note);
-                        }
-                        n.addLabel(Mesh.SUPP_LABEL);
-                    }
-                    
-                    addTextIndex (node, e.ui);
-                    addTextIndex (node, e.name);
-                    
                     Relationship rel =
-                        node.createRelationshipTo(n, MESH_RELTYPE);
+                        node.createRelationshipTo(ent.entity(), MESH_RELTYPE);
                     rel.setProperty("ui", entry.ui);
                     rel.setProperty("name", entry.name);
+                    if (entry.score != null)
+                        rel.setProperty("score", entry.score);
                 }
-                meshnode = n;
             }
-            addTextIndex (node, entry.ui);
-            addTextIndex (node, entry.name);
-
             tx.success();
+            
+            return ent;
         }
-        
-        return meshnode;
     }
        
     void resolveMesh (Node node, Condition cond) {
@@ -402,6 +418,7 @@ public class ClinicalTrialDb implements KType {
                 for (Entry e : entries) {
                     if (e instanceof Concept) {
                         matched = e;
+                        matched.score = r.score;
                         break;
                     }
                 }
@@ -416,105 +433,119 @@ public class ClinicalTrialDb implements KType {
         }
         
         if (matched != null) {
-            getOrCreateMeshNode (node, matched);
-            cond.mesh = new Condition.Entry(matched.ui, matched.name);
-            Logger.debug("\""+cond.name+"\" => "+matched.ui
+            Node n = getOrCreateNode(node, matched).entity();
+            cond.mesh.add(new Condition.Entry(matched.ui, matched.name));
+            Logger.debug("MeSH node "+n.getId()
+                         +": \""+cond.name+"\" => "+matched.ui
                          +" \""+matched.name+"\"");
         }
     }
 
-    Node getOrCreateUMLSNode (Node node, JsonNode json) throws Exception {
+    UniqueFactory.UniqueEntity<Node> getOrCreateNode
+        (blackboard.umls.Concept concept) {
         try (Transaction tx = gdb.beginTx()) {
-            String ui = json.get("ui").asText();
             UniqueFactory.UniqueEntity<Node> ent =
-                umlsUF.getOrCreateWithOutcome("ui", ui);
+                umlsUF.getOrCreateWithOutcome("ui", concept.cui);
             Node un = ent.entity();
             if (ent.wasCreated()) {
-                un.setProperty("name", json.get("name").asText());
-                JsonNode types = json.get("semanticTypes");
-                for (int i = 0; i < types.size(); ++i) {
-                    un.addLabel(Label.label(types.get(i).get("name").asText()));
+                un.setProperty("name", concept.name);
+                for (blackboard.umls.SemanticType semtype
+                         : concept.semanticTypes) {
+                    un.addLabel(Label.label(semtype.name));
                 }
                 
-                JsonNode defs = umls.getContent(ui, "definitions");
-                if (defs != null) {
-                    for (int i = 0; i < defs.size(); ++i) {
-                        JsonNode dn = defs.get(i);
-                        String src = dn.get("rootSource").asText();
-                        switch (src) {
-                        case "MSH":
-                        case "NCI":
-                        case "PDQ":
-                        case "MTH":
-                        case "HPO":
-                        case "OMIM":
-                        case "JABL":
-                        case "SNOMEDCT_US":
-                            { String text = dn.get("value").asText();
-                                un.setProperty("defition/"+src, text);
-                                addTextIndex (un, text);
-                            }
+                for (blackboard.umls.Definition def : concept.definitions) {
+                    un.setProperty("definition/"+def.source, def.description);
+                    addTextIndex (un, def.description);
+                }
+            }
+            tx.success();
+            return ent;
+        }
+    }
+    
+    UniqueFactory.UniqueEntity<Node> getOrCreateNode
+        (Node node, blackboard.umls.Concept concept, boolean inexact) {
+        try (Transaction tx = gdb.beginTx()) {
+            UniqueFactory.UniqueEntity<Node> ent = getOrCreateNode (concept);
+            if (ent.wasCreated()) {
+                Relationship rel = node.createRelationshipTo
+                    (ent.entity(), UMLS_RELTYPE);
+                rel.setProperty("inexact", inexact);
+            }
+            else {
+                Node n = ent.entity();
+                for (Relationship r : n.getRelationships(UMLS_RELTYPE)) {
+                    if (r.getOtherNode(n).equals(node)) {
+                        n = null;
                         break;
-                        }
                     }
                 }
-                node.createRelationshipTo(un, UMLS_RELTYPE);
+                
+                if (n != null) {
+                    Relationship rel = node.createRelationshipTo
+                        (n, UMLS_RELTYPE);
+                    rel.setProperty("inexact", inexact);
+                }
             }
-            
             tx.success();
-            return un;
+            return ent;
         }
     }
 
     void resolveUMLS (Node node, Condition cond) {
         try {
-            JsonNode json = umls.getSearch(cond.name, 0, 10);
-            if (json != null) {
-                json = json.get(0);
-                if (json.hasNonNull("ui") && json.hasNonNull("name")) {
-                    cond.umls = new Condition.Entry
-                        (json.get("ui").asText(),
-                         json.get("name").asText());
-                    if ("NONE".equals(cond.umls.ui))
-                        cond.umls = null;
-                    else {
-                        json = umls.getCui(cond.umls.ui);
-                        Node n = getOrCreateUMLSNode (node, json);
-                        Logger.debug
-                            (n.getId()+": \""+cond.name+"\" => "+cond.umls.ui
-                             +" \""+cond.umls.name+"\"");
-                    }
-                }
+            MatchedConcepts result = umls.findConcepts(cond.name);
+            for (blackboard.umls.Concept concept : result.concepts) {
+                Condition.Entry e = new Condition.Entry
+                    (concept.cui, concept.name);
+                Node n = getOrCreateNode
+                    (node, concept, result.inexact).entity();
+                Logger.debug
+                    ("UMLS node "+n.getId()+": \""+cond.name+"\" => "
+                     +e.ui+" \""+e.name+"\" inexact="+result.inexact);
+                cond.umls.add(e);
             }
             
-            if (cond.mesh != null) {
+            for (Condition.Entry mesh : cond.mesh) {
                 // now see if this mesh is an atom of this umls concept
-                json = umls.getSource("MSH", cond.mesh.ui, "atoms/preferred");
-                if (json != null && json.hasNonNull("concept")) {
-                    String url = json.get("concept").asText();
-                    int pos = url.lastIndexOf('/');
-                    if (pos > 0) {
-                        String ui = url.substring(pos+1);
-                        json = umls.getCui(ui);
-                        if (json != null) {
-                            ui = json.get("ui").asText();
-                            if (cond.umls == null) {
-                                cond.umls = new Condition.Entry
-                                    (ui, json.get("name").asText());
-                            }
-                            
-                            if (cond.umls.ui.equals(ui)) {
-                                Node un = getOrCreateUMLSNode (node, json);
-                                Relationship rel = node.getSingleRelationship
-                                    (MESH_RELTYPE, Direction.OUTGOING);
-                                if (rel != null && cond.mesh.ui.equals
-                                    (rel.getProperty("ui"))) {
-                                    Logger.debug
-                                        ("umls "+un.getId()+" <=> mesh "
+                blackboard.umls.Concept concept =
+                    umls.getConcept("scui", mesh.ui);
+                Logger.debug("MeSH "+mesh.ui+" => UMLS "
+                             +(concept != null
+                               ?(concept.cui+" "+concept.name):""));
+                if (concept != null) {
+                    Node un = getOrCreateNode(concept).entity();
+                    for (Relationship rel :
+                             node.getRelationships(MESH_RELTYPE)) {
+                        if (rel != null && mesh.ui.equals
+                            (rel.getProperty("ui"))) {
+                            Logger.debug("umls "+un.getId()+" <=> mesh "
                                          +rel.getOtherNode(node).getId());
-                                    un.createRelationshipTo
-                                        (rel.getOtherNode(node),
-                                         RelationshipType.withName("atom"));
+                            Relationship r = rel.getOtherNode(node)
+                                .createRelationshipTo
+                                (un, RelationshipType.withName("atom"));
+                            r.setProperty("scui", mesh.ui);
+                        }
+                    }
+
+                    Index<Node> index = getNodeIndex ("umls");
+                    // now check consistency with any existing umls concepts
+                    for (Condition.Entry e : cond.umls) {
+                        if (!concept.cui.equals(e.ui)) {                        
+                            try (IndexHits<Node> hits = index.get("ui", e.ui)) {
+                                Node n = hits.getSingle();
+                                for (blackboard.umls.Relation r
+                                         : concept.findRelations(e.ui)) {
+                                    RelationshipType rt =
+                                        RelationshipType.withName(r.type);
+                                    Relationship rel =
+                                        un.createRelationshipTo(n, rt);
+                                    rel.setProperty("rui", r.rui);
+                                    if (r.attr != null)
+                                        rel.setProperty("value", r.attr);
+                                    if (r.source != null)
+                                        rel.setProperty("source", r.source);
                                 }
                             }
                         }
@@ -522,7 +553,7 @@ public class ClinicalTrialDb implements KType {
                 }
                 else {
                     Logger.error("Can't retrieve UMLS source for MSH "
-                                 +cond.mesh.ui);
+                                 +mesh.ui);
                 }
             }
         }

@@ -2,6 +2,8 @@ package blackboard.ct;
 
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.List;
+import java.util.ArrayList;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
@@ -18,8 +20,8 @@ public class Condition implements Comparable<Condition> {
     }
     
     public String name;
-    public Entry mesh;
-    public Entry umls;
+    public List<Entry> mesh = new ArrayList<>();
+    public List<Entry> umls = new ArrayList<>();
     public Integer count;
     public Boolean rare;
 

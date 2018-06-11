@@ -389,12 +389,17 @@ public class MeshDb implements Mesh {
                  ("text", new QueryContext(q).top(top).sortByScore())) {
                 while (hits.hasNext()) {
                     Node n = hits.next();
-                    if (labels.isEmpty())
-                        matches.add(toEntry (n));
+                    if (labels.isEmpty()) {
+                        Entry e = toEntry (n);
+                        e.score = hits.currentScore();
+                        matches.add(e);
+                    }
                     else {
                         for (Label l : labels) {
                             if (n.hasLabel(l)) {
-                                matches.add(toEntry (n));
+                                Entry e = toEntry (n);
+                                e.score = hits.currentScore();
+                                matches.add(e);
                                 break;
                             }
                         }
