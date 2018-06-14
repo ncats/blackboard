@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class Concept {
-    public boolean inexact;
     final public String cui;
     final public String name;
     final public Source source;

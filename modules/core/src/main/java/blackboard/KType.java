@@ -10,4 +10,6 @@ public interface KType {
     String DRUG_T = "drug";
     String GENE_T = "gene";
     String CLINICALTRIAL_T = "clinicaltrial";
+    String CONDITION_T = "condition";
+    String INTERVENTION_T = "intervention";
 }

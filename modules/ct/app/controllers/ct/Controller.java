@@ -62,7 +62,6 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> resolve (final String id) {
         return supplyAsync (() -> {
                 try {
-                    ctdb.resolve(id);
                     return ok (id);
                 }
                 catch (Exception ex) {
@@ -90,6 +89,20 @@ public class Controller extends play.mvc.Controller {
                     Logger.error("getAllConditions", ex);
                     return internalServerError
                         ("Can't retrieve all conditions: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> getCondition (final String name) {
+        return supplyAsync (() -> {
+                try {
+                    Condition cond = ctdb.getCondition(name);
+                    return cond != null ? ok (Json.toJson(cond))
+                        : notFound ("Unknown condition: \""+name+"\"");
+                }
+                catch (Exception ex) {
+                    return internalServerError
+                        ("Can't retrieve condition: \""+name+"\"");
                 }
             }, ec.current());
     }

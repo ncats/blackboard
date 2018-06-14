@@ -1,10 +1,10 @@
 package blackboard.umls;
 
 public class MatchedConcept {
-    public final Concept concept;
     public final String cui;
     public final String name;
     public final Float score;
+    public final Concept concept;
     protected MatchedConcept (Concept concept) {
         this (concept, null, null, null);
     }

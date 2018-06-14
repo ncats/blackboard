@@ -3,7 +3,7 @@ GET /ticket controllers.umls.Controller.ticket
 GET /sources        controllers.umls.Controller.datasources
 GET /sources/:name  controllers.umls.Controller.datasource(name: String)
 GET /concepts/:src/:id controllers.umls.Controller.concept(src: String, id: String)
-GET /concepts/:term controllers.umls.Controller.findConcepts(term: String)
+GET /concepts/:term controllers.umls.Controller.findConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
 GET /search/*q  controllers.umls.Controller.search(q: String, skip: Int ?= 0, top: Int ?= 10)
 GET /:cui controllers.umls.Controller.cui(cui: String)
 GET /:cui/full controllers.umls.Controller.full(cui: String)

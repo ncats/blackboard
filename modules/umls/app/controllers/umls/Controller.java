@@ -199,10 +199,12 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> findConcepts (final String term) {
+    public CompletionStage<Result> findConcepts
+        (final String term, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
-                    List<MatchedConcept> results = ks.findConcepts(term);
+                    List<MatchedConcept> results =
+                        ks.findConcepts(term, skip, top);
                     return ok (Json.toJson(results));
                 }
                 catch (Exception ex) {

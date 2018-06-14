@@ -422,7 +422,11 @@ public class UMLSKSource implements KSource {
                 });
     }
 
-    public List<MatchedConcept> findConcepts (final String term)
+    public List<MatchedConcept> findConcepts (String term) throws Exception {
+        return findConcepts (term, 0, 10);
+    }
+    
+    public List<MatchedConcept> findConcepts (String term, int skip, int top)
         throws Exception {
         List<MatchedConcept> matches = new ArrayList<>();
         try (Connection con = db.getConnection();
@@ -432,11 +436,12 @@ public class UMLSKSource implements KSource {
              // this assumes the following sql is run on the MRCONSO table:
              // alter table MRCONSO add FULLTEXT INDEX X_STR_FULLTEXT (STR);
              PreparedStatement pstm2 = con.prepareStatement
-             ("select cui,str,match(str) against (? in natural language mode)"
-              +" as score from MRCONSO where match(str) against "
-              +"(? in natural language mode) and sab in "
-              +"('MSH','NCI','SNOMEDCT_US','NDFRT') and stt='PF' "
-              +"and lat='ENG' and ispref='Y' order by score desc limit 10")) {
+             ("select cui,str,sab,match(str) "
+              +"against (? in natural language mode) "
+              +"as score from MRCONSO where match(str) against "
+              +"(? in natural language mode) and stt='PF' "
+              +"and lat='ENG' and ispref='Y' "
+              +"order by score desc limit ? offset ?")) {
             pstm1.setString(1, term);
             ResultSet rset = pstm1.executeQuery();
             List<String> cuis = new ArrayList<>();
@@ -452,13 +457,17 @@ public class UMLSKSource implements KSource {
                 try {
                     pstm2.setString(1, term);
                     pstm2.setString(2, term);
+                    pstm2.setInt(3, top);
+                    pstm2.setInt(4, skip);
+                    
                     rset = pstm2.executeQuery();
                     while (rset.next()) {
                         String cui = rset.getString("CUI");
                         String str = rset.getString("STR");
+                        String sab = rset.getString("SAB");
                         float score = rset.getFloat("SCORE");
-                        Logger.debug(cui+" "
-                                     +String.format("%1$.2f", score)+" "+str);
+                        Logger.debug(cui+" "+String.format("%1$.2f", score)
+                                     +" "+sab+" "+str);
                         Concept concept = getConcept (cui);
                         if (concept != null) {
                             matches.add(new MatchedConcept
