@@ -326,6 +326,31 @@ public class MeshDb implements Mesh {
         return null;
     }
 
+    /*
+     * can either be Descriptor or SupplementalDescriptor
+     */
+    public CommonDescriptor getDescriptor (Entry e) {
+        start: do {
+            if (e instanceof Descriptor
+                || e instanceof SupplementalDescriptor) {
+                return (CommonDescriptor)e;
+            }
+            
+            List<Entry> entries = getContext (e.ui, 0, 10);
+            for (Entry ctx : entries) {
+                Logger.debug(e.getClass()+"[ui="+e.ui+"] => "+ctx.getClass()
+                             +"[ui="+ctx.ui+"]");
+                if (!e.getClass().equals(ctx.getClass())) {
+                    e = ctx;
+                    continue start;
+                }
+            }
+            
+            return null;
+        }
+        while (true);
+    }
+
     public List<Entry> getContext (String ui, int skip, int top) {
         List<Entry> entries = new ArrayList<>();
         Node node = getNode (ui);

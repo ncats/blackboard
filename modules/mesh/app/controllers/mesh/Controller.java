@@ -32,6 +32,7 @@ import javax.xml.transform.dom.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Entry;
+import blackboard.mesh.CommonDescriptor;
 
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
@@ -100,6 +101,20 @@ public class Controller extends play.mvc.Controller {
                 if (!entries.isEmpty())
                     return ok (Json.toJson(entries));
                 return notFound ("Unknown MeSH ui: "+ui);
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> descriptor (final String name) {
+        Logger.debug(">> "+request().uri());
+        return supplyAsync (() -> {
+                List<Entry> entries = mesh.search(name, 10);
+                if (!entries.isEmpty()) {
+                    CommonDescriptor desc = mesh.getDescriptor(entries.get(0));
+                    if (desc != null)
+                        return ok (Json.toJson(desc));
+                }
+                return notFound ("Can't resolve \""
+                                 +name+"\" to a MeSH descriptor!");
             }, ec.current());
     }
 }

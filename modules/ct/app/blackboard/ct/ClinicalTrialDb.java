@@ -714,8 +714,8 @@ public class ClinicalTrialDb implements KType {
         }
     }
 
-    UniqueFactory.UniqueEntity<Node> resolveInterventionMesh
-        (Node node, String name) {
+    UniqueFactory.UniqueEntity<Node>
+        resolveInterventionMesh (Node node, String name) throws Exception {
         String query = name;
         if (name.indexOf('/') > 0) {
             query = "\""+name+"\"";
@@ -723,50 +723,53 @@ public class ClinicalTrialDb implements KType {
 
         EntityRepo index = repo.get("intervention");
         // resolve the intervention name to mesh concepts
-        List<blackboard.mesh.Entry> entries =
-            mesh.getMeshDb().search(query, 10);
-        for (blackboard.mesh.Entry e : entries) {
-            blackboard.mesh.Concept concept = null;
-            if (e instanceof blackboard.mesh.Term) {
-                List<blackboard.mesh.Entry> cons =
-                    mesh.getMeshDb().getContext(e.ui, 0, 1);
-                concept = (blackboard.mesh.Concept)cons.get(0);
-            }
-            else if (e instanceof blackboard.mesh.Concept) {
-                concept = (blackboard.mesh.Concept)e;
-            }
-            else if (e instanceof blackboard.mesh.Descriptor) {
-                concept = ((blackboard.mesh.Descriptor)e).concepts.get(0);
-            }
-            else if (e instanceof SupplementalDescriptor) {
-                concept = ((SupplementalDescriptor)e).concepts.get(0);
-            }
-            else {
-                Logger.warn("Unknown MeSH type \""
-                            +e.getClass().getName()+"\"!");
+        List<blackboard.mesh.Entry>  entries
+            = mesh.getMeshDb().search(query, 10);
+        if (!entries.isEmpty()) {
+            blackboard.mesh.Concept concept = null;        
+            blackboard.mesh.Entry e = entries.get(0);
+            blackboard.mesh.CommonDescriptor desc =
+                mesh.getMeshDb().getDescriptor(e);
+            if (desc != null) {
+                Set<String> syns = new TreeSet<>();
+                Set<String> code = new TreeSet<>();
+                for (blackboard.mesh.Concept c : desc.getConcepts()) {
+                    syns.add(c.name);
+                    if (c.regno != null)
+                        code.add(c.regno);
+                    if (c.preferred)
+                        concept = c;
+                }
+                
+                if (concept != null) {
+                    Logger.debug("Intervention \""+name+"\" maps to MeSH "
+                                 +desc.getUI()+" "+desc.getName()+" "
+                                 +e.score+" "+concept.regno+" syns="+syns
+                                 +" code="+code);
+                }
             }
             
-            if (concept != null) {
-                Logger.debug("Intervention \""+name
-                             +"\" maps to MeSH concept "
-                             +String.format("%1$.2f", e.score)+" "
-                             +concept.ui+" "+concept.name+" => "
-                             +concept.regno);
-                UniqueFactory.UniqueEntity<Node> uf = concept.regno != null
-                    ? index.getOrCreateWithOutcome("unii", concept.regno)
-                    : index.getOrCreateWithOutcome("scui", concept.ui);
+            /*
+            UniqueFactory.UniqueEntity<Node> uf = concept.regno != null
+            ? index.getOrCreateWithOutcome("unii", concept.regno)
+            : index.getOrCreateWithOutcome("scui", concept.ui);
+            
+            if (uf.wasCreated()) {
 
-                if (uf.wasCreated()) {
-                    /*
                     Relationship rel = node.createRelationshipTo
                         (uf.entity(), MESH_RELTYPE);
                     if (e.score != null)
                         rel.setProperty("score", e.score);
                     rel.setProperty("ui", e.ui);
                     rel.setProperty("name", e.name);
-                    */
                 }
             }
+            */
+        }
+        else {
+            Logger.debug("Intervention \""+name+"\" doesn't map to a MeSH "
+                         +"conept!");
+            // try umls here
         }
         
         return null;
@@ -775,7 +778,8 @@ public class ClinicalTrialDb implements KType {
     /*
      * resolve interventions
      */
-    List<Node> createIntervNodesIfAbsent (Node node, String... names) {
+    List<Node> createIntervNodesIfAbsent (Node node, String... names)
+        throws Exception {
         List<Node> interv = new ArrayList<>();
         for (String name : names) {
             UniqueFactory.UniqueEntity<Node> uf =
@@ -791,7 +795,7 @@ public class ClinicalTrialDb implements KType {
         return interv;
     }
 
-    Node createStudyIfAbsent (Element study) {
+    Node createStudyIfAbsent (Element study) throws Exception {
         NodeList nodelist = study.getElementsByTagName("nct_id");
         if (nodelist.getLength() == 0) {
             Logger.warn("Study contains no element nct_id!");

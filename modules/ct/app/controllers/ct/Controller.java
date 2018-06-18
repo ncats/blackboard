@@ -127,6 +127,7 @@ public class Controller extends play.mvc.Controller {
                     return ok (n+" clinical trial(s) mapped for \""+name+"\"");
                 }
                 catch (Exception ex) {
+                    ex.printStackTrace();
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());

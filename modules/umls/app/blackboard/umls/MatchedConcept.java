@@ -6,7 +6,7 @@ public class MatchedConcept {
     public final Float score;
     public final Concept concept;
     protected MatchedConcept (Concept concept) {
-        this (concept, null, null, null);
+        this (concept, concept.cui, concept.name, null);
     }
     protected MatchedConcept (Concept concept, String cui,
                               String name, Float score) {
