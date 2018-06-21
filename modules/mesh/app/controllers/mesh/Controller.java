@@ -107,7 +107,8 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> descriptor (final String name) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
-                List<Entry> entries = mesh.search(name, 10);
+                List<Entry> entries = mesh.search
+                    (name.replaceAll("%20"," ").replaceAll("%22", "\""), 10);
                 if (!entries.isEmpty()) {
                     CommonDescriptor desc = mesh.getDescriptor(entries.get(0));
                     if (desc != null)

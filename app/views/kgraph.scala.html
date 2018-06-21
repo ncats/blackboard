@@ -3,7 +3,7 @@
 
 @(app: BlackboardApp, kg: KGraph)
 
-@main("Knowledge Graph: "+kg.getName){
+@views.html.core.main("Knowledge Graph: "+kg.getName){
 <nav class="navbar navbar-default">
   <div class="container-fluid">
     <!-- Brand and toggle get grouped for better mobile display -->
@@ -90,6 +90,9 @@
     </div>
   </div>
 </div>
+}{
+<link rel='stylesheet' href='@routes.Assets.versioned("stylesheets/blackboard.css")'>
+<script type='text/javascript' src='@routes.Assets.versioned("javascripts/blackboard.js")'></script>
 }{
 function kshtml (data) {
     console.log('rendering '+data);

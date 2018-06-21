@@ -18,6 +18,11 @@ import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.IndexCreator;
 import org.neo4j.index.lucene.*;
 
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanQuery;
+import static org.apache.lucene.search.BooleanQuery.Builder;
+import static org.apache.lucene.search.BooleanClause.Occur;
+
 import javax.inject.Inject;
 
 import play.libs.F;
@@ -399,7 +404,26 @@ public class MeshDb implements Mesh {
         return entries;
     }
 
-    public List<Entry> search (String q,  int top, String... label) {
+    public List<Entry> search (String q, int top, String... label) {
+        if (q.charAt(0) == '"') {
+        }
+        else {
+            StringBuilder sb = new StringBuilder ();
+            for (int i = 0; i < q.length(); ++i) {
+                char ch = q.charAt(i);
+                switch (ch) {
+                case '+': case '-': case '&': case '|': case '!':
+                case '(': case ')': case '{': case '}': case '[':
+                case ']': case '^': case '~': case '*': case '?':
+                case ':': case '\\': case '/': case '"':
+                    sb.append("\\");
+                    break;
+                }
+                sb.append(ch);
+            }
+            q = sb.toString();
+        }
+        
         List<Entry> matches = new ArrayList<>();
         try (Transaction tx = gdb.beginTx()) {
             Index<Node> index = gdb.index().forNodes(TEXT_INDEX, indexConfig);

@@ -239,7 +239,6 @@ public class ClinicalTrialDb implements KType {
     }
     
     public void build (int skip, int top) throws Exception {
-        /*
         int count = 0;
         for (Condition cond : getConditionsFromCt (skip, top)) {
             try (Transaction tx = gdb.beginTx()) {
@@ -249,20 +248,21 @@ public class ClinicalTrialDb implements KType {
                 tx.success();
             }
         }
-        */
-        
+
+        /*        
         try (Transaction tx = gdb.beginTx()) {
             for (String c : new String[]{
-                    //"Chromosome 5q Deletion",
-                    //"5q- syndrome",
-                    //"Amyloidosis AA",
-                    //"Amyloidosis, Familial",
+                    "Chromosome 5q Deletion",
+                    "5q- syndrome",
+                    "Amyloidosis AA",
+                    "Amyloidosis, Familial",
                     "Hereditary Hemorrhagic Telangiectasia"
                 }) {
                 createNodeIfAbsent (new Condition (c));
                 tx.success();
             }
         }
+        */
     }
 
     Condition toCondition (Node n) {
@@ -716,23 +716,19 @@ public class ClinicalTrialDb implements KType {
 
     UniqueFactory.UniqueEntity<Node>
         resolveInterventionMesh (Node node, String name) throws Exception {
-        String query = name;
-        if (name.indexOf('/') > 0) {
-            query = "\""+name+"\"";
-        }
-
         EntityRepo index = repo.get("intervention");
         // resolve the intervention name to mesh concepts
         List<blackboard.mesh.Entry>  entries
-            = mesh.getMeshDb().search(query, 10);
+            = mesh.getMeshDb().search(name, 10);
         if (!entries.isEmpty()) {
-            blackboard.mesh.Concept concept = null;        
             blackboard.mesh.Entry e = entries.get(0);
-            blackboard.mesh.CommonDescriptor desc =
-                mesh.getMeshDb().getDescriptor(e);
-            if (desc != null) {
+            if (e.score > 1.f) {
+                blackboard.mesh.CommonDescriptor desc =
+                    mesh.getMeshDb().getDescriptor(e);
+                
                 Set<String> syns = new TreeSet<>();
                 Set<String> code = new TreeSet<>();
+                blackboard.mesh.Concept concept = null;                
                 for (blackboard.mesh.Concept c : desc.getConcepts()) {
                     syns.add(c.name);
                     if (c.regno != null)
@@ -742,11 +738,22 @@ public class ClinicalTrialDb implements KType {
                 }
                 
                 if (concept != null) {
-                    Logger.debug("Intervention \""+name+"\" maps to MeSH "
-                                 +desc.getUI()+" "+desc.getName()+" "
-                                 +e.score+" "+concept.regno+" syns="+syns
+                    Logger.debug("Intervention \""+name+"\" maps to "
+                                 +e.getClass()+" "+e.ui+" \""+e.name+"\" "
+                                 +e.score+" "+" => "+desc.getUI()+" \""
+                                 +desc.getName()+"\" "
+                                 +concept.regno+" syns="+syns
                                  +" code="+code);
                 }
+                else {
+                    Logger.warn("Descriptor "+desc.getUI()
+                                +" has no preferred concept; this cannot be!!!");
+                }
+            }
+            else {
+                Logger.warn("Intervention \""+name+"\" matched to "
+                            +e.getClass()+" "+e.ui+" \""+e.name+"\" "
+                            +e.score+" is too low!");
             }
             
             /*
@@ -825,6 +832,7 @@ public class ClinicalTrialDb implements KType {
                              "enrollment", c -> Integer.parseInt(c));
                 setProperty (node, "study_types", study);
                 value = setProperty (node, "intervention", study);
+                /*
                 if (value != null) {
                     if (value.getClass().isArray()) {
                         createIntervNodesIfAbsent (node, (String[])value);
@@ -833,6 +841,7 @@ public class ClinicalTrialDb implements KType {
                         createIntervNodesIfAbsent (node, (String)value);
                     }
                 }
+                */
             }
             tx.success();
         }
@@ -880,7 +889,8 @@ public class ClinicalTrialDb implements KType {
         return ns;
     }
 
-    public void mapAllConditions () throws Exception {
+    public int mapAllConditions () throws Exception {
+        int nconds = 0;
         try (Transaction tx = gdb.beginTx();
              ResourceIterator<Node> it = gdb.findNodes(CONDITION_LABEL)) {
             while (it.hasNext()) {
@@ -894,9 +904,11 @@ public class ClinicalTrialDb implements KType {
                     Logger.debug("++ "+node.getProperty("nct_id")+" "
                                  +node.getProperty("name"));
                 }
+                ++nconds;
             }
             tx.success();
         }
+        return nconds;
     }
 
     int mapCondition (Node node) throws Exception {
@@ -942,7 +954,6 @@ public class ClinicalTrialDb implements KType {
             if (n != null) {
                 cond = toCondition (n);
             }
-            
             tx.success();
             return cond;
         }

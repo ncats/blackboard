@@ -51,10 +51,6 @@ public class Controller extends play.mvc.Controller {
         ctdb = ks.getClinicalTrialDb();
     }
 
-    public Result index () {
-        return ok ("Knowledge source for ClinicalTrials.gov");
-    }
-
     public Result search (String query, int skip, int top) {
         return ok (query);
     }
@@ -131,5 +127,21 @@ public class Controller extends play.mvc.Controller {
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());
+    }
+
+    public CompletionStage<Result> mapAllConditions () {
+        return supplyAsync (() -> {
+                try {
+                    int nc = ctdb.mapAllConditions();
+                    return ok (nc+" condition(s) mapped!");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public Result index () {
+        return ok (views.html.ct.index.render());
     }
 }

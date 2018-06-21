@@ -2,6 +2,7 @@ package blackboard.mesh;
 
 import java.util.List;
 import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class SupplementalDescriptor extends Entry implements CommonDescriptor {
@@ -10,6 +11,7 @@ public class SupplementalDescriptor extends Entry implements CommonDescriptor {
     public List<Descriptor> mapped = new ArrayList<>();
     public List<Descriptor> indexed = new ArrayList<>();
     public List<Concept> concepts = new ArrayList<>();
+    @JsonIgnore
     public List<Entry> pharm = new ArrayList<>();
     public List<String> sources = new ArrayList<>();
     
@@ -20,7 +22,10 @@ public class SupplementalDescriptor extends Entry implements CommonDescriptor {
     protected SupplementalDescriptor (String ui, String name) {
         super (ui, name);
     }
-    
+
+    /*
+     * CommonDescriptor interface
+     */
     public String getUI () { return ui; }
     public String getName () { return name; }
     public List<Concept> getConcepts () { return concepts; }

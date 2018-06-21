@@ -1,5 +1,5 @@
 
-@main("A Simple Blackboard Demo"){
+@views.html.core.main("A Simple Blackboard Demo"){
 <div class="container-fluid">
   <div class="jumbotron">
     <h1>A simple blackboard</h1>
@@ -96,6 +96,9 @@
     </div>
   </div>
 </div>
+}{
+<link rel='stylesheet' href='@routes.Assets.versioned("stylesheets/blackboard.css")'>
+<script type='text/javascript' src='@routes.Assets.versioned("javascripts/blackboard.js")'></script>
 }{
 $(document).ready(function () {
     $('[data-toggle="tooltip"]').tooltip();

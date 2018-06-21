@@ -2,10 +2,12 @@ package blackboard.mesh;
 
 import java.util.List;
 import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Descriptor extends Qualifier implements CommonDescriptor {
     public List<Qualifier> qualifiers = new ArrayList<>();
+    @JsonIgnore
     public List<Entry> pharm = new ArrayList<>();
     
     protected Descriptor () {
