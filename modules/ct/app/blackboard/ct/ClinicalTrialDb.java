@@ -230,7 +230,8 @@ public class ClinicalTrialDb implements KType {
         else
             index.remove(node, "text", text);
     }
-        
+
+    public File getDbFile () { return dbdir; }
     
     public void shutdown () throws Exception {
         Logger.debug("## shutting down ClinicalTrialDb instance "+dbdir+"...");
@@ -889,6 +890,30 @@ public class ClinicalTrialDb implements KType {
         return ns;
     }
 
+    public Long getCount (String label) {
+        Long count = null;
+        try (Transaction tx = gdb.beginTx();
+             Result result = gdb.execute
+             ("match(n:`"+label+"`) return count(n) as cnt")) {
+            if (result.hasNext()) {
+                Map<String, Object> row = result.next();
+                count = (Long) row.get("cnt");
+            }
+            tx.success();
+        }
+        return count;
+    }
+
+    public Long getClinicalTrialCount () {
+        return getCount (CLINICALTRIAL_LABEL.name());
+    }
+    public Long getConditionCount () {
+        return getCount (CONDITION_LABEL.name());
+    }
+    public Long getInterventionCount () {
+        return getCount (INTERVENTION_LABEL.name());
+    }
+    
     public int mapAllConditions () throws Exception {
         int nconds = 0;
         try (Transaction tx = gdb.beginTx();

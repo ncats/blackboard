@@ -1,0 +1,82 @@
+@import blackboard.umls.UMLSKSource
+@(ks: UMLSKSource)
+
+@views.html.core.main("MeSH module"){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    <h1>UMLS</h1>
+    <p>This is the UMLS module. The JDBC url is <code>@ks.getDatabase.getUrl</code>.
+  </div>
+  <div class="col-md-6">  
+    <div class="row">
+      <div class="input-group">
+        <span class="input-group-btn">  
+          <button id="search-clear"
+                  class="btn btn-default" type="button">Clear</button>
+        </span>
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search for concepts...">
+        <span class="input-group-btn">
+          <button id="search-concept"
+                  class="btn btn-default" type="button">Search</button>
+        </span>
+      </div><!-- /input-group -->
+    </div>
+    <br>
+    <div class="row">
+      <div class="col-md-12">
+        <pre id="search-output" class="pre-scrollable"
+             style="overflow-y:auto;"></pre>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">UMLS Sources</h3>
+      </div>
+      <div class="panel-body">
+        <pre id="umls-sources" class="pre-scrollable"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+}(HtmlFormat.empty){
+    function search () {
+        var term = $('#search-input').val();
+        console.log('searching for "'+term+'"');
+        $.ajax({
+            url: '@controllers.umls.routes.Controller.findConcepts("")'+term,
+            dataType: 'text',
+            success: function (d) {
+                console.log(d);
+                $('#search-output').html(d);
+            }
+        });
+    }
+    
+    $(document).ready(function () {
+        $('#search-concept').on('click', function () {
+            search ();
+        });
+        
+        $('#search-clear').on('click', function () {
+            $('#search-input').val('');
+        });
+        
+        $('#search-input').keypress(function (ev) {
+            var keycode = (ev.keyCode ? ev.keyCode : ev.which);
+            if (keycode == '13') { // enter pressed
+                search ();
+            }
+        });
+
+        $.ajax({
+            url: '@controllers.umls.routes.Controller.datasources',
+            dataType: 'text',
+            success: function (d) {
+                $('#umls-sources').html(d);
+            }
+        });
+    });
+}

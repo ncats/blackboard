@@ -141,7 +141,9 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public Result index () {
-        return ok (views.html.ct.index.render());
+    public CompletionStage<Result> index () {
+        return supplyAsync (() -> {
+                return ok (views.html.ct.index.render(ctdb));
+            }, ec.current());
     }
 }

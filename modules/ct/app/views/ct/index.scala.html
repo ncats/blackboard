@@ -1,8 +1,54 @@
+@import blackboard.ct.ClinicalTrialDb
+
+@(ctdb: ClinicalTrialDb)
 
 @views.html.core.main("ClinicalTrials module"){
-<div class="container-fluid">
+<div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
     <h1>Clinical Trials</h1>
+    <p>This is the clinical trials module.
   </div>
+  <div class="row">
+    <div class="col-md-6">
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Summary</h3>
+        </div>
+        <div class="panel-body table-responsieve">
+          <table class="table table-condensed table-striped">
+            <tr>
+              <td><b>Clinical Trials</b></td>
+              <td>@ctdb.getClinicalTrialCount</td>
+            </tr>
+            <tr>
+              <td><b>Conditions</b></td>
+              <td>@ctdb.getConditionCount</td>              
+            </tr>
+            <tr>
+              <td><b>Interventions</b></td>
+              <td>@ctdb.getInterventionCount</td>              
+            </tr>            
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Module dependencies</h3>
+        </div>
+        <div class="panel-body">
+          <ul>
+            <li>
+              <a href="@controllers.mesh.routes.Controller.index">MeSH</a>
+            </li>
+            <li>
+              <a href="@controllers.umls.routes.Controller.index">UMLS</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div> <!-- row -->
 </div>
 }(HtmlFormat.empty)(HtmlFormat.empty)

@@ -1,4 +1,4 @@
-GET /info   controllers.umls.Controller.index
+GET /index   controllers.umls.Controller.index
 GET /ticket controllers.umls.Controller.ticket
 GET /sources        controllers.umls.Controller.datasources
 GET /sources/:name  controllers.umls.Controller.datasource(name: String)

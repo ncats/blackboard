@@ -57,11 +57,6 @@ public class Controller extends play.mvc.Controller {
             });
     }
     
-    public Result index () {
-        return ok
-            ("This is a basic implementation of the MeSH knowledge source!");
-    }
-
     public CompletionStage<Result> search (final String q, final Integer top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
@@ -117,5 +112,9 @@ public class Controller extends play.mvc.Controller {
                 return notFound ("Can't resolve \""
                                  +name+"\" to a MeSH descriptor!");
             }, ec.current());
+    }
+
+    public Result index () {
+        return ok (views.html.mesh.index.render());
     }
 }

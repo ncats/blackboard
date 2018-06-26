@@ -1,6 +1,7 @@
 package controllers.umls;
 
 import java.util.*;
+import java.util.regex.*;
 import java.util.concurrent.CompletionStage;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
@@ -28,6 +29,7 @@ import blackboard.umls.DataSource;
 public class Controller extends play.mvc.Controller {
     final UMLSKSource ks;
     final HttpExecutionContext ec;
+    final Pattern cuiregex = Pattern.compile("C[0-9]+");
     
     @Inject
     public Controller (HttpExecutionContext ec, UMLSKSource ks) {
@@ -42,8 +44,7 @@ public class Controller extends play.mvc.Controller {
     }
     
     public Result index () {
-        return ok
-            ("This is a basic implementation of the UMLS knowledge source!");
+        return ok (views.html.umls.index.render(ks));
     }
 
     public CompletionStage<Result> ticket () {
@@ -203,11 +204,21 @@ public class Controller extends play.mvc.Controller {
         (final String term, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
-                    List<MatchedConcept> results =
-                        ks.findConcepts(term, skip, top);
-                    return ok (Json.toJson(results));
+                    Matcher m = cuiregex.matcher(term);
+                    if (m.matches()) {
+                        return ok (Json.prettyPrint
+                                   (Json.toJson(ks.getConcept(term))))
+                            .as("application/json");
+                    }
+                    else {
+                        List<MatchedConcept> results =
+                            ks.findConcepts(term, skip, top);
+                        return ok (Json.prettyPrint(Json.toJson(results)))
+                            .as("application/json");
+                    }
                 }
                 catch (Exception ex) {
+                    Logger.error("findConcepts: "+ex.getMessage(), ex);
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());
@@ -253,7 +264,8 @@ public class Controller extends play.mvc.Controller {
                         s.add(m);
                     }
                     
-                    return ok (Json.toJson(data));
+                    return ok (Json.prettyPrint(Json.toJson(data)))
+                        .as("application/json");
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());

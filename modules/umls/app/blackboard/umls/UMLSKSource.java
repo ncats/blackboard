@@ -290,6 +290,8 @@ public class UMLSKSource implements KSource {
         return relations;
     }
 
+    public Database getDatabase () { return db; }
+    
     public List<KEdge> expand (KGraph kg, KNode node, String... types)
         throws Exception {
         String cui = (String) node.get("cui");

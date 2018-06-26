@@ -1,4 +1,4 @@
-GET /info   controllers.mesh.Controller.index
+GET /index   controllers.mesh.Controller.index
 GET /search/*q  controllers.mesh.Controller.search(q: String, top: Integer ?= 10)
 GET /descriptor/*name  controllers.mesh.Controller.descriptor(name: String)
 GET /:ui/context  controllers.mesh.Controller.context(ui: String, skip: Integer ?= 0, top: Integer ?= 10)
