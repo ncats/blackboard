@@ -116,8 +116,6 @@ public class ChemblKSource implements KSource{
             for (int i = 0; i < synonyms.length; ++i)
             {
                 String currentSynonym = synonyms[i];
-                Logger.debug(synonyms[i]);
-
                 if (currentSynonym.startsWith("CHEMBL"))
                 {
                     chemblIds.add(currentSynonym);
@@ -227,7 +225,6 @@ public class ChemblKSource implements KSource{
         Map<String, Object> props = new TreeMap<>();
         ArrayList<String> synonyms = new ArrayList();
         Json.prettyPrint(json);
-        Logger.debug("molecules size:"+molecules.size());
         for(int i = 0;i<molecules.size();++i)
         {
             JsonNode molecule = molecules.get(i);
@@ -242,7 +239,6 @@ public class ChemblKSource implements KSource{
             {
                 name = chemblId;
             }
-            Logger.debug("name="+name);
             props.put(NAME_P,name);
             props.put(URI_P,"https://www.ebi.ac.uk/chembl/compound/inspect/"+chemblId);
             synonyms.add(chemblId);
