@@ -23,13 +23,26 @@
       <div class="input-group">
         <span class="input-group-btn">  
           <button id="search-clear"
-                  class="btn btn-default" type="button">Clear</button>
+                  class="btn btn-default" type="button"
+                  data-toggle="tooltip" title="Clear search text">
+                  <i class="fa fa-ban"></i></button>
         </span>
         <input id="search-input" type="text" class="form-control"
                placeholder="Search for descriptors...">
         <span class="input-group-btn">
+          <button id="search-btn" class="btn btn-default dropdown-toggle"
+                  data-toggle="dropdown" aria-haspopup="true"
+                  aria-expanded="false">Search <span class="caret"></span>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a id="search-descriptor" href="#">Descriptor</a></li>
+            <li><a id="search-term" href="#">Term</a></li>
+            <li><a id="search-ui" href="#">Concept UI</a></li>
+          </ul>
+          <!--
           <button id="search-concept"
                   class="btn btn-default" type="button">Search</button>
+          -->
         </span>
       </div><!-- /input-group -->
     </div>
@@ -85,22 +98,54 @@
 }
 </div>
 }(HtmlFormat.empty){
-    function search () {
+    function clear () {
+        $('#search-output').html('');
+        $('#search-input').val('');        
+    }
+    function search (url) {
         var term = $('#search-input').val();
         console.log('searching for "'+term+'"');
+        
         $.ajax({
-            url: '@controllers.mesh.routes.Controller.descriptor("")'+term,
+            url: url+term,
             dataType: 'text',
             success: function (d) {
                 console.log(d);
                 $('#search-output').html(d);
+            },
+            statusCode: {
+              400: function () {
+                 clear ();            
+              },
+              404: function () {
+                 clear ();
+              }
             }
         });
     }
 
+    function searchDescriptor () {
+        search ('@controllers.mesh.routes.Controller.descriptor("")');
+    }
+
+    function searchTerm () {
+        search ('@controllers.mesh.routes.Controller.search("")');
+    }
+
+    function searchUI () {
+        search ('@controllers.mesh.routes.Controller.mesh("")');
+    }
+
     $(document).ready(function () {
-        $('#search-concept').on('click', function () {
-            search ();
+        $('[data-toggle="tooltip"]').tooltip();
+        $('#search-descriptor').on('click', function () {
+            searchDescriptor ();
+        });
+        $('#search-term').on('click', function () {
+            searchTerm ();        
+        });
+        $('#search-ui').on('click', function () {
+            searchUI ();
         });
 
         $('#build-btn').on('click', function () {
@@ -155,13 +200,13 @@
         });
         
         $('#search-clear').on('click', function () {
-            $('#search-input').val('');
+            clear ();
         });
         
         $('#search-input').keypress(function (ev) {
             var keycode = (ev.keyCode ? ev.keyCode : ev.which);
             if (keycode == '13') { // enter pressed
-                search ();
+                searchDescriptor ();
             }
         });
     });
