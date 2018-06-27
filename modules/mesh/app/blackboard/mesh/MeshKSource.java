@@ -9,10 +9,13 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.inject.Named;
+
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
 
@@ -51,7 +54,11 @@ public class MeshKSource implements KSource {
     final WSClient wsclient;
     final KSourceProvider ksp;
     final CacheApi cache;
-    final MeshDb mesh;
+    final File dbdir;
+    MeshDb mesh;
+    final MeshFactory mfac;
+    final AtomicBoolean isInitializing = new AtomicBoolean ();
+    final ReentrantLock lock = new ReentrantLock ();
     
     @Inject
     public MeshKSource (WSClient wsclient, CacheApi cache,
@@ -60,6 +67,7 @@ public class MeshKSource implements KSource {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
+        this.mfac = mfac;
 
         Map<String, String> props = ksp.getProperties();
         String param = props.get("db");
@@ -68,8 +76,13 @@ public class MeshKSource implements KSource {
                 ("No db specified in mesh configuration!");
 
 
-        File db = new File (param);
-        mesh = mfac.get(db);        
+        dbdir = new File (param);
+        try {
+            mesh = mfac.get(dbdir);
+        }
+        catch (Exception ex) {
+            Logger.warn("Not a valid database for MeSH", ex);
+        }
         
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -80,6 +93,43 @@ public class MeshKSource implements KSource {
                      +" initialized; provider is "+ksp.getImplClass());
     }
 
+    public boolean isInitialized () { return mesh != null; }
+    public boolean isInitializing () { return isInitializing.get(); }
+
+    public boolean initialize (File file) {
+        boolean inited = false;
+        
+        if (lock.isLocked())
+            ;
+        else {
+            lock.lock();
+            try {
+                inited = true;
+                if (mesh == null) {
+                    isInitializing.set(true);
+                    try {
+                        BuildMeshDb builder = new BuildMeshDb (dbdir, file);
+                        builder.build();
+                        mesh = mfac.get(dbdir);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Unable to build MeSH index!", ex);
+                        inited = false;
+                    }
+                    isInitializing.set(false);
+                }
+                else {
+                    Logger.warn("MeSH is already initialized for "+dbdir);
+                }
+            }
+            finally {
+                lock.unlock();
+            }
+        }
+        
+        return inited;
+    }
+    
     public MeshDb getMeshDb () { return mesh; }
 
     public void execute (KGraph kgraph, KNode... nodes) {

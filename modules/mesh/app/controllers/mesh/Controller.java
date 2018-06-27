@@ -1,6 +1,7 @@
 package controllers.mesh;
 
 import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
@@ -17,6 +18,7 @@ import play.Logger;
 import play.libs.Json;
 import play.cache.CacheApi;
 import play.libs.concurrent.HttpExecutionContext;
+import static play.mvc.Http.MultipartFormData.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,7 +41,6 @@ public class Controller extends play.mvc.Controller {
     final MeshKSource ks;
     final WSClient wsclient;
     final CacheApi cache;
-    final MeshDb mesh;
     
     @Inject
     public Controller (HttpExecutionContext ec, WSClient wsclient,
@@ -48,7 +49,6 @@ public class Controller extends play.mvc.Controller {
         this.wsclient = wsclient;
         this.cache = cache;
         this.ec = ec;
-        mesh = ks.getMeshDb();
     }
 
     static protected CompletionStage<Result> async (Result result) {
@@ -62,14 +62,15 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 String query = q.replaceAll("%20"," ").replaceAll("%22", "\"");
                 String[] context = request().queryString().get("context");
-                return ok (Json.toJson(mesh.search(query, top, context)));
+                return ok (Json.toJson(ks.getMeshDb()
+                                       .search(query, top, context)));
             }, ec.current());
     }
 
     public CompletionStage<Result> mesh (final String ui) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
-                Entry entry = mesh.getEntry(ui);
+                Entry entry = ks.getMeshDb().getEntry(ui);
                 if (entry != null) {
                     return ok (Json.toJson(entry));
                 }
@@ -80,7 +81,7 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> parents (final String ui) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
-                List<Entry> parents = mesh.getParents(ui);
+                List<Entry> parents = ks.getMeshDb().getParents(ui);
                 if (parents != null) {
                     return ok (Json.toJson(parents));
                 }
@@ -92,7 +93,7 @@ public class Controller extends play.mvc.Controller {
         (final String ui, final Integer skip, final Integer top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
-                List<Entry> entries = mesh.getContext(ui, skip, top);
+                List<Entry> entries = ks.getMeshDb().getContext(ui, skip, top);
                 if (!entries.isEmpty())
                     return ok (Json.toJson(entries));
                 return notFound ("Unknown MeSH ui: "+ui);
@@ -102,19 +103,67 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> descriptor (final String name) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
-                List<Entry> entries = mesh.search
+                List<Entry> entries = ks.getMeshDb().search
                     (name.replaceAll("%20"," ").replaceAll("%22", "\""), 10);
                 if (!entries.isEmpty()) {
-                    CommonDescriptor desc = mesh.getDescriptor(entries.get(0));
+                    CommonDescriptor desc = ks.getMeshDb()
+                        .getDescriptor(entries.get(0));
                     if (desc != null)
-                        return ok (Json.toJson(desc));
+                        return ok (Json.prettyPrint(Json.toJson(desc)))
+                            .as("application/json");
                 }
                 return notFound ("Can't resolve \""
                                  +name+"\" to a MeSH descriptor!");
             }, ec.current());
     }
 
-    public Result index () {
-        return ok (views.html.mesh.index.render());
+    public CompletionStage<Result> index () {
+        return supplyAsync (() -> {
+                return ok (views.html.mesh.index.render(ks));
+            }, ec.current());
+    }
+
+    @BodyParser.Of(value = BodyParser.MultipartFormData.class)
+    public Result buildMeshDb () {
+        Http.MultipartFormData<File> body =
+            request().body().asMultipartFormData();
+        Http.MultipartFormData.FilePart<File> desc = body.getFile("desc");
+        Http.MultipartFormData.FilePart<File> pa = body.getFile("pa");
+        Http.MultipartFormData.FilePart<File> qual = body.getFile("qual");
+        Http.MultipartFormData.FilePart<File> supp = body.getFile("supp");
+
+        try {
+            Path tempdir = Files.createTempDirectory("mesh");
+            Logger.debug("buildMeshDb: tempdir="+tempdir);
+            Files.copy(desc.getFile().toPath(),
+                       tempdir.resolve(desc.getFilename()));
+            Logger.debug("copied desc="+desc.getFilename()
+                         +" "+desc.getFile().length());
+            
+            Files.copy(pa.getFile().toPath(),
+                       tempdir.resolve(pa.getFilename()));
+            Logger.debug("copied pa="+pa.getFilename()
+                         +" "+pa.getFile().length());
+            
+            Files.copy(qual.getFile().toPath(),
+                       tempdir.resolve(qual.getFilename()));
+            Logger.debug("copied qual="+qual.getFilename()
+                         +" "+qual.getFile().length());
+            
+            Files.copy(supp.getFile().toPath(),
+                       tempdir.resolve(supp.getFilename()));
+            Logger.debug("copied supp="+supp.getFilename()
+                         +" "+supp.getFile().length());
+
+            File dir = tempdir.toFile();
+            dir.deleteOnExit();
+            ks.initialize(dir);
+        }
+        catch (IOException ex) {
+            Logger.error("Can't process multipart form data", ex);
+            return internalServerError ("Unable to build MeSH database!");
+        }
+
+        return redirect (routes.Controller.index());
     }
 }

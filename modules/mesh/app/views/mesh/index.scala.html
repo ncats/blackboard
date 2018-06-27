@@ -1,8 +1,171 @@
+@import blackboard.mesh.MeshKSource
+@(ks: MeshKSource)
+
 @views.html.core.main("MeSH module"){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
     <h1>MeSH</h1>
-    <p>This is the MeSH module.
+    <p>This is MeSH module: @if(!ks.isInitialized){
+      <i>Note: this module hasn't been initialized; intialization of this
+      module requires that you download the following MeSH files from
+        <a href="ftp://nlmpubs.nlm.nih.gov/online/mesh/MESH_FILES/xmlmesh/">NLM</a>: <code>descYEAR.gz</code>, <code>paYEAR.xml</code>, <code>qualYEAR.xml</code>, and <code>suppYEAR.gz</code>, where <code>YEAR</code> is the
+        year of release (e.g., 2018).
+      </i>
+      } else {
+        @for((k,v) <- ks.getMeshDb.getSummary){
+        <code>@k</code> (@v)
+        }
+      }
   </div>
+@if(ks.isInitialized){
+  <div class="col-md-6">  
+    <div class="row">
+      <div class="input-group">
+        <span class="input-group-btn">  
+          <button id="search-clear"
+                  class="btn btn-default" type="button">Clear</button>
+        </span>
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search for descriptors...">
+        <span class="input-group-btn">
+          <button id="search-concept"
+                  class="btn btn-default" type="button">Search</button>
+        </span>
+      </div><!-- /input-group -->
+    </div>
+    <br>
+    <div class="row">
+      <div class="col-md-12">
+        <pre id="search-output" class="pre-scrollable"
+             style="overflow-y:auto;"></pre>
+      </div>
+    </div>
+  </div>
+} else {
+  @if(ks.isInitializing) {
+  <div class="col-md-12">
+    <div class="alert alert-warning" role="alert">
+      <h3>Initializing database; please be patience...</h3>
+    </div>
+  </div>
+  } else {
+  <div class="col-md-6">
+    <div class="input-group">
+      <span class="input-group-addon" id="desc-label">desc</span>
+      <input type="file" class="form-control" id="desc-file"
+             placeholder="descriptor file (e.g., descYEAR.gz)"
+             aria-describedby="desc-label">
+    </div>
+    <br>
+    <div class="input-group">
+      <span class="input-group-addon" id="pa-label">pa</span>
+      <input type="file" class="form-control" id="pa-file"
+             placeholder="pharmacological action file (e.g., paYEAR.xml)"
+             aria-describedby="pa-label">
+    </div>
+    <br>
+    <div class="input-group">
+      <span class="input-group-addon" id="qual-label">qual</span>
+      <input type="file" class="form-control" id="qual-file"
+             placeholder="qualifier file (e.g., qualYEAR.xml)"
+             aria-describedby="qual-label">
+    </div>
+    <br>
+    <div class="input-group">
+      <span class="input-group-addon" id="supp-label">supp</span>
+      <input type="file" class="form-control" id="supp-file"
+             placeholder="supplemental descriptor file (e.g., suppYEAR.xml)"
+             aria-describedby="supp-label">
+    </div>
+    <br>
+    <button id="build-btn"
+            type="submit" class="btn btn-primary">Initialize</button>
+  </div>
+  }
+}
 </div>
-}(HtmlFormat.empty)(HtmlFormat.empty)
+}(HtmlFormat.empty){
+    function search () {
+        var term = $('#search-input').val();
+        console.log('searching for "'+term+'"');
+        $.ajax({
+            url: '@controllers.mesh.routes.Controller.descriptor("")'+term,
+            dataType: 'text',
+            success: function (d) {
+                console.log(d);
+                $('#search-output').html(d);
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        $('#search-concept').on('click', function () {
+            search ();
+        });
+
+        $('#build-btn').on('click', function () {
+            var form = new FormData();
+            var desc = $('#desc-file').val();
+            if (desc == '') {
+               alert ('No descriptor file (e.g., desc2018.gz) specified!');
+               return;
+            }
+            $.each($('#desc-file')[0].files, function(i,file) {
+               form.append('desc', file);
+            });
+            
+            var pa = $('#pa-file').val();
+            if (pa == '') {
+               alert ('No pharmacological action file (e.g., pa2018.xml) specified!');
+               return;            
+            }
+            $.each($('#pa-file')[0].files, function(i,file) {
+               form.append('pa', file);
+            });
+            
+            var qual = $('#qual-file').val();
+            if (qual == '') {
+               alert ('No qualifier file (e.g., qual2018.xml) specified!');
+               return;
+            }
+            $.each($('#qual-file')[0].files, function(i,file) {
+               form.append('qual', file);
+            });
+            
+            var supp = $('#supp-file').val();
+            if (supp == '') {
+               alert ('No supplemental descriptor file (e.g., supp2018.gz) specified!');
+               return;
+            }
+            $.each($('#supp-file')[0].files, function(i,file) {
+               form.append('supp', file);
+            });
+            
+            console.log('desc="'+desc+'" pa="'+pa
+                        +'" qual="'+qual+'" supp="'+supp+'"');
+
+            $('#build-btn').html('Initializing...<i class="fa fa-spinner fa-spin" aria-hidden="true"></i>');
+            $.ajax({
+               url: '@controllers.mesh.routes.Controller.buildMeshDb',
+               data: form,
+               contentType: false,
+               processData: false,
+               method: 'POST',
+               success: function(d) {
+                  alert(d);
+               }
+            });
+        });
+        
+        $('#search-clear').on('click', function () {
+            $('#search-input').val('');
+        });
+        
+        $('#search-input').keypress(function (ev) {
+            var keycode = (ev.keyCode ? ev.keyCode : ev.which);
+            if (keycode == '13') { // enter pressed
+                search ();
+            }
+        });
+    });
+}

@@ -34,6 +34,7 @@ public class MeshDb implements Mesh {
     final Map<String, String> indexConfig = new HashMap<>();
     final GraphDatabaseService gdb;
     final File dbdir;
+    final Map<String, Integer> files;
 
     @Inject
     public MeshDb (ApplicationLifecycle lifecycle, @Assisted File dbdir) {
@@ -41,7 +42,7 @@ public class MeshDb implements Mesh {
             //.setConfig(GraphDatabaseSettings.read_only, "true")
             .newGraphDatabase();
 
-        int files = 0;        
+        files = new TreeMap<>();
         try (Transaction tx = gdb.beginTx();
              ResourceIterator<Node> it =
              gdb.findNodes(Label.label(MeshDb.class.getName()))) {
@@ -49,14 +50,17 @@ public class MeshDb implements Mesh {
                 Node n = it.next();
                 Logger.debug("## name="+n.getProperty("name")
                              +" count="+n.getProperty("count"));
-                ++files;
+                files.put((String)n.getProperty("name"),
+                          (Integer)n.getProperty("count"));
             }
             tx.success();
         }
         
-        if (files == 0)
+        if (files.isEmpty()) {
+            gdb.shutdown();
             throw new RuntimeException
                 ("Not a valid MeSH database: "+dbdir);
+        }
 
         indexConfig.put("type", "fulltext");
         indexConfig.put("to_lower_case", "true");
@@ -299,6 +303,8 @@ public class MeshDb implements Mesh {
         return node;
     }
 
+    public Map<String, Integer> getSummary () { return files; }
+    
     public Entry getEntry (String ui) {
         Entry entry = null;
         try (Transaction tx = gdb.beginTx()) {
