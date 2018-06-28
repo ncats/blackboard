@@ -62,9 +62,11 @@ public class ChemblKSource implements KSource{
             nodes = kgraph.getNodes();
 
         for (KNode kn : nodes) {
+            Logger.debug(kn.getName());
             HashSet<String> ids = getChemblIds(kn);
             if(!ids.isEmpty())
             {
+                Logger.debug("Found Chembl ids");
                 ids.forEach(id->{
                     seedDrug(id,kn,kgraph);
                     seedTarget(id,kn,kgraph);
@@ -73,6 +75,7 @@ public class ChemblKSource implements KSource{
             }
             else
             {
+                Logger.debug("No Chembl ids found");
                 if(kn.get(NAME_P)!=null)
                 {
                     seedQuery(kn.get(NAME_P).toString(),kn,kgraph);
@@ -108,22 +111,15 @@ public class ChemblKSource implements KSource{
         }
         if(syn!=null)
         {
-            String synonym = syn.toString();
-            if(synonym.contains(","))
+            Logger.debug("Found synonyms");
+            String[] synonyms = (String[])syn;
+            for (int i = 0; i < synonyms.length; ++i)
             {
-               String[] synonyms = synonym.split(",");
-                for (int i = 0; i < synonyms.length; ++i)
+                String currentSynonym = synonyms[i];
+                if (currentSynonym.startsWith("CHEMBL"))
                 {
-                    String currentSynonym = synonyms[i];
-                    if (currentSynonym.startsWith("CHEMBL"))
-                    {
-                        chemblIds.add(currentSynonym);
-                    }
+                    chemblIds.add(currentSynonym);
                 }
-            }
-            else if(synonym.startsWith("CHEMBL"))
-            {
-                chemblIds.add(synonym);
             }
         }
         return chemblIds;
@@ -229,7 +225,6 @@ public class ChemblKSource implements KSource{
         Map<String, Object> props = new TreeMap<>();
         ArrayList<String> synonyms = new ArrayList();
         Json.prettyPrint(json);
-        Logger.debug("molecules size:"+molecules.size());
         for(int i = 0;i<molecules.size();++i)
         {
             JsonNode molecule = molecules.get(i);
@@ -244,7 +239,6 @@ public class ChemblKSource implements KSource{
             {
                 name = chemblId;
             }
-            Logger.debug("name="+name);
             props.put(NAME_P,name);
             props.put(URI_P,"https://www.ebi.ac.uk/chembl/compound/inspect/"+chemblId);
             synonyms.add(chemblId);
