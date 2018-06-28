@@ -77,13 +77,8 @@ lazy val core =  (project in file("modules/core"))
     name := "core",
     libraryDependencies ++= commonDependencies,
     libraryDependencies += "org.webjars" %% "webjars-play" % "2.5.0",
-    libraryDependencies += "org.webjars" % "bootstrap" % "3.3.7",
     libraryDependencies += "org.webjars" % "jquery" % "3.2.0",
-    libraryDependencies += "org.webjars" % "datatables" % "1.10.12",
-    libraryDependencies +=  "org.webjars" % "datatables-plugins" % "1.10.12",
-    libraryDependencies += "org.webjars" % "datatables-bootstrap" % "2-20120202-2",
     libraryDependencies += "org.webjars" % "font-awesome" % "4.7.0",
-    
     javacOptions ++= javaBuildOptions
 ).dependsOn(buildinfo).aggregate(buildinfo)
 

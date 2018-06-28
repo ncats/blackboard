@@ -57,7 +57,7 @@ public class MeshDb implements Mesh {
         }
         
         if (files.isEmpty()) {
-            gdb.shutdown();
+            shutdown ();
             throw new RuntimeException
                 ("Not a valid MeSH database: "+dbdir);
         }
@@ -468,8 +468,13 @@ public class MeshDb implements Mesh {
         return matches;
     }
 
-    public void shutdown () throws Exception {
-        Logger.debug("## shutting down MeshDb instance "+dbdir+"...");
-        gdb.shutdown();
+    public void shutdown () {
+        Logger.debug("## shutting down MeshDb instance "+dbdir+"...");        
+        try {
+            gdb.shutdown();
+        }
+        catch (Exception ex) {
+            Logger.error("Can't shutdown MeshDb!", ex);
+        }
     }
 }

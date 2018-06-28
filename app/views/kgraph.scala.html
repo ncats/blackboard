@@ -4,33 +4,31 @@
 @(app: BlackboardApp, kg: KGraph)
 
 @views.html.core.main("Knowledge Graph: "+kg.getName){
-<nav class="navbar navbar-default">
-  <div class="container-fluid">
-    <!-- Brand and toggle get grouped for better mobile display -->
-    <div class="navbar-header">
-      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
-        <span class="sr-only">Toggle navigation</span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-      </button>
-      <a class="navbar-brand" href="@controllers.routes.BlackboardApp.index">Blackboard</a>
-    </div>
-    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-      <ul class="nav navbar-nav">
-        <li><a href="https://spotlite.nih.gov/ncats/blackboard">Code</a>
-        </li>
-      </ul>
-    </div>
+<nav class="navbar fixed-top navbar-expand-lg navbar-ligh bg-light">
+  <a class="navbar-brand" href="@controllers.routes.BlackboardApp.index">
+    BLACKBOARD</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse"
+          data-target="#navbarSupportedContent"
+          aria-controls="navbarSupportedContent"
+          aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item">
+        <a class="nav-link" href="https://spotlite.nih.gov/ncats/blackboard">Code</a></li>
+      <li class="nav-item active">
+        <a class="nav-link pull-right" id="btn-ks"
+           data-target="#controller-modal" href="#" data-toggle="modal">
+          Knowledge Source <i class="fa fa-sitemap"></i></a>
+      </li>
+    </ul>
   </div>
 </nav>
 <div class="container-fluid">  
-  <div class="page-header">
-    <h1>@kg.getName <span class="pull-right">
-        <button type="button" class="btn btn-primary" id="btn-ks"
-                data-target="#controller-modal" data-toggle="modal">
-          Knowledge Source <i class="fa fa-sitemap"></i></button></span></h1>
-    <p>This is currently the state of the knowledge graph for the query
+  <div class="jumbotron" style="margin-top:70px;">
+    <h1 class="display-4">@kg.getName</h1>
+    <p class="lead">This is currently the state of the knowledge graph for the query
       <code>@kg.getName</code>. As you explore the knowledge graph
       interactively, you can select nodes as knowledge seeds to further
       expand on the knowledge graph. To do this, simply click on any node
@@ -60,8 +58,10 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title">Knowledge Sources</h4>
+        <h4 class="modal-title">Knowledge Sources</h4>        
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close"><span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-body">
         <div id="panel-ks" style="overflow-y:auto;"></div>
@@ -80,8 +80,10 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <h4 class="modal-title">Warning: <span id="warning-mesg"></span></h4>
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close"><span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default"

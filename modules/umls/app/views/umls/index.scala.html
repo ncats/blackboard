@@ -4,39 +4,40 @@
 @views.html.core.main("MeSH module"){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1>UMLS</h1>
-    <p>This is the UMLS module. The JDBC url is <code>@ks.getDatabase.getUrl</code>.
+    <h1 class="display-4">UMLS</h1>
+    <p class="lead">This is the UMLS module. The JDBC url is <code>@ks.getDatabase.getUrl</code>.
   </div>
-  <div class="col-md-6">  
-    <div class="row">
-      <div class="input-group">
-        <span class="input-group-btn">  
-          <button id="search-clear"
-                  class="btn btn-default" type="button">Clear</button>
-        </span>
-        <input id="search-input" type="text" class="form-control"
-               placeholder="Search for concepts...">
-        <span class="input-group-btn">
-          <button id="search-concept"
-                  class="btn btn-default" type="button">Search</button>
-        </span>
-      </div><!-- /input-group -->
-    </div>
-    <br>
-    <div class="row">
-      <div class="col-md-12">
+  <div class="row">  
+    <div class="col-md-6">
+      <div class="row">
+        <div class="col">
+          <div class="input-group">
+            <span class="input-group-btn">  
+              <button id="search-clear"
+                      class="btn btn-default" type="button">Clear</button>
+            </span>
+            <input id="search-input" type="text" class="form-control"
+                   placeholder="Search for concepts...">
+            <span class="input-group-btn">
+              <button id="search-concept"
+                      class="btn btn-default" type="button">Search</button>
+            </span>
+          </div><!-- /input-group -->
+        </div>
+      </div>
+      <div class="col">
         <pre id="search-output" class="pre-scrollable"
              style="overflow-y:auto;"></pre>
       </div>
     </div>
-  </div>
-  <div class="col-md-6">
-    <div class="panel panel-default">
-      <div class="panel-heading">
-        <h3 class="panel-title">UMLS Sources</h3>
-      </div>
-      <div class="panel-body">
-        <pre id="umls-sources" class="pre-scrollable"></pre>
+    <div class="col-md-6">
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">UMLS Sources</h3>
+        </div>
+        <div class="panel-body">
+          <pre id="umls-sources" class="pre-scrollable"></pre>
+        </div>
       </div>
     </div>
   </div>
