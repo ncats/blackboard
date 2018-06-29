@@ -16,6 +16,44 @@
       concepts.
   </div>
   <div class="row">
+    <div class="col-md-6">
+      <div class="input-group">
+        <span class="input-group-addon" id="interv-label">Intervention</span>
+        <input type="file" class="form-control" id="interv-file"
+               placeholder="Intervention mapping from gsrs"
+               aria-describedby="interv-label">
+      </div>
+      <br>
+      <button id="load-btn" type="submit" class="btn btn-primary">Load</button>
+    </div>
   </div> <!-- row -->
 </div>
-}(HtmlFormat.empty)(HtmlFormat.empty)
+}(HtmlFormat.empty){
+    $(document).ready(function () {
+        $('#load-btn').on('click', function () {
+            var form = new FormData();
+            var interv = $('#interv-file').val();
+            if (interv == '') {
+               alert ('No intervention file specified!');
+               return;
+            }
+            $.each($('#interv-file')[0].files, function(i,file) {
+               form.append('interv', file);
+            });
+            $('#load-btn').
+                html('Loading...<i class="fa fa-spinner fa-spin" aria-hidden="true"></i>');
+            $.ajax({
+                url: '@controllers.ct.routes.Controller.mapInterventions',
+                data: form,
+                contentType: false,
+                processData: false,
+                method: 'POST',
+                success: function (d) {
+                    $('#load-btn').html('Done!');
+                    $('#load-btn').prop("disabled", true);
+                }
+            });
+            
+        });
+    });
+}

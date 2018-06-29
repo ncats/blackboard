@@ -1,6 +1,7 @@
 package controllers.ct;
 
 import java.io.*;
+import java.util.zip.GZIPInputStream;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
@@ -129,16 +130,36 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> mapAllConditions () {
+    public CompletionStage<Result> mapConditions () {
         return supplyAsync (() -> {
                 try {
-                    int nc = ctdb.mapAllConditions();
+                    int nc = ctdb.mapConditions();
                     return ok (nc+" condition(s) mapped!");
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());
+    }
+
+    @BodyParser.Of(value = BodyParser.MultipartFormData.class)
+    public Result mapInterventions () {
+        Http.MultipartFormData<File> body =
+            request().body().asMultipartFormData();
+        Http.MultipartFormData.FilePart<File> interv = body.getFile("interv");
+        File file = interv.getFile();
+        int count = 0;
+        if (file != null) {
+            try (InputStream is = new GZIPInputStream
+                 (new FileInputStream (file))) {
+                count = ctdb.mapInterventions(is);
+            }
+            catch (IOException ex) {
+                Logger.error("Can't map interventions", ex);
+                return internalServerError (ex.getMessage());
+            }
+        }
+        return ok (count+" interventions mapped!");
     }
 
     public CompletionStage<Result> index () {

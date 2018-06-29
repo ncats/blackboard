@@ -4,5 +4,6 @@ GET /conditions/:name controllers.ct.Controller.getCondition(name: String)
 GET /conditions controllers.ct.Controller.conditions(skip: Integer ?= 0, top: Integer ?= 10)
 GET /search/:q  controllers.ct.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /mapcond/:name  controllers.ct.Controller.mapCondition(name: String)
-GET /mapcond        controllers.ct.Controller.mapAllConditions
+GET /mapcond        controllers.ct.Controller.mapConditions
+POST /mapinterv     controllers.ct.Controller.mapInterventions
 GET /:id        controllers.ct.Controller.resolve(id: String)

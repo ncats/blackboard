@@ -63,12 +63,12 @@ public class ClinicalTrialDb implements KType {
     static final String DOWNLOAD_FIELDS =
         "https://clinicaltrials.gov/ct2/results/download_fields";
 
-    static final Label CONDITION_LABEL = Label.label("condition");
-    static final Label INTERVENTION_LABEL = Label.label("intervention");
+    static final Label CONDITION_LABEL = Label.label(CONDITION_T);
+    static final Label INTERVENTION_LABEL = Label.label(INTERVENTION_T);
     static final Label META_LABEL =
         Label.label(ClinicalTrialDb.class.getName());
     static final Label UMLS_LABEL = Label.label("umls");
-    static final Label CLINICALTRIAL_LABEL = Label.label("clinicaltrial");
+    static final Label CLINICALTRIAL_LABEL = Label.label(CLINICALTRIAL_T);
 
     static final RelationshipType MESH_RELTYPE =
         RelationshipType.withName("mesh");
@@ -77,7 +77,11 @@ public class ClinicalTrialDb implements KType {
     static final RelationshipType RESOLVE_RELTYPE =
         RelationshipType.withName("resolve");
     static final RelationshipType CLINICALTRIAL_RELTYPE =
-        RelationshipType.withName("clinicaltrial");
+        RelationshipType.withName(CLINICALTRIAL_T);
+    static final RelationshipType CONDITION_RELTYPE =
+        RelationshipType.withName(CONDITION_T);
+    static final RelationshipType INTERVENTION_RELTYPE =
+        RelationshipType.withName(INTERVENTION_T);
     
     final GraphDatabaseService gdb;
     final File dbdir;
@@ -91,19 +95,19 @@ public class ClinicalTrialDb implements KType {
     final Map<String, EntityRepo> repo;
 
     class EntityRepo extends UniqueFactory.UniqueNodeFactory {
-        final Label label;
+        final String name;
         final String type;
 
         EntityRepo (String name, String type) {
             super (getNodeIndex (name));
-            this.label = Label.label(name);
+            this.name = name;
             this.type = type;
         }
 
         @Override
         protected void initialize (Node created, Map<String, Object> props) {
             created.setProperty("created", System.currentTimeMillis());
-            created.addLabel(label);
+            created.addLabel(Label.label(type));
             for (Map.Entry<String, Object> me : props.entrySet()) {
                 created.setProperty(me.getKey(), me.getValue());
             }
@@ -111,7 +115,7 @@ public class ClinicalTrialDb implements KType {
         }
 
         IndexHits<Node> get (String name, Object value) {
-            return getNodeIndex(label.name()).get(name, value);
+            return getNodeIndex(this.name).get(name, value);
         }
     }
 
@@ -149,8 +153,56 @@ public class ClinicalTrialDb implements KType {
     }
 
     class InterventionEntityRepo extends EntityRepo {
+        WSRequest req;
         InterventionEntityRepo () {
             super ("intervention", INTERVENTION_T);
+        }
+
+        @Override
+        protected void initialize (Node created, Map<String, Object> props) {
+            super.initialize(created, props);
+            String unii = (String)props.get("unii");
+            if (unii != null) {
+                addTextIndex (created, unii);
+                // get other information about this unii from gsrs
+                try {
+                    instrument (created, unii);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't instrument intervention "+unii, ex);
+                }
+            }
+        }
+
+        void instrument (Node node, String unii) throws Exception {
+            WSResponse res = wsclient.url
+                ("https://drugs.ncats.io/api/v1/substances")
+                .setQueryParameter("filter", "approvalID='"+unii+"'")
+                .get().toCompletableFuture().get();
+            
+            Logger.debug(res.getUri()+"..."+res.getStatus());
+            if (res.getStatus() == 200) {
+                JsonNode n = res.asJson();
+                if ((n = n.get("content")) != null) {
+                    if (n.size() > 0) {
+                        String name = n.get(0).get("_name").asText();
+                        int why = name.indexOf(", LICENSE HOLDER UNSPECIFIED");
+                        if (why > 0)
+                            name = name.substring(0, why);
+                        node.setProperty("name", name);
+                        addTextIndex (node, name);
+                        
+                        // now map to umls & mesh using name
+                        resolve (node, new Intervention (unii, name));
+                    }
+                }
+                else {
+                    Logger.warn(unii+" has no content!");
+                }
+            }
+            else {
+                Logger.error(res.getUri()+" return status "+res.getStatus());
+            }
         }
     }
 
@@ -190,7 +242,7 @@ public class ClinicalTrialDb implements KType {
                     new InterventionEntityRepo (),
                     new StudyEntityRepo ()
                 }) {
-                repo.put(er.label.name(), er);
+                repo.put(er.name, er);
             }
 
             try (ResourceIterator<Node> it = gdb.findNodes(META_LABEL)) {
@@ -241,6 +293,7 @@ public class ClinicalTrialDb implements KType {
     
     public void build (int skip, int top) throws Exception {
         int count = 0;
+        /*
         for (Condition cond : getConditionsFromCt (skip, top)) {
             try (Transaction tx = gdb.beginTx()) {
                 Node node = createNodeIfAbsent (cond);
@@ -249,8 +302,8 @@ public class ClinicalTrialDb implements KType {
                 tx.success();
             }
         }
+        */
 
-        /*        
         try (Transaction tx = gdb.beginTx()) {
             for (String c : new String[]{
                     "Chromosome 5q Deletion",
@@ -260,10 +313,9 @@ public class ClinicalTrialDb implements KType {
                     "Hereditary Hemorrhagic Telangiectasia"
                 }) {
                 createNodeIfAbsent (new Condition (c));
-                tx.success();
             }
+            tx.success();            
         }
-        */
     }
 
     Condition toCondition (Node n) {
@@ -278,8 +330,8 @@ public class ClinicalTrialDb implements KType {
         for (Relationship rel :
                  n.getRelationships(MESH_RELTYPE, UMLS_RELTYPE)) {
             Node xn = rel.getOtherNode(n);
-            Condition.Entry entry = new Condition.Entry
-                ((String)xn.getProperty("ui"), (String)xn.getProperty("name"));
+            Entry entry = new Entry((String)xn.getProperty("ui"),
+                                    (String)xn.getProperty("name"));
             if (rel.isType(MESH_RELTYPE)) {
                 cond.mesh.add(entry);
             }
@@ -450,14 +502,14 @@ public class ClinicalTrialDb implements KType {
         }
     }
        
-    void resolveMesh (Node node, Condition cond) {
+    Entry resolveMesh (Node node, String term) {
         List<blackboard.mesh.Entry> results =
-            mesh.getMeshDb().search("\""+cond.name+"\"", 10);
+            mesh.getMeshDb().search("\""+term+"\"", 5);
         blackboard.mesh.Entry matched = null;
         for (blackboard.mesh.Entry r : results) {
             if (r instanceof Term) {
                 List<blackboard.mesh.Entry> entries =
-                    mesh.getMeshDb().getContext(r.ui, 0, 10);
+                    mesh.getMeshDb().getContext(r.ui, 0, 5);
                 for (blackboard.mesh.Entry e : entries) {
                     if (e instanceof Concept) {
                         matched = e;
@@ -474,14 +526,23 @@ public class ClinicalTrialDb implements KType {
                 break;
             }
         }
-        
+
+        Entry entry = null;
         if (matched != null) {
             Node n = getOrCreateNode(node, matched).entity();
-            cond.mesh.add(new Condition.Entry(matched.ui, matched.name));
             Logger.debug("MeSH node "+n.getId()
-                         +": \""+cond.name+"\" => "+matched.ui
+                         +": \""+term+"\" => "+matched.ui
                          +" \""+matched.name+"\"");
+            entry = new Entry (matched.ui, matched.name);            
         }
+
+        return entry;
+    }
+
+    void resolveMesh (Node node, EntryMapping mapping) {
+        Entry e = resolveMesh (node, mapping.name);
+        if (e != null)
+            mapping.mesh.add(e);
     }
 
     UniqueFactory.UniqueEntity<Node> getOrCreateNode
@@ -566,21 +627,35 @@ public class ClinicalTrialDb implements KType {
         }
     }
     
-    void resolveUMLS (Node node, Condition cond) {
+    List<Entry> resolveUMLS (Node node, String term) {
+        List<Entry> entries = new ArrayList<>();
         try {
-            List<MatchedConcept> results = umls.findConcepts(cond.name);
+            List<MatchedConcept> results = umls.findConcepts(term, 0, 5);
             for (blackboard.umls.MatchedConcept mc : results) {
-                Condition.Entry e = new Condition.Entry
-                    (mc.concept.cui, mc.concept.name);
+                Entry entry = new Entry (mc.concept.cui, mc.concept.name);
+                
                 Node n = getOrCreateNode(node, mc).entity();
                 Logger.debug
-                    ("UMLS node "+n.getId()+": \""+cond.name+"\" => "
-                     +e.ui+" \""+e.name+"\" score="+mc.score);
-                cond.umls.add(e);
+                    ("UMLS node "+n.getId()+": \""+term+"\" => "
+                     +entry.ui+" \""+entry.name+"\" score="+mc.score);
+                
+                entries.add(entry);
             }
-            
-            for (Condition.Entry mesh : cond.mesh) {
-                // now see if this mesh is an atom of this umls concept
+        }
+        catch (Exception ex) {
+            Logger.error("Can't match UMLS for term \""+term+"\"", ex);
+        }
+        
+        return entries;
+    }
+
+    void resolveUMLS (Node node, EntryMapping mapping) {
+        List<Entry> entries = resolveUMLS (node, mapping.name);
+        mapping.umls.addAll(entries);
+        
+        for (Entry mesh : mapping.mesh) {
+            // now see if this mesh is an atom of this umls concept
+            try {
                 blackboard.umls.Concept concept =
                     umls.getConcept("scui", mesh.ui);
                 Logger.debug("MeSH "+mesh.ui+" => UMLS "
@@ -600,10 +675,10 @@ public class ClinicalTrialDb implements KType {
                                  "scui", mesh.ui);
                         }
                     }
-
+                    
                     EntityRepo index = repo.get("umls");
                     // now check consistency with any existing umls concepts
-                    for (Condition.Entry e : cond.umls) {
+                    for (Entry e : mapping.umls) {
                         if (!concept.cui.equals(e.ui)) {                        
                             try (IndexHits<Node> hits = index.get("ui", e.ui)) {
                                 Node n = hits.getSingle();
@@ -612,7 +687,7 @@ public class ClinicalTrialDb implements KType {
                                     RelationshipType rt =
                                         RelationshipType.withName(r.type);
                                     Relationship rel =
-                                        un.createRelationshipTo(n, rt);
+                                        n.createRelationshipTo(un, rt);
                                     rel.setProperty("rui", r.rui);
                                     if (r.attr != null)
                                         rel.setProperty("value", r.attr);
@@ -628,14 +703,14 @@ public class ClinicalTrialDb implements KType {
                                  +mesh.ui);
                 }
             }
-        }
-        catch (Exception ex) {
-            Logger.error("Can't match UMLS for condition \""
-                         +cond.name+"\"", ex);
+            catch (Exception ex) {
+                Logger.error("Can't retrieve UMLS concept for scui="
+                             +mesh.ui, ex);
+            }
         }
     }
 
-    Node createNodeIfAbsent (Condition cond) {
+    UniqueFactory.UniqueEntity<Node> createNodeIfAbsent (Condition cond) {
         try (Transaction tx = gdb.beginTx()) {
             UniqueFactory.UniqueEntity<Node> ent =
                 repo.get("condition").getOrCreateWithOutcome("name", cond.name);
@@ -646,13 +721,15 @@ public class ClinicalTrialDb implements KType {
                     node.setProperty("count", cond.count);
                 addTextIndex (node, cond.name);
             }
-            
-            resolveMesh (node, cond);
-            resolveUMLS (node, cond);
-            
+                        
             tx.success();
-            return node;
+            return ent;
         }
+    }
+
+    void resolve (Node node, EntryMapping mapping) {
+        resolveMesh (node, mapping);
+        resolveUMLS (node, mapping);
     }
 
     static Object setProperty (Node node, String prop, Element elm) {
@@ -697,21 +774,22 @@ public class ClinicalTrialDb implements KType {
             }
         }
         else {
-            try (IndexHits<Node> hits = index.get("name", value)) {
-                Node n = hits.getSingle();
-                if (n != null) {
-                    for (Relationship rel :
-                             study.getRelationships(CLINICALTRIAL_RELTYPE)) {
-                        if (rel.hasProperty("value")
-                            && value.equals(rel.getProperty("value")))
-                            return;
-                    }
-                    
-                    Relationship rel = study.createRelationshipTo
-                        (n, CLINICALTRIAL_RELTYPE);
-                    rel.setProperty("value", value);
+            UniqueFactory.UniqueEntity<Node> cond =
+                createNodeIfAbsent (new Condition ((String)value));
+            if (cond.wasCreated()) {
+            }
+            else {
+                // make sure it's not already connected
+                for (Relationship rel
+                         : study.getRelationships(CONDITION_RELTYPE)) {
+                    if (rel.getOtherNode(study).equals(cond.entity()))
+                        return;
                 }
             }
+            
+            Relationship rel = study.createRelationshipTo
+                (cond.entity(), CONDITION_RELTYPE);
+            rel.setProperty("value", value);
         }
     }
 
@@ -783,40 +861,20 @@ public class ClinicalTrialDb implements KType {
         return null;
     }
     
-    /*
-     * resolve interventions
-     */
-    List<Node> createIntervNodesIfAbsent (Node node, String... names)
-        throws Exception {
-        List<Node> interv = new ArrayList<>();
-        for (String name : names) {
-            UniqueFactory.UniqueEntity<Node> uf =
-                resolveInterventionMesh (node, name);
-            if (uf != null) {
-                interv.add(uf.entity());
-            }
-            else {
-                Logger.warn("Can't find intervention \""+name+"\" in MeSH!");
-                // let's try umls?
-            }
-        }
-        return interv;
-    }
-
-    Node createStudyIfAbsent (Element study) throws Exception {
+    UniqueFactory.UniqueEntity<Node> createStudyIfAbsent
+        (Element study) throws Exception {
         NodeList nodelist = study.getElementsByTagName("nct_id");
         if (nodelist.getLength() == 0) {
             Logger.warn("Study contains no element nct_id!");
             return null;
         }
 
-        Node node = null;
+        UniqueFactory.UniqueEntity<Node> ent = null;        
         try (Transaction tx = gdb.beginTx()) {
-            UniqueFactory.UniqueEntity<Node> ent =
-                repo.get("study").getOrCreateWithOutcome
+            ent = repo.get("study").getOrCreateWithOutcome
                 ("nct_id", ((Element)nodelist.item(0)).getTextContent());
             
-            node = ent.entity();
+            Node node = ent.entity();
             if (ent.wasCreated()) {
                 String title = (String)setProperty (node, "title", study);
                 addTextIndex (node, title);
@@ -833,21 +891,11 @@ public class ClinicalTrialDb implements KType {
                              "enrollment", c -> Integer.parseInt(c));
                 setProperty (node, "study_types", study);
                 value = setProperty (node, "intervention", study);
-                /*
-                if (value != null) {
-                    if (value.getClass().isArray()) {
-                        createIntervNodesIfAbsent (node, (String[])value);
-                    }
-                    else {
-                        createIntervNodesIfAbsent (node, (String)value);
-                    }
-                }
-                */
             }
             tx.success();
         }
         
-        return node;
+        return ent;
     }
 
     int fetchClinicalTrials (Node node, int top) throws Exception {
@@ -878,13 +926,31 @@ public class ClinicalTrialDb implements KType {
         int ns = studies.getLength();
         Logger.debug("## fetching "+res.getUri()+"..."+(ns*chunk)
                      +"/"+count);
-        
+
         for (int i = 0; i < ns; ++i) {
             Element study = (Element)studies.item(i);
-            Node n = createStudyIfAbsent (study);
-            Logger.debug(String.format("%1$5d: ", i+1)
-                         +"++ study created: "+n.getProperty("nct_id")
-                         +" "+n.getProperty("title"));
+            NodeList nl = study.getElementsByTagName("study_types");
+            if (nl != null && nl.getLength() > 0) {
+                // only consider interventional studies for now!
+                Element type = (Element)nl.item(0);
+                String val = type.getTextContent();
+                if ("Interventional".equalsIgnoreCase(val)) {
+                    UniqueFactory.UniqueEntity<Node> n =
+                        createStudyIfAbsent (study);
+                    if (n.wasCreated()) {
+                        Logger.debug(String.format("%1$5d: ", i+1)
+                                     +"++ study created: "
+                                     +n.entity().getProperty("nct_id")
+                                     +" "+n.entity().getProperty("title"));
+                    }
+                }
+                else {
+                    Logger.debug("Skipping "
+                                 +((Element)study.getElementsByTagName
+                                   ("nct_id").item(0)).getTextContent()
+                                 +" because it's "+val);
+                }
+            }
         }
         
         return ns;
@@ -914,7 +980,7 @@ public class ClinicalTrialDb implements KType {
         return getCount (INTERVENTION_LABEL.name());
     }
     
-    public int mapAllConditions () throws Exception {
+    public int mapConditions () throws Exception {
         int nconds = 0;
         try (Transaction tx = gdb.beginTx();
              ResourceIterator<Node> it = gdb.findNodes(CONDITION_LABEL)) {
@@ -923,12 +989,6 @@ public class ClinicalTrialDb implements KType {
                 int n = mapCondition (cond);
                 Logger.debug(n+" clinical trial(s) mapped for \""
                              +cond.getProperty("name")+"\"...");
-                for (Relationship rel :
-                         cond.getRelationships(CLINICALTRIAL_RELTYPE)) {
-                    Node node = rel.getOtherNode(cond);
-                    Logger.debug("++ "+node.getProperty("nct_id")+" "
-                                 +node.getProperty("name"));
-                }
                 ++nconds;
             }
             tx.success();
@@ -982,5 +1042,65 @@ public class ClinicalTrialDb implements KType {
             tx.success();
             return cond;
         }
+    }
+
+    public int mapInterventions (InputStream is) throws IOException {
+        BufferedReader br = new BufferedReader (new InputStreamReader (is));
+        int mapped = 0;
+        
+        String header = br.readLine();
+        // should look something like this:
+        // NCT_ID  DATE    UNII    CONDITION       STATUS
+        Logger.debug("Parsing intervention stream: "+header);
+        if (header.split("\t").length != 5) {
+            Logger.warn("Expecting there are to be 5 columns!");
+            return mapped;
+        }
+
+        EntityRepo study = repo.get("study");
+        EntityRepo intervention = repo.get("intervention");
+        for (String line; (line = br.readLine()) != null; ) {
+            String[] toks = line.split("\t");
+            if (toks.length < 2)
+                continue;
+            
+            String unii = toks[2];
+            if (!"FAKE_FOR_PLACEBO".equals(unii)) {
+                String nctid = toks[0];
+                try (Transaction tx = gdb.beginTx();
+                     IndexHits<Node> hits = study.get("nct_id", nctid)) {
+                    Node ct = hits.getSingle();
+                    if (ct != null) {
+                        UniqueFactory.UniqueEntity<Node> uf =
+                            intervention.getOrCreateWithOutcome("unii", unii);
+                        for (Relationship rel
+                                 : ct.getRelationships(INTERVENTION_RELTYPE)) {
+                            if (unii.equals(rel.getProperty("value"))) {
+                                unii = null;
+                                break;
+                            }
+                        }
+                        
+                        if (unii != null) {
+                            Relationship rel = ct.createRelationshipTo
+                                (uf.entity(), INTERVENTION_RELTYPE);
+                            rel.setProperty("value", unii);
+                            
+                            Node n = uf.entity();
+                            Logger.debug(toks[0]+" -> "+unii
+                                         +" "+(n.hasProperty("name")
+                                               ? n.getProperty("name") : ""));
+                            ++mapped;
+                        }
+                    }
+                    else {
+                        //Logger.warn("Hmm.. you don't seem to have "+nctid);
+                    }
+                    tx.success();
+                }
+            }
+        }
+        
+        return mapped;
     }
 }
