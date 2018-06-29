@@ -138,7 +138,7 @@ function execKS (url) {
 
 $(document).ready(function() {
     $('[data-toggle="tooltip"]').tooltip();
-    var url = '@controllers.api.routes.BlackboardSystem.getKG(kg.getId)';
+    var url = '@controllers.api.kg.routes.BlackboardSystem.getKG(kg.getId)';
     var wsurl = '@HtmlFormat.raw(app.getWebSocketUrl(kg.getId))';
     renderKGraph('#kgraph', url+'?view=full', wsurl);
     
@@ -161,7 +161,7 @@ $(document).ready(function() {
                 }
                 else {
                     nodes.each(function () {
-                        var url = '@controllers.api.routes.BlackboardSystem.runKSNodeSeed(kg.getId,0,"")'+ks;
+                        var url = '@controllers.api.kg.routes.BlackboardSystem.runKSNodeSeed(kg.getId,0,"")'+ks;
                         var nid = $(this).attr('id').substring(7); // panel-n###
                         url = url.replace('/0/', '/'+nid+'/');
                         execKS (url);

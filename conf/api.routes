@@ -1,8 +1,1 @@
 ->	/kg	kg.Routes
-
-#
-# basic blackboard api
-#
-GET	/nodes/@type	controllers.api.BlackboardSystem.getNodeTypes
-GET	/edges/@type	controllers.api.BlackboardSystem.getEdgeTypes
-GET	/evidence/@type	controllers.api.BlackboardSystem.getEvidenceTypes

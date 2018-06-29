@@ -112,7 +112,7 @@ $(document).ready(function () {
         console.log('row='+$('#delete-btn').data('row'));
     });
     $('#delete-btn').on('click', function () {
-        var url = '@controllers.api.routes.BlackboardSystem.removeKG(0)';
+        var url = '@controllers.api.kg.routes.BlackboardSystem.removeKG(0)';
         url = url.replace('/0', '/'+$(this).data('row'));
         console.log('executing '+url);
         $.ajax({
@@ -147,7 +147,7 @@ $(document).ready(function () {
                 'term': term
             };
             $.ajax({
-                url: '@controllers.api.routes.BlackboardSystem.createKGraph',
+                url: '@controllers.api.kg.routes.BlackboardSystem.createKGraph',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(q),
@@ -181,7 +181,7 @@ $(document).ready(function () {
         select: true,
         rowId: '@@id',
         ajax: {
-            url: '@controllers.api.routes.BlackboardSystem.listKG',
+            url: '@controllers.api.kg.routes.BlackboardSystem.listKG',
             dataSrc: ''
         },
         columnDefs: [{
