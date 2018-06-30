@@ -293,16 +293,17 @@ public class ClinicalTrialDb implements KType {
     
     public void build (int skip, int top) throws Exception {
         int count = 0;
-        /*
+
         for (Condition cond : getConditionsFromCt (skip, top)) {
             try (Transaction tx = gdb.beginTx()) {
-                Node node = createNodeIfAbsent (cond);
+                UniqueFactory.UniqueEntity<Node> uf = createNodeIfAbsent (cond);
+                Node node = uf.entity();
                 ++count;
                 Logger.info("Node "+count+"/"+node.getId()+": "+cond.name);
                 tx.success();
             }
         }
-        */
+        /*
 
         try (Transaction tx = gdb.beginTx()) {
             for (String c : new String[]{
@@ -316,6 +317,7 @@ public class ClinicalTrialDb implements KType {
             }
             tx.success();            
         }
+        */
     }
 
     Condition toCondition (Node n) {
