@@ -104,62 +104,24 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> build (final Integer skip,
-                                          final Integer top) {
-        return supplyAsync (() -> {
-                try {
-                    ctdb.build(skip, top);
-                    return ok ("Building ClinicalTrialDb!");
-                }
-                catch (Exception ex) {
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> mapCondition (final String name) {
-        return supplyAsync (() -> {
-                try {
-                    int n = ctdb.mapCondition(name);
-                    return ok (n+" clinical trial(s) mapped for \""+name+"\"");
-                }
-                catch (Exception ex) {
-                    ex.printStackTrace();
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> mapConditions () {
-        return supplyAsync (() -> {
-                try {
-                    int nc = ctdb.mapConditions();
-                    return ok (nc+" condition(s) mapped!");
-                }
-                catch (Exception ex) {
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
     @BodyParser.Of(value = BodyParser.MultipartFormData.class)
-    public Result mapInterventions () {
+    public Result initialize () {
         Http.MultipartFormData<File> body =
             request().body().asMultipartFormData();
         Http.MultipartFormData.FilePart<File> interv = body.getFile("interv");
         File file = interv.getFile();
-        int count = 0;
         if (file != null) {
             try (InputStream is = new GZIPInputStream
                  (new FileInputStream (file))) {
-                count = ctdb.mapInterventions(is);
+                Logger.debug("Initializing database "+ctdb.getDbFile()+"...");
+                ctdb.initialize(0, is);
             }
-            catch (IOException ex) {
+            catch (Exception ex) {
                 Logger.error("Can't map interventions", ex);
                 return internalServerError (ex.getMessage());
             }
         }
-        return ok (count+" interventions mapped!");
+        return redirect (routes.Controller.index());
     }
 
     public CompletionStage<Result> index () {

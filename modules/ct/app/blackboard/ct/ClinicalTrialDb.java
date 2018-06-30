@@ -3,6 +3,7 @@ package blackboard.ct;
 import java.io.*;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import java.lang.reflect.Array;
 import java.util.function.Consumer;
 import java.util.concurrent.locks.ReentrantLock;
@@ -57,7 +58,9 @@ import blackboard.KType;
 import blackboard.KEntity;
 import com.google.inject.assistedinject.Assisted;
 
-public class ClinicalTrialDb implements KType {
+public class ClinicalTrialDb extends TransactionEventHandler.Adapter
+    implements KType {
+    
     static final String ALL_CONDITIONS =
         "https://clinicaltrials.gov/ct2/search/browse?brwse=cond_alpha_all";
     static final String DOWNLOAD_FIELDS =
@@ -92,6 +95,7 @@ public class ClinicalTrialDb implements KType {
     final WSClient wsclient;
     final MeshKSource mesh;
     final UMLSKSource umls;
+    final long metanode;
     final Map<String, EntityRepo> repo;
 
     class EntityRepo extends UniqueFactory.UniqueNodeFactory {
@@ -148,7 +152,14 @@ public class ClinicalTrialDb implements KType {
         @Override
         protected void initialize (Node created, Map<String, Object> props) {
             super.initialize(created, props);
-            addTextIndex (created, (String)props.get("name"));
+            String name = (String)props.get("name");
+            if (name != null) {
+                addTextIndex (created, name);
+                resolve (created, new Condition (name));
+            }
+            else {
+                Logger.warn("Condition node "+created.getId()+" has no name!");
+            }
         }
     }
 
@@ -246,30 +257,38 @@ public class ClinicalTrialDb implements KType {
             }
 
             try (ResourceIterator<Node> it = gdb.findNodes(META_LABEL)) {
+                Node node;
                 if (it.hasNext()) {
-                    Node node = it.next();
+                    node = it.next();
                     Logger.debug("## "+dbdir
                                  +" ClinicalTrial database initialized..."
                                  +new Date ((Long)node.getProperty("created")));
+
                 }
                 else {
-                    Node node = gdb.createNode(META_LABEL);
+                    node = gdb.createNode(META_LABEL);
                     node.setProperty("created", System.currentTimeMillis());
                     Logger.debug("## "+dbdir
                                  +" ClinicalTrial database hasn't "
                                  +"been initialized...");
                 }
+                metanode = node.getId();                
             }
             
             tx.success();
         }
-        
+
+        gdb.registerTransactionEventHandler(this);
         lifecycle.addStopHook(() -> {
                 shutdown ();
                 return CompletableFuture.completedFuture(null);
             });        
     }
 
+    @Override
+    public void afterCommit (TransactionData data, Object state) {
+    }
+    
     Index<Node> getNodeIndex (String name) {
         return gdb.index().forNodes(ClinicalTrialDb.class.getName()+"."+name);
     }
@@ -284,6 +303,16 @@ public class ClinicalTrialDb implements KType {
     }
 
     public File getDbFile () { return dbdir; }
+    public Date getLastUpdate () {
+        Long updated = null;
+        try (Transaction tx = gdb.beginTx()) {
+            Node node = gdb.getNodeById(metanode);
+            if (node.hasProperty("updated"))
+                updated = (Long)node.getProperty("updated");
+            tx.success();
+        }
+        return updated != null ? new Date(updated) : null;
+    }
     
     public void shutdown () throws Exception {
         Logger.debug("## shutting down ClinicalTrialDb instance "+dbdir+"...");
@@ -293,7 +322,7 @@ public class ClinicalTrialDb implements KType {
     
     public void build (int skip, int top) throws Exception {
         int count = 0;
-
+        /*
         for (Condition cond : getConditionsFromCt (skip, top)) {
             try (Transaction tx = gdb.beginTx()) {
                 UniqueFactory.UniqueEntity<Node> uf = createNodeIfAbsent (cond);
@@ -303,7 +332,7 @@ public class ClinicalTrialDb implements KType {
                 tx.success();
             }
         }
-        /*
+        */
 
         try (Transaction tx = gdb.beginTx()) {
             for (String c : new String[]{
@@ -317,7 +346,6 @@ public class ClinicalTrialDb implements KType {
             }
             tx.success();            
         }
-        */
     }
 
     Condition toCondition (Node n) {
@@ -718,10 +746,8 @@ public class ClinicalTrialDb implements KType {
                 repo.get("condition").getOrCreateWithOutcome("name", cond.name);
             Node node = ent.entity();
             if (ent.wasCreated()) {
-                node.setProperty("name", cond.name);
                 if (cond.count != null)
                     node.setProperty("count", cond.count);
-                addTextIndex (node, cond.name);
             }
                         
             tx.success();
@@ -900,14 +926,14 @@ public class ClinicalTrialDb implements KType {
         return ent;
     }
 
-    int fetchClinicalTrials (Node node, int top) throws Exception {
-        return fetchClinicalTrials (node, top, 1);
-    }
-    
-    int fetchClinicalTrials (Node node, int top, int chunk) throws Exception {
-        String term = (String) node.getProperty("name");
+    int fetchClinicalTrials
+        (int top, int chunk,
+         Consumer<UniqueFactory.UniqueEntity<Node>> consumer)
+        throws Exception {
+        
+        //String term = (String) node.getProperty("name");
         WSResponse res = wsclient.url(DOWNLOAD_FIELDS)
-            .setQueryParameter("cond", "\""+term+"\"")
+            //.setQueryParameter("cond", "\""+term+"\"")
             .setQueryParameter("down_fmt", "xml")
             .setQueryParameter("down_flds", "all")
             .setQueryParameter("down_count", String.valueOf(top))
@@ -915,7 +941,7 @@ public class ClinicalTrialDb implements KType {
             .get().toCompletableFuture().get();
         
         if (200 != res.getStatus()) {
-            Logger.error(res.getUri()+" return status "+res.getStatus());
+            Logger.warn(res.getUri()+" return status "+res.getStatus());
             return 0;
         }
 
@@ -936,15 +962,19 @@ public class ClinicalTrialDb implements KType {
                 // only consider interventional studies for now!
                 Element type = (Element)nl.item(0);
                 String val = type.getTextContent();
+                
                 if ("Interventional".equalsIgnoreCase(val)) {
                     UniqueFactory.UniqueEntity<Node> n =
                         createStudyIfAbsent (study);
                     if (n.wasCreated()) {
-                        Logger.debug(String.format("%1$5d: ", i+1)
+                        Logger.debug(String.format("%1$5d: ", top*(chunk-1)+i+1)
                                      +"++ study created: "
                                      +n.entity().getProperty("nct_id")
                                      +" "+n.entity().getProperty("title"));
                     }
+                    
+                    if (consumer != null)
+                        consumer.accept(n);
                 }
                 else {
                     Logger.debug("Skipping "
@@ -981,33 +1011,21 @@ public class ClinicalTrialDb implements KType {
     public Long getInterventionCount () {
         return getCount (INTERVENTION_LABEL.name());
     }
-    
-    public int mapConditions () throws Exception {
-        int nconds = 0;
-        try (Transaction tx = gdb.beginTx();
-             ResourceIterator<Node> it = gdb.findNodes(CONDITION_LABEL)) {
-            while (it.hasNext()) {
-                Node cond = it.next();
-                int n = mapCondition (cond);
-                Logger.debug(n+" clinical trial(s) mapped for \""
-                             +cond.getProperty("name")+"\"...");
-                ++nconds;
-            }
-            tx.success();
-        }
-        return nconds;
-    }
 
-    int mapCondition (Node node) throws Exception {
-        return mapCondition (node, 500);
+    int fetchClinicalTrials
+        (Consumer<UniqueFactory.UniqueEntity<Node>> consumer)
+        throws Exception {
+        return fetchClinicalTrials (0, consumer);
     }
     
-    int mapCondition (Node node, int top) throws Exception {
-        int chunk = 0, n = 0;
+    int fetchClinicalTrials
+        (int max, Consumer<UniqueFactory.UniqueEntity<Node>> consumer)
+        throws Exception {
+        int chunk = 0, n = 0, bucket = 100;
         do {
-            int c = fetchClinicalTrials (node, top, ++chunk);
+            int c = fetchClinicalTrials (bucket, ++chunk, consumer);
             n += c;
-            if (c < top)
+            if (c < bucket || (max > 0 && n >= max))
                 break;
         }
         while (true);
@@ -1015,24 +1033,6 @@ public class ClinicalTrialDb implements KType {
         return n;
     }
     
-    public int mapCondition (String name) throws Exception {
-        try (Transaction tx = gdb.beginTx()) {
-            int n = 0;
-            try (IndexHits<Node> hits =
-                 repo.get("condition").get("name", name)) {
-                Node node = hits.getSingle();
-                if (node != null) {
-                    n = mapCondition (node);
-                }
-                Logger.debug(">>> "+n+" clinical trials mapped for \""+
-                             name+"\" <<<");
-            }
-            tx.success();
-            
-            return n;
-        }
-    }
-
     public Condition getCondition (String name) {
         Condition cond = null;
         try (Transaction tx = gdb.beginTx();
@@ -1104,5 +1104,17 @@ public class ClinicalTrialDb implements KType {
         }
         
         return mapped;
+    }
+
+    public void initialize (int max, InputStream is) throws Exception {
+        try (Transaction tx = gdb.beginTx()) {
+            int n = fetchClinicalTrials (max, null);
+            Logger.debug(">>>> "+n+" clinical trials fetched!");
+            n = mapInterventions (is);
+            Logger.debug(">>>> "+n+" interventions mapped!");
+            Node node = gdb.getNodeById(metanode);
+            node.setProperty("updated", System.currentTimeMillis());
+            tx.success();
+        }
     }
 }

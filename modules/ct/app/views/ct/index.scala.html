@@ -11,22 +11,28 @@
       trials, <b>@ctdb.getConditionCount</b> conditions, and
       <b>@ctdb.getInterventionCount</b> interventions. Conditions and
       interventions have been mapped
-      based on <a href="@controllers.mesh.routes.Controller.index">MeSH</a>
-      and <a href="@controllers.umls.routes.Controller.index">UMLS</a>
-      concepts.
+    to <b>@ctdb.getCount("mesh")</b> <a href="@controllers.mesh.routes.Controller.index">MeSH</a>
+        and <b>@ctdb.getCount("concept")</b> <a href="@controllers.umls.routes.Controller.index">UMLS</a>
+        concepts. @if(ctdb.getLastUpdate == null){
+         Your database <code>@ctdb.getDbFile.getName</code> has not been initialized; please initialize your database below.
+        } else {
+        Your database was last updated on <i>@ctdb.getLastUpdate</i>.
+        }
   </div>
+  @if(ctdb.getLastUpdate == null){
   <div class="row">
     <div class="col-md-6">
+      <label for="interv-file"><h4>Please specify intervention mapping file</h4></label>
       <div class="input-group">
-        <span class="input-group-addon" id="interv-label">Intervention</span>
         <input type="file" class="form-control" id="interv-file"
                placeholder="Intervention mapping from gsrs"
                aria-describedby="interv-label">
       </div>
       <br>
-      <button id="load-btn" type="submit" class="btn btn-primary">Load</button>
+      <button id="load-btn" type="submit" class="btn btn-primary">Initialize</button>
     </div>
   </div> <!-- row -->
+  }
 </div>
 }(HtmlFormat.empty){
     $(document).ready(function () {
@@ -43,17 +49,17 @@
             $('#load-btn').
                 html('Loading...<i class="fa fa-spinner fa-spin" aria-hidden="true"></i>');
             $.ajax({
-                url: '@controllers.ct.routes.Controller.mapInterventions',
+                url: '@controllers.ct.routes.Controller.initialize',
                 data: form,
                 contentType: false,
                 processData: false,
                 method: 'POST',
                 success: function (d) {
+                    console.log('=> '+d);
                     $('#load-btn').html('Done!');
                     $('#load-btn').prop("disabled", true);
                 }
             });
-            
         });
     });
 }
