@@ -2,6 +2,7 @@ package blackboard.ct;
 
 import java.io.*;
 import java.util.*;
+import java.util.zip.*;
 import java.util.function.Function;
 import java.util.function.Consumer;
 import java.lang.reflect.Array;
@@ -164,9 +165,16 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
     }
 
     class InterventionEntityRepo extends EntityRepo {
-        WSRequest req;
+        final Map<String, String> uniis = new HashMap<>();
+        
         InterventionEntityRepo () {
             super ("intervention", INTERVENTION_T);
+            try {
+                uniis.putAll(loadUniiToNames ());
+            }
+            catch (Exception ex) {
+                Logger.error("Unable to load UNII mappings!", ex);
+            }
         }
 
         @Override
@@ -176,16 +184,25 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
             if (unii != null) {
                 addTextIndex (created, unii);
                 // get other information about this unii from gsrs
-                try {
-                    instrument (created, unii);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't instrument intervention "+unii, ex);
-                }
+                instrument (created, unii);
             }
         }
 
-        void instrument (Node node, String unii) throws Exception {
+        void instrument (Node node, String unii) {
+            String name = uniis.get(unii);
+            if (name != null) {
+                int why = name.indexOf(", LICENSE HOLDER UNSPECIFIED");
+                if (why > 0)
+                    name = name.substring(0, why);
+                node.setProperty("name", name);
+                addTextIndex (node, name);
+                
+                // now map to umls & mesh using name
+                resolve (node, new Intervention (unii, name));
+            }
+        }
+        
+        void instrumentOld (Node node, String unii) throws Exception {
             WSResponse res = wsclient.url
                 ("https://drugs.ncats.io/api/v1/substances")
                 .setQueryParameter("filter", "approvalID='"+unii+"'")
@@ -319,8 +336,45 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
         gdb.shutdown();
         wsclient.close();
     }
+
+    Map<String, String> loadUniiToNames () throws Exception {
+        WSResponse res = wsclient
+            .url("https://fdasis.nlm.nih.gov/srs/download/srs/UNIIs.zip")
+            .setFollowRedirects(true)
+            .get().toCompletableFuture().get();
+
+        Map<String, String> lut = new HashMap<>();
+        if (200 != res.getStatus()) {
+            Logger.warn(res.getUri()+" returns status "+res.getStatus());
+        }
+        else {
+            try (ZipInputStream zis =
+                 new ZipInputStream (res.getBodyAsStream())) {
+                for (ZipEntry ze; (ze = zis.getNextEntry()) != null; ) {
+                    if (ze.getName().startsWith("UNII Names")) {
+                        BufferedReader br = new BufferedReader
+                            (new InputStreamReader (zis));
+                        String line = br.readLine(); // skip header
+                        while ((line = br.readLine()) != null) {
+                            String[] toks = line.split("\t");
+                            if (toks.length == 4) {
+                                String unii = toks[2].trim();
+                                if (!lut.containsKey(unii)) {
+                                    lut.put(unii, toks[3].trim());
+                                    //Logger.debug(unii+" "+toks[3]);
+                                }
+                            }
+                        }
+                    }
+                }
+                Logger.debug("Loaded "+lut.size()+" UNIIs!");
+            }
+        }
+        
+        return lut;
+    }
     
-    public void build (int skip, int top) throws Exception {
+    void test (int skip, int top) throws Exception {
         int count = 0;
         /*
         for (Condition cond : getConditionsFromCt (skip, top)) {

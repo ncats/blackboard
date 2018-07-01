@@ -461,6 +461,9 @@ public class MeshDb implements Mesh {
                     }
                 }
             }
+            catch (Exception ex) {
+                Logger.error("Query ("+q+") failed!", ex);
+            }
             tx.success();
             Logger.debug("Query: ("+q+") => "+matches.size()+" match(es)!");
         }
