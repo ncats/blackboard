@@ -128,11 +128,6 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
         MeshEntityRepo () {
             super ("mesh", MESH_T);
         }
-        @Override
-        protected void initialize (Node created, Map<String, Object> props) {
-            super.initialize(created, props);
-            addTextIndex (created, (String)props.get("ui"));
-        }
     }
 
     class UMLSEntityRepo extends EntityRepo {
@@ -503,14 +498,14 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
     }
 
     UniqueFactory.UniqueEntity<Node> getOrCreateNode
-        (blackboard.mesh.Entry entry) {
+        (blackboard.mesh.CommonDescriptor entry) {
         try (Transaction tx = gdb.beginTx()) {
             UniqueFactory.UniqueEntity<Node> ent =
-                repo.get("mesh").getOrCreateWithOutcome("ui", entry.ui);
+                repo.get("mesh").getOrCreateWithOutcome("ui", entry.getUI());
             Node n = ent.entity();
             if (ent.wasCreated()) {
-                n.setProperty("ui", entry.ui);
-                n.setProperty("name", entry.name);
+                n.setProperty("ui", entry.getUI());
+                n.setProperty("name", entry.getName());
                 n.setProperty(KEntity.TYPE_P, MESH_T);
                 if (entry instanceof Descriptor) {
                     Descriptor desc = (Descriptor)entry;
@@ -527,6 +522,26 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
                             addTextIndex (n, tr);
                     }
                     n.addLabel(Mesh.DESC_LABEL);
+
+                    blackboard.mesh.Concept concept =
+                        desc.getPreferredConcept();
+                    if (concept != null) {
+                        List<String> regno = new ArrayList<>();
+                        if (concept.regno != null) {
+                            regno.add(concept.regno);
+                            addTextIndex (n, concept.regno);
+                        }
+                        
+                        for (String r : concept.relatedRegno) {
+                            regno.add(r);
+                            addTextIndex (n, r);
+                        }
+                        
+                        if (!regno.isEmpty()) {
+                            n.setProperty
+                                ("regno", regno.toArray(new String[0]));
+                        }
+                    }
                 }
                 else if (entry instanceof SupplementalDescriptor) {
                     SupplementalDescriptor supp = (SupplementalDescriptor)entry;
@@ -537,8 +552,8 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
                     n.addLabel(Mesh.SUPP_LABEL);
                 }
                 
-                addTextIndex (n, entry.ui);
-                addTextIndex (n, entry.name);
+                addTextIndex (n, entry.getUI());
+                addTextIndex (n, entry.getName());
             }
             tx.success();
 
@@ -546,87 +561,56 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
         }
     }
     
-    UniqueFactory.UniqueEntity<Node> getOrCreateNode
-        (Node node, blackboard.mesh.Entry entry) {
-        // from MeSH's concept to Descriptor or SupplementalDescriptor
-        List<blackboard.mesh.Entry> entries =
-            mesh.getMeshDb().getContext(entry.ui, 0, 10);
-        try (Transaction tx = gdb.beginTx()) {
-            UniqueFactory.UniqueEntity<Node> ent = null;            
-            if (!entries.isEmpty()) {
-                blackboard.mesh.Entry e = null;
-                for (int i = 0; i < entries.size(); ++i) {
-                    if (entries.get(i) instanceof Descriptor
-                        || entries.get(i) instanceof SupplementalDescriptor) {
-                        e = entries.get(i);
-                        break;
-                    }
-                }
-                
-                if (e == null) {
-                    Logger.warn
-                        ("No Descriptor or SupplementalDescriptor context "
-                         +"for "+entry.ui+"!");
-                    e = entries.get(0);
-                }
-                
-                ent = getOrCreateNode (e);
-                if (ent.wasCreated()) {
-                    Relationship rel =
-                        node.createRelationshipTo(ent.entity(), MESH_RELTYPE);
-                    rel.setProperty("ui", entry.ui);
-                    rel.setProperty("name", entry.name);
-                    if (entry.score != null)
-                        rel.setProperty("score", entry.score);
-                }
-            }
-            tx.success();
-            
-            return ent;
-        }
-    }
-       
-    Entry resolveMesh (Node node, String term) {
+    List<Entry> resolveMesh (Node node, String term) {
         List<blackboard.mesh.Entry> results =
             mesh.getMeshDb().search("\""+term+"\"", 5);
-        blackboard.mesh.Entry matched = null;
+        List<blackboard.mesh.CommonDescriptor> matches = new ArrayList<>();
+        Map<String, blackboard.mesh.Entry> scores = new HashMap<>();
         for (blackboard.mesh.Entry r : results) {
-            if (r instanceof Term) {
-                List<blackboard.mesh.Entry> entries =
-                    mesh.getMeshDb().getContext(r.ui, 0, 5);
-                for (blackboard.mesh.Entry e : entries) {
-                    if (e instanceof Concept) {
-                        matched = e;
-                        matched.score = r.score;
-                        break;
-                    }
+            blackboard.mesh.CommonDescriptor desc =
+                mesh.getMeshDb().getDescriptor(r);
+            if (desc != null && !scores.containsKey(desc.getUI())) {
+                matches.add(desc);
+                scores.put(desc.getUI(), r);
+            }
+        }
+
+        List<Entry> entries = new ArrayList<>();
+        if (!matches.isEmpty()) {
+            for (blackboard.mesh.CommonDescriptor desc: matches) {
+                UniqueFactory.UniqueEntity<Node> uf = getOrCreateNode (desc);
+                if (uf.wasCreated()) {
+                    Logger.debug("MeSH node "+uf.entity().getId()
+                                 +": \""+term+"\" => "+desc.getUI()
+                                 +" \""+desc.getName()+"\"");
                 }
                 
-                if (matched != null)
-                    break;
-            }
-            else if (r instanceof Concept) {
-                matched = r;
-                break;
+                Relationship rel = node.createRelationshipTo
+                    (uf.entity(), MESH_RELTYPE);
+                blackboard.mesh.Entry e = scores.get(desc.getUI());
+                if (e.score != null)
+                    rel.setProperty("score", e.score);
+
+                blackboard.mesh.Concept concept =
+                    desc.getPreferredConcept();
+                if (concept != null) {
+                    rel.setProperty("ui", concept.ui);
+                    rel.setProperty("name", concept.name);
+                    entries.add(new Entry (concept.ui, concept.name));
+                }
+                else {
+                    Logger.debug("MeSH descriptor "+desc.getUI()
+                                 +" has no preferred concept!");
+                }
             }
         }
 
-        Entry entry = null;
-        if (matched != null) {
-            Node n = getOrCreateNode(node, matched).entity();
-            Logger.debug("MeSH node "+n.getId()
-                         +": \""+term+"\" => "+matched.ui
-                         +" \""+matched.name+"\"");
-            entry = new Entry (matched.ui, matched.name);            
-        }
-
-        return entry;
+        return entries;
     }
 
     void resolveMesh (Node node, EntryMapping mapping) {
-        Entry e = resolveMesh (node, mapping.name);
-        if (e != null)
-            mapping.mesh.add(e);
+        List<Entry> entries = resolveMesh (node, mapping.name);
+        mapping.mesh.addAll(entries);
     }
 
     UniqueFactory.UniqueEntity<Node> getOrCreateNode
@@ -1162,12 +1146,19 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
 
     public void initialize (int max, InputStream is) throws Exception {
         try (Transaction tx = gdb.beginTx()) {
+            /*
+            UniqueFactory.UniqueEntity<Node> uf =
+                repo.get("intervention")
+                .getOrCreateWithOutcome("unii", "GEB06NHM23");
+            */
+            
             int n = fetchClinicalTrials (max, null);
             Logger.debug(">>>> "+n+" clinical trials fetched!");
             n = mapInterventions (is);
             Logger.debug(">>>> "+n+" interventions mapped!");
             Node node = gdb.getNodeById(metanode);
             node.setProperty("updated", System.currentTimeMillis());
+
             tx.success();
         }
     }
