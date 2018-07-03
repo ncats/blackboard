@@ -5,6 +5,9 @@ GET /sources/:name  controllers.umls.Controller.datasource(name: String)
 GET /concepts/:src/:id controllers.umls.Controller.concept(src: String, id: String)
 GET /concepts/:term controllers.umls.Controller.findConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
 GET /search/*q  controllers.umls.Controller.search(q: String, skip: Int ?= 0, top: Int ?= 10)
+#
+# these require API key!
+#
 GET /:cui controllers.umls.Controller.cui(cui: String)
 GET /:cui/full controllers.umls.Controller.full(cui: String)
 GET /:cui/atoms controllers.umls.Controller.atoms(cui: String)
