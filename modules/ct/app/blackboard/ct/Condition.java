@@ -7,27 +7,13 @@ import java.util.ArrayList;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
-public class Condition implements Comparable<Condition> {
-    public static class Entry {
-        public final String ui;
-        public final String name;
-        public String description;
-
-        Entry (String ui, String name) {
-            this.ui = ui;
-            this.name = name;
-        }
-    }
-    
-    public String name;
-    public List<Entry> mesh = new ArrayList<>();
-    public List<Entry> umls = new ArrayList<>();
+public class Condition extends EntryMapping implements Comparable<Condition> {
     public Integer count;
     public Boolean rare;
 
     protected Condition () {}
     protected Condition (String name) {
-        this.name = name;
+        super (name);
     }
 
     public boolean equals (Object obj) {

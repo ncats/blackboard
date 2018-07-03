@@ -439,10 +439,10 @@ public class UMLSKSource implements KSource {
              // alter table MRCONSO add FULLTEXT INDEX X_STR_FULLTEXT (STR);
              PreparedStatement pstm2 = con.prepareStatement
              ("select cui,str,sab,match(str) "
-              +"against (? in natural language mode) "
+              +"against (? in natural language mode) / length(str) "
               +"as score from MRCONSO where match(str) against "
               +"(? in natural language mode) and stt='PF' "
-              +"and lat='ENG' and ispref='Y' "
+              +"and lat='ENG' and ispref='Y' and ts='P' "
               +"order by score desc limit ? offset ?")) {
             pstm1.setString(1, term);
             ResultSet rset = pstm1.executeQuery();

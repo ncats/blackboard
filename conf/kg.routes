@@ -1,11 +1,11 @@
 ##
-GET	/	controllers.api.BlackboardSystem.listKG
-POST	/	controllers.api.BlackboardSystem.createKGraph
-GET	/:id	controllers.api.BlackboardSystem.getKG(id: Long)
-DELETE	/:id	controllers.api.BlackboardSystem.removeKG(id: Long)
-GET	/:id/nodes	controllers.api.BlackboardSystem.getNodesForKG(id: Long)
-GET	/:id/nodes/:nid	controllers.api.BlackboardSystem.getNodeForKG(id: Long, nid: Long)
-PUT	/:id/nodes/:nid/ks.$ks<[a-z0-9\-]+>	controllers.api.BlackboardSystem.runKSNodeSeed(id: Long, nid: Long, ks: String)
-GET	/:id/edges	controllers.api.BlackboardSystem.getEdgesForKG(id: Long)
-GET	/:id/edges/:eid	controllers.api.BlackboardSystem.getEdgeForKG(id: Long, eid: Long)
-PUT	/:id/ks.$ks<[a-z0-9]+>	controllers.api.BlackboardSystem.runKS(id: Long, ks: String)
+GET	/	controllers.api.kg.BlackboardSystem.listKG
+POST	/	controllers.api.kg.BlackboardSystem.createKGraph
+GET	/:id	controllers.api.kg.BlackboardSystem.getKG(id: Long)
+DELETE	/:id	controllers.api.kg.BlackboardSystem.removeKG(id: Long)
+GET	/:id/nodes	controllers.api.kg.BlackboardSystem.getNodesForKG(id: Long)
+GET	/:id/nodes/:nid	controllers.api.kg.BlackboardSystem.getNodeForKG(id: Long, nid: Long)
+PUT	/:id/nodes/:nid/ks.$ks<[a-z0-9\-]+>	controllers.api.kg.BlackboardSystem.runKSNodeSeed(id: Long, nid: Long, ks: String)
+GET	/:id/edges	controllers.api.kg.BlackboardSystem.getEdgesForKG(id: Long)
+GET	/:id/edges/:eid	controllers.api.kg.BlackboardSystem.getEdgeForKG(id: Long, eid: Long)
+PUT	/:id/ks.$ks<[a-z0-9]+>	controllers.api.kg.BlackboardSystem.runKS(id: Long, ks: String)

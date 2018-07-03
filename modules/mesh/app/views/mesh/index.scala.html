@@ -4,8 +4,8 @@
 @views.html.core.main("MeSH module"){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1>MeSH</h1>
-    <p>This is MeSH module: @if(!ks.isInitialized){
+    <h1 class="display-4">MeSH</h1>
+    <p class="lead">This is MeSH module: @if(!ks.isInitialized){
       <i>Note: this module hasn't been initialized; intialization of this
       module requires that you download the following MeSH files from
         <a href="ftp://nlmpubs.nlm.nih.gov/online/mesh/MESH_FILES/xmlmesh/">NLM</a>: <code>descYEAR.gz</code>, <code>paYEAR.xml</code>, <code>qualYEAR.xml</code>, and <code>suppYEAR.gz</code>, where <code>YEAR</code> is the
@@ -18,40 +18,38 @@
       }
   </div>
 @if(ks.isInitialized){
-  <div class="col-md-6">  
-    <div class="row">
+  <div class="row">
+    <div class="col-6">  
       <div class="input-group">
         <span class="input-group-btn">  
           <button id="search-clear"
                   class="btn btn-default" type="button"
                   data-toggle="tooltip" title="Clear search text">
-                  <i class="fa fa-ban"></i></button>
+            Clear</button>
         </span>
         <input id="search-input" type="text" class="form-control"
                placeholder="Search for descriptors...">
         <span class="input-group-btn">
-          <button id="search-btn" class="btn btn-default dropdown-toggle"
+          <button id="search-btn"
+                  class="btn btn-outline-secondary dropdown-toggle"
                   data-toggle="dropdown" aria-haspopup="true"
                   aria-expanded="false">Search <span class="caret"></span>
           </button>
-          <ul class="dropdown-menu">
-            <li><a id="search-descriptor" href="#">Descriptor</a></li>
-            <li><a id="search-term" href="#">Term</a></li>
-            <li><a id="search-ui" href="#">Concept UI</a></li>
-          </ul>
-          <!--
-          <button id="search-concept"
-                  class="btn btn-default" type="button">Search</button>
-          -->
+          <div class="dropdown-menu">
+            <a class="dropdown-item"
+               id="search-descriptor" href="#">Descriptor</a>
+            <a class="dropdown-item" id="search-term" href="#">Term</a>
+            <a class="dropdown-item" id="search-ui" href="#">Concept UI</a>
+          </div>
         </span>
       </div><!-- /input-group -->
     </div>
-    <br>
-    <div class="row">
-      <div class="col-md-12">
-        <pre id="search-output" class="pre-scrollable"
-             style="overflow-y:auto;"></pre>
-      </div>
+  </div>
+  <br>
+  <div class="row">
+    <div class="col">
+      <pre id="search-output" class="pre-scrollable"
+           style="overflow-y:auto;"></pre>
     </div>
   </div>
 } else {
@@ -100,7 +98,6 @@
 }(HtmlFormat.empty){
     function clear () {
         $('#search-output').html('');
-        $('#search-input').val('');        
     }
     function search (url) {
         var term = $('#search-input').val();
@@ -201,6 +198,7 @@
         
         $('#search-clear').on('click', function () {
             clear ();
+            $('#search-input').val('');        
         });
         
         $('#search-input').keypress(function (ev) {

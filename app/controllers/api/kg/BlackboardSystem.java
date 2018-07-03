@@ -1,4 +1,4 @@
-package controllers.api;
+package controllers.api.kg;
 
 import javax.inject.*;
 import play.*;
@@ -162,15 +162,5 @@ public class BlackboardSystem extends Controller {
         if (ke == null)
             return badRequest ("Knowledge graph "+id+" has no edge: "+eid);
         return ok (Json.toJson(ke));
-    }
-    
-    public Result getNodeTypes () {
-        return ok (Json.toJson(blackboard.getNodeTypes()));
-    }
-    public Result getEdgeTypes () {
-        return ok (Json.toJson(blackboard.getEdgeTypes()));
-    }
-    public Result getEvidenceTypes () {
-        return ok (Json.toJson(blackboard.getEvidenceTypes()));
     }
 }

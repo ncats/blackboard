@@ -117,7 +117,8 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 try {
                     JsonNode json = ks.getCui(cui);
-                    return json != null ? ok (json)
+                    return json != null
+                        ? ok (Json.prettyPrint(json)).as("application/json")
                         : notFound("Request not matched: "+request().uri());
                 }
                 catch (Exception ex) {
@@ -238,7 +239,9 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 try {
                     Concept concept = ks.getConcept(src.toLowerCase(), id);
-                    return concept != null ? ok (Json.toJson(concept))
+                    return concept != null
+                        ? ok (Json.prettyPrint(Json.toJson(concept)))
+                        .as("application/json")
                         : notFound ("Can't locate concept for "+src+"/"+id);
                 }
                 catch (Exception ex) {

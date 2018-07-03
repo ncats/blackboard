@@ -1,9 +1,9 @@
 
 @views.html.core.main("A Simple Blackboard Demo"){
-<div class="container-fluid">
+<div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1>A simple blackboard</h1>
-    <p>This is a simple application created to illustrate basic
+    <h1 class="display-4">A simple blackboard</h1>
+    <p class="lead">This is a simple application created to illustrate basic
       concepts of a <a href="https://en.wikipedia.org/wiki/Blackboard_system">blackboard architecture</a> for
       <a href="https://ncats.nih.gov/translator">translator</a>.
       To begin, click on <a href="#" data-toggle="modal"
@@ -47,8 +47,11 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title">Warning: <span id="warning-mesg"></span></h4>
+        <h5 class="modal-title">Warning: <span id="warning-mesg"></span></h5>
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default"
@@ -64,8 +67,11 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title">New Query</h4>
+        <h5 class="modal-title">New Query</h5>        
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-body">
     <div class="row">
@@ -103,117 +109,117 @@
 $(document).ready(function () {
     $('[data-toggle="tooltip"]').tooltip();
     $('#delete-modal').on('show.bs.modal', function () {
-    console.log('row='+$('#delete-btn').data('row'));
+        console.log('row='+$('#delete-btn').data('row'));
     });
     $('#delete-btn').on('click', function () {
-    var url = '@controllers.api.routes.BlackboardSystem.removeKG(0)';
-    url = url.replace('/0', '/'+$(this).data('row'));
-    console.log('executing '+url);
-    $.ajax({
-        method: 'DELETE',
-        url: url,
-        success: function () {
-        $('#delete-modal').modal('hide');
-        window.location.reload();
-        }
-    });
-    });
-
-    $('#create-btn').on('click', function () {
-    var title = $('#query-title').val();
-    var term = $('#query-term').val();
-    if (title === '') {
-        $('#create-span').html("<em>Title can't be empty!</em>");
-        setTimeout (function () {
-        $('#create-span').html("");
-        }, 3000);
-    }
-    else if (term === '') {
-        $('#create-span').html("<em>Term can't be empty!</em>");
-        setTimeout (function () {
-        $('#create-span').html("");
-        }, 3000);
-    }
-    else {
-        var q = {
-        '@@type': 'query',
-        'name': title,
-        'term': term
-        };
+        var url = '@controllers.api.kg.routes.BlackboardSystem.removeKG(0)';
+        url = url.replace('/0', '/'+$(this).data('row'));
+        console.log('executing '+url);
         $.ajax({
-            url: '@controllers.api.routes.BlackboardSystem.createKGraph',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(q),
-            success: function (d) {
-                console.log(d);
+            method: 'DELETE',
+            url: url,
+            success: function () {
+                $('#delete-modal').modal('hide');
                 window.location.reload();
-                //$('#new-modal').modal('hide');            
-            },
-            statusCode: {
-                400: function () {
-                    alear ("Unable to create knowledge graph!");
-                }
             }
         });
-    }
-    console.log('title='+title+' term='+term);
+    });
+    
+    $('#create-btn').on('click', function () {
+        var title = $('#query-title').val();
+        var term = $('#query-term').val();
+        if (title === '') {
+            $('#create-span').html("<em>Title can't be empty!</em>");
+            setTimeout (function () {
+                $('#create-span').html("");
+            }, 3000);
+        }
+        else if (term === '') {
+            $('#create-span').html("<em>Term can't be empty!</em>");
+            setTimeout (function () {
+                $('#create-span').html("");
+            }, 3000);
+        }
+        else {
+            var q = {
+                '@@type': 'query',
+                'name': title,
+                'term': term
+            };
+            $.ajax({
+                url: '@controllers.api.kg.routes.BlackboardSystem.createKGraph',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(q),
+                success: function (d) {
+                    console.log(d);
+                    window.location.reload();
+                    //$('#new-modal').modal('hide');            
+                },
+                statusCode: {
+                    400: function () {
+                        alear ("Unable to create knowledge graph!");
+                    }
+                }
+            });
+        }
+        console.log('title='+title+' term='+term);
     });
     
     var dt = $('#kg-table').on('select.dt', function (e, dt, type, indexes) {
-    if (type === 'row') {
-        var rows = dt.rows(indexes).data();
-        console.log('rows selected: '+rows[0].id);
-        $('#delete-btn').attr('data-row', rows[0].id);
-        $('#warning-mesg').html('Really delete knowledge graph '+rows[0].id+'?');
-    }
+        if (type === 'row') {
+            var rows = dt.rows(indexes).data();
+            console.log('rows selected: '+rows[0]['@@id']);
+            $('#delete-btn').attr('data-row', rows[0]['@@id']);
+            $('#warning-mesg').html('Really delete knowledge graph '+rows[0]['@@id']+'?');
+        }
     });
     
     $('#kg-table').DataTable({
-    dom: 'pit',
-    order: [[1,'desc']],
-    select: true,
-    rowId: '@@id',
-    ajax: {
-        url: '@controllers.api.routes.BlackboardSystem.listKG',
-        dataSrc: ''
-    },
-    columnDefs: [{
-        orderable: false,
-        className: 'select-checkbox',
-        targets: 0,
-        data: null,
-        defaultContent: ''
-    },{
-        visible: false,
-        targets: 1,
-        data: 'created'
-    },{
-        targets: 3,
-        render: function (data,type,full,meta) {
-        var d = new Date(data);
-        return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();
+        dom: 'pit',
+        order: [[1,'desc']],
+        select: true,
+        rowId: '@@id',
+        ajax: {
+            url: '@controllers.api.kg.routes.BlackboardSystem.listKG',
+            dataSrc: ''
+        },
+        columnDefs: [{
+            orderable: false,
+            className: 'select-checkbox',
+            targets: 0,
+            data: null,
+            defaultContent: ''
+        },{
+            visible: false,
+            targets: 1,
+            data: 'created'
+        },{
+            targets: 3,
+            render: function (data,type,full,meta) {
+                var d = new Date(data);
+                return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+            }
+        },{
+            targets: 4,
+            render: function (data, type, full, meta) {
+                var url = '@controllers.routes.BlackboardApp.kgraph("")'+full['@@id'];
+                return '<a href="'+url+'">'+data+'</a>';
+            }
+        }],
+        columns: [
+            null,
+            { visible: false },
+            { data: '@@id' },
+            { data: 'created'},
+            { data: 'name' },
+            { data: 'nodeCount' },
+            { data: 'edgeCount'}
+        ],
+        select: {
+            style: 'single',
+            selector: 'td:first-child'
         }
-    },{
-        targets: 4,
-        render: function (data, type, full, meta) {
-        var url = '@controllers.routes.BlackboardApp.kgraph("")'+full['@@id'];
-        return '<a href="'+url+'">'+data+'</a>';
-        }
-    }],
-    columns: [
-        null,
-        { visible: false },
-        { data: '@@id' },
-        { data: 'created'},
-        { data: 'name' },
-        { data: 'nodeCount' },
-        { data: 'edgeCount'}
-    ],
-    select: {
-        style: 'single',
-        selector: 'td:first-child'
-    }
     });
 });
 }

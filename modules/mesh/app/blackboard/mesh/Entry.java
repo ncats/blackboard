@@ -20,7 +20,10 @@ public class Entry implements Comparable<Entry> {
         this.ui = ui;
         this.name = name;
     }
-    
+
+    public int hashCode () {
+        return ui != null ? ui.hashCode() : 0x1013f;
+    }
     public boolean equals (Object obj) {
         if (obj instanceof Entry) {
             Entry me =(Entry)obj;

@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import blackboard.*;
-import controllers.api.BlackboardSystem;
+import controllers.api.kg.BlackboardSystem;
 
 @Singleton
 public class BlackboardApp extends Controller {
