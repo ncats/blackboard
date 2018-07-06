@@ -1,0 +1,13 @@
+@import blackboard.semmed.SemMedDbKSource
+@(ks: SemMedDbKSource, cui: String, predicate: String)
+
+@views.html.core.main("SemMedDb: "+cui){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    @defining(ks.umls.getConcept(cui).name) { name =>
+    <h1 class="display-4">@name (@cui)</h1>
+    <p class="lead">Concepts related to <i>@name</i> by predicate <code>@predicate</code>.
+    }
+  </div>
+</div>
+}(HtmlFormat.empty)(HtmlFormat.empty)

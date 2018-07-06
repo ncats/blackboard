@@ -1,1 +1,13 @@
-GET /info   controllers.semmed.Controller.index
+GET /index   controllers.semmed.Controller.index
+GET /:cui   controllers.semmed.Controller.predicate(cui: String, predicate: String)
+#
+# api
+#
+GET /api/semtypes   controllers.semmed.Controller.apiSemanticTypes
+GET /api/semtypes/:str controllers.semmed.Controller.apiSemanticTypeLookup(str: String)
+GET /api/search/*q  controllers.semmed.Controller.apiSearch(q: String, skip: Int ?= 0, top: Int ?= 5)
+GET /api/:cui       controllers.semmed.Controller.apiPredicateSummary(cui: String)
+GET /api/:cui/predicate/:pred  controllers.semmed.Controller.apiPredicate(cui: String, pred: String)
+GET /api/:cui/semtype/:semtype    controllers.semmed.Controller.apiSemtype(cui: String, semtype: String)
+
+GET           /assets/js/routes             controllers.semmed.Controller.jsRoutes

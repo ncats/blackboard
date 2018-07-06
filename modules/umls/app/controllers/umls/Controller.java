@@ -29,7 +29,6 @@ import blackboard.umls.DataSource;
 public class Controller extends play.mvc.Controller {
     final UMLSKSource ks;
     final HttpExecutionContext ec;
-    final Pattern cuiregex = Pattern.compile("C[0-9]+");
     
     @Inject
     public Controller (HttpExecutionContext ec, UMLSKSource ks) {
@@ -205,18 +204,10 @@ public class Controller extends play.mvc.Controller {
         (final String term, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
-                    Matcher m = cuiregex.matcher(term);
-                    if (m.matches()) {
-                        return ok (Json.prettyPrint
-                                   (Json.toJson(ks.getConcept(term))))
-                            .as("application/json");
-                    }
-                    else {
-                        List<MatchedConcept> results =
-                            ks.findConcepts(term, skip, top);
-                        return ok (Json.prettyPrint(Json.toJson(results)))
-                            .as("application/json");
-                    }
+                    List<MatchedConcept> results =
+                        ks.findConcepts(term, skip, top);
+                    return ok (Json.prettyPrint(Json.toJson(results)))
+                        .as("application/json");
                 }
                 catch (Exception ex) {
                     Logger.error("findConcepts: "+ex.getMessage(), ex);

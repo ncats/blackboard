@@ -1,0 +1,176 @@
+@import blackboard.semmed.SemMedDbKSource
+@(ks: SemMedDbKSource)
+
+@views.html.core.main("SemMedDb Knowledge Source"){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    <h1 class="display-4">SemMed DB</h1>
+    <p class="lead">This is SemMed DB knowledge source.
+  </div>
+  <div class="row">
+    <div class="col-3"></div>
+    <div class="col">
+      <div class="input-group">
+        <span class="input-group-btn">  
+          <button id="search-clear"
+                  class="btn btn-default" type="button">Clear</button>
+        </span>
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search for concepts...">
+        <span class="input-group-btn">
+        <button id="search-concept"
+                class="btn btn-default" type="button">Search</button>
+        </span>
+      </div><!-- /input-group -->
+    </div>
+    <div class="col-3"></div>
+  </div> <!-- row -->
+  <br>
+  <div class="row">
+    <div class="col">
+      <table id="output-table" class="table" data-page-length="10" width="100%">
+        <thead>
+          <tr>
+            <th>Score</th>
+            <th>CUI</th>
+            <th>Name</th>
+            <th>Predicates</th>
+            <th>Semantic Types</th>
+            <th>Publications</th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div> <!-- row -->
+</div>
+
+<div class="modal fade" id="umls-concept-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="concept-title"></h5>        
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="col">
+          <pre id="concept-body" class="pre-scrollable"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+}{
+<script src="@controllers.semmed.routes.Controller.jsRoutes" type="text/javascript"></script>
+}{
+    var table;
+    function search () {
+        var term = $('#search-input').val();
+        console.log('searching for "'+term+'"');
+        $('#search-concept')
+            .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
+        table.ajax.url('@controllers.semmed.routes.Controller.apiSearch("")'
+                       +term+'?top=20').load(function () {
+                           $('#search-concept').html('Search');
+                       });
+    }
+    
+    $(document).ready(function () {
+        $('#search-concept').on('click', function () {
+            search ();
+        });
+        
+        $('#search-clear').on('click', function () {
+            $('#search-input').val('');
+        });
+        
+        $('#search-input').keypress(function (ev) {
+            var keycode = (ev.keyCode ? ev.keyCode : ev.which);
+            if (keycode == '13') { // enter pressed
+                search ();
+            }
+        });
+        $('[data-toggle="tooltip"]').tooltip();
+
+        table = $('#output-table').DataTable({
+            ajax: {
+                // empty search 
+                url: '@controllers.semmed.routes.Controller.apiSearch("")'+'/',
+                dataSrc: ''
+            },
+            dom: 'pit',
+            destroy: true,
+            searching: false,
+            order: [[0,'desc']],
+            columnDefs: [{
+                targets: 0, // score
+                render: function(data,type,full,meta) {
+                    return data.score ? data.score.toFixed(2): '';
+                }
+            },{
+                targets: 1, // cui
+                render: function(data,type,full,meta) {
+                    return '<a href="#">'+data+'</a>';
+                }
+            },{
+                targets: 2, // name
+                render: function(data,type,full,meta) {
+                    return data.name+' ('+data.semtypes[0]+')';
+                }
+            },{
+                targets: 3, // predicates
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    for (var p in data) {
+                        var route = semmedRoutes.controllers
+                            .semmed.Controller.predicate(full.concept.cui, p);
+                        html += '<a class="btn btn-default" href="'+route.url
+                            +'">'+p+' <span class="badge badge-pill badge-secondary">'+data[p]+'</span></a>';
+                    }
+                    return html;
+                }
+            },{
+                targets: 4, // semtypes
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    for (var p in data) {
+                        var route = semmedRoutes.controllers
+                            .semmed.Controller.apiSemanticTypeLookup(p);
+                        route.ajax({
+                            async: false, // synchronous.. 
+                            success: function(st) {
+                                //console.log(p +' ==> '+JSON.stringify(st));
+                                html += '<a class="btn btn-default"'
+                                    +' data-toggle="tooltip" title="'
+                                    +st.name+'" href="#">'+p
+                                    +' <span class="badge badge-pill badge-secondary">'
+                                    +data[p]+'</span></a>';
+                            }
+                        });
+                    }
+                    return html;
+                }
+            },{
+                targets: 5, // publications
+                render: function(data,type,full,meta) {
+                    return data.length;
+                }
+            }],
+            columns: [
+                { data: 'concept'},
+                { data: 'concept.cui' },
+                { data: 'concept'},
+                { data: 'predicates' },
+                { data: 'semtypes'},
+                { data: 'pmids' }
+            ]
+        });
+    });
+
+    $('#output-table').on('draw.dt', function() {
+        $('[data-toggle="tooltip"]').tooltip();        
+    });
+}

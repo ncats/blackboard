@@ -31,10 +31,12 @@ import static blackboard.KEntity.*;
 public class UMLSKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
+    
     private final CacheApi cache;
     private final Database db;
     private final TGT tgt;
 
+    final Pattern cuiregex = Pattern.compile("^[cC]\\d+");    
     private final Map<String, Set<String>> blacklist;    
     private final String APIKEY;
     private final String APIVER;
@@ -431,6 +433,16 @@ public class UMLSKSource implements KSource {
     public List<MatchedConcept> findConcepts (String term, int skip, int top)
         throws Exception {
         List<MatchedConcept> matches = new ArrayList<>();
+
+        Matcher m = cuiregex.matcher(term);
+        boolean iscui = m.matches();
+        Logger.debug("findConcepts: term=\""+term
+                     +"\" skip="+skip+" top="+top+" iscui="+iscui);
+        if (iscui) {
+            matches.add(new MatchedConcept (getConcept (term)));
+            return matches;
+        }
+        
         try (Connection con = db.getConnection();
              // resolve term to cui
              PreparedStatement pstm1 = con.prepareStatement

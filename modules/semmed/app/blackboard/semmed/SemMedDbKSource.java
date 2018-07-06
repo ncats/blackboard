@@ -5,6 +5,8 @@ import javax.inject.Named;
 import java.util.regex.*;
 import java.util.*;
 import java.sql.*;
+import java.io.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,11 +21,14 @@ import play.db.NamedDatabase;
 import play.db.Database;
 import play.mvc.BodyParser;
 import play.mvc.Http;
+import play.Environment;
 
 import akka.actor.ActorSystem;
 
 import blackboard.*;
 import blackboard.umls.UMLSKSource;
+import blackboard.umls.MatchedConcept;
+
 import static blackboard.KEntity.*;
 
 
@@ -31,47 +36,19 @@ public class SemMedDbKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     public final UMLSKSource umls;
+    public final List<SemanticType> semanticTypes;
     
     private final Database db;
     private final CacheApi cache;
     private final Map<String, Set<String>> blacklist;
     private final Map<String, Set<String>> whitelist;
     private final Integer minPredCount;
-
-    static class Evidence {
-        Double score;
-        final String pmid;
-        final String context;
-        Evidence (String pmid, String context) {
-            this.pmid = pmid;
-            this.context = context;
-        }
-    }
-    
-    static class Triple {
-        public final String subject;
-        public final String subtype;
-        public final String predicate;
-        public final String object;
-        public final String objtype;
-        public List<Evidence> evidence = new ArrayList<>();
-        
-        Triple (String subject, String subtype, String predicate,
-                String object, String objtype) {
-            this.subject = subject;
-            this.subtype = subtype;
-            this.predicate = predicate;
-            this.object = object;
-            this.objtype = objtype;
-        }
-    }
     
     @Inject
-    public SemMedDbKSource (WSClient wsclient, CacheApi cache,
+    public SemMedDbKSource (WSClient wsclient, CacheApi cache, Environment env,
                             @Named("semmed") KSourceProvider ksp,
                             @NamedDatabase("semmed") Database db,
-                            UMLSKSource umls,
-                            ApplicationLifecycle lifecycle) {
+                            UMLSKSource umls, ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
@@ -90,6 +67,28 @@ public class SemMedDbKSource implements KSource {
 
         String count = ksp.getProperties().get("min-predicate-count");
         minPredCount = count != null ? Integer.parseInt(count) : 10;
+
+        semanticTypes = new ArrayList<>();
+        String semtype = ksp.getProperties().get("semantic-types");
+        if (semtype == null)
+            Logger.warn(ksp.getName()
+                        +": No semantic-types property specified!");
+        else {
+            try (BufferedReader br = new BufferedReader
+                 (new InputStreamReader (env.resourceAsStream(semtype)))) {
+                for (String line; (line = br.readLine()) != null; ) {
+                    String[] toks = line.split("\\|");
+                    if (toks.length == 3) {
+                        semanticTypes.add(new SemanticType
+                                          (toks[1], toks[0], toks[2]));
+                    }
+                }
+                Logger.debug(semanticTypes.size()+" semantic types loaded!");
+            }
+            catch (IOException ex) {
+                Logger.error("Can't parse semanticTypes: "+semtype, ex);
+            }
+        }
         
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -187,34 +186,10 @@ public class SemMedDbKSource implements KSource {
 
     public void resolveCUI (String cui, KNode kn, KGraph kg)
         throws Exception {
-        try (Connection con = db.getConnection();
-             PreparedStatement pstm1 = con.prepareStatement
-             ("select subject_cui,subject_semtype,predicate,"
-              +"object_cui,object_semtype,count(*) as cnt "
-              +"from PREDICATION where SUBJECT_CUI = ? "
-              +"group by subject_cui,predicate,object_cui "
-              +"having cnt > ? order by cnt desc");
-             PreparedStatement pstm2 = con.prepareStatement
-             ("select subject_cui,subject_semtype,predicate,"
-              +"object_cui,object_semtype,count(*) as cnt "
-              +"from PREDICATION where OBJECT_CUI = ? "
-              +"group by subject_cui,predicate,object_cui "
-              +"having cnt > ? order by cnt desc");
-             ) {
-            Logger.debug("++ resolving "+cui+"...");
-            long start = System.currentTimeMillis();
-            List<Triple> triples = new ArrayList<>();
-            resolvePredicates (triples, pstm1, cui);
-            resolvePredicates (triples, pstm2, cui);
-            Logger.debug("..."+triples.size()+" predicates in "
-                         +String.format("%1$.3fs!",
-                                        (System.currentTimeMillis()-start)
-                                        /1000.));
-        }
     }
 
-    protected void resolvePredicates (List<Triple> triples,
-                                      PreparedStatement pstm, String cui)
+    protected void instrument (List<Predication> triples,
+                               PreparedStatement pstm, String cui)
         throws Exception {
         try (PreparedStatement pstm2 = pstm.getConnection()
              .prepareStatement("select * from PREDICATION a, SENTENCE b "
@@ -246,8 +221,8 @@ public class SemMedDbKSource implements KSource {
                 }
                 else {
                     int count = rset.getInt("cnt");
-                    Triple t = new Triple (subject, subtype,
-                                           pred, object, objtype);
+                    Predication t = new Predication (subject, subtype,
+                                                     pred, object, objtype);
                     Logger.debug(subject+" ["+subtype+"] =="
                                  +pred+"=> "+object+" ["+objtype+"] "
                                  +count);
@@ -316,4 +291,70 @@ public class SemMedDbKSource implements KSource {
             Logger.debug(rows+" nodes resolved!");
         }
     }
+
+    public List<Predication> getPredications (final String cui)
+        throws Exception {
+        return cache.getOrElse
+            ("semmed/"+cui, new Callable<List<Predication>> () {
+                    public List<Predication> call () throws Exception {
+                        return _getPredications (cui);
+                    }
+                });
+                
+    }
+    
+    public List<Predication> _getPredications (String cui) throws Exception {
+        List<Predication> preds = new ArrayList<>();
+        Logger.debug("++ resolving "+cui+"...");
+        long start = System.currentTimeMillis();        
+        try (Connection con = db.getConnection();
+             PreparedStatement pstm1 = con.prepareStatement
+             ("select subject_cui,subject_semtype,predicate,"
+              +"object_cui,object_semtype,count(*) as cnt "
+              +"from PREDICATION where SUBJECT_CUI = ? "
+              +"group by subject_cui,predicate,object_cui "
+              +"having cnt > ? order by cnt desc");
+             PreparedStatement pstm2 = con.prepareStatement
+             ("select subject_cui,subject_semtype,predicate,"
+              +"object_cui,object_semtype,count(*) as cnt "
+              +"from PREDICATION where OBJECT_CUI = ? "
+              +"group by subject_cui,predicate,object_cui "
+              +"having cnt > ? order by cnt desc");
+             ) {
+            instrument (preds, pstm1, cui);
+            instrument (preds, pstm2, cui);
+        }
+        Logger.debug("..."+preds.size()+" predicates in "
+                     +String.format("%1$.3fs!",
+                                    (System.currentTimeMillis()-start)
+                                    /1000.));
+        return preds;
+    }
+
+    public PredicateSummary getPredicateSummary (final String cui)
+        throws Exception {
+        return cache.getOrElse
+            ("semmed/"+cui+"/summary", new Callable<PredicateSummary> () {
+                    public PredicateSummary call () throws Exception {
+                        return new PredicateSummary
+                            (cui, getPredications (cui));
+                    }
+                });
+    }
+
+    /*
+      PREDICATION_ID
+      SENTENCE_ID
+      PMID
+      PREDICATE
+      SUBJECT_CUI
+      SUBJECT_NAME    
+      SUBJECT_SEMTYPE
+      SUBJECT_NOVELTY
+      OBJECT_CUI
+      OBJECT_NAME
+      OBJECT_SEMTYPE
+      OBJECT_NOVELTY
+    */
+    
 }
