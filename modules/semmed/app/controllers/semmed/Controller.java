@@ -54,12 +54,10 @@ public class Controller extends play.mvc.Controller {
     }
 
     public Result apiSemanticTypeLookup (String str) {
-        for (SemanticType st : ks.semanticTypes) {
-            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str))
-                return ok (Json.toJson(st));
-        }
-        return notFound ("Can't lookup semantic type "
-                         +"either by id or abbr: "+str);
+        SemanticType st = ks.getSemanticType(str);
+        return st != null ? ok (Json.toJson(st))
+            : notFound ("Can't lookup semantic type either by id or abbr: "
+                        +str);
     }
 
     public CompletionStage<Result> apiSearch
@@ -126,7 +124,7 @@ public class Controller extends play.mvc.Controller {
     }
   
     public CompletionStage<Result> apiPredicate (final String cui,
-                                              final String predicate) {
+                                                 final String predicate) {
         return supplyAsync (() -> {
                 return filter (cui, p -> p.predicate.equals(predicate));
             }, ec.current());
@@ -144,11 +142,21 @@ public class Controller extends play.mvc.Controller {
         return ok (views.html.semmed.predicate.render(ks, cui, predicate));
     }
 
+    public Result semtype (final String cui, final String semtype) {
+        SemanticType st = ks.getSemanticType(semtype);
+        if (st == null)
+            return ok (views.html.core.notfound.render
+                       ("Unknown semantic type <code>"+semtype+"</code>!"));
+        return ok (views.html.semmed.semtype.render(ks, cui, st));
+    }
+    
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("semmedRoutes",
                     routes.javascript.Controller.predicate(),
-                    routes.javascript.Controller.apiSemanticTypeLookup()
+                    routes.javascript.Controller.semtype(),                    
+                    routes.javascript.Controller.apiSemanticTypeLookup(),
+                    routes.javascript.Controller.apiSearch()
                     )).as("text/javascript");
     }
 }

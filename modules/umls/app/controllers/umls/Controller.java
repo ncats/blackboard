@@ -13,6 +13,7 @@ import play.libs.ws.WSResponse;
 import play.Logger;
 import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
+import play.routing.JavaScriptReverseRouter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,7 +47,23 @@ public class Controller extends play.mvc.Controller {
         return ok (views.html.umls.index.render(ks));
     }
 
-    public CompletionStage<Result> ticket () {
+    public Result cui (String cui) {
+        try {
+            Concept concept = ks.getConcept(cui);
+            if (concept != null)
+                return ok (views.html.umls.cui.render(concept));
+            return ok (views.html.core.notfound.render
+                       ("Unknown concept <code>"+cui+"</code>"));
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve concept for "+cui, ex);
+            return ok (views.html.core.error.render
+                       ("Can't retrieve concept for "+cui+": "
+                        +ex.getMessage(), 500));
+        }
+    }
+
+    public CompletionStage<Result> keyTicket () {
         return supplyAsync (() -> {
                 try {
                     return ok (ks.ticket());
@@ -72,15 +89,15 @@ public class Controller extends play.mvc.Controller {
     static ObjectNode instrument (JsonNode node) {
         ObjectNode n = toObject (node);
         String cui = n.get("ui").asText();
-        n.put("_cui", controllers.umls.routes.Controller.cui(cui).url());
-        n.put("_atoms", routes.Controller.atoms(cui).url());
-        n.put("_definitions", routes.Controller.definitions(cui).url());
-        n.put("_relations", routes.Controller.relations(cui).url());
+        n.put("_cui", controllers.umls.routes.Controller.keyCui(cui).url());
+        n.put("_atoms", routes.Controller.keyAtoms(cui).url());
+        n.put("_definitions", routes.Controller.keyDefinitions(cui).url());
+        n.put("_relations", routes.Controller.keyRelations(cui).url());
         
         return n;
     }
 
-    public CompletionStage<Result> search
+    public CompletionStage<Result> keySearch
         (final String q, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
@@ -112,7 +129,7 @@ public class Controller extends play.mvc.Controller {
                 });
     }
 
-    public CompletionStage<Result> cui (String cui) {
+    public CompletionStage<Result> keyCui (String cui) {
         return supplyAsync (() -> {
                 try {
                     JsonNode json = ks.getCui(cui);
@@ -127,7 +144,7 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> full (String cui) {
+    public CompletionStage<Result> keyFull (String cui) {
         return supplyAsync (() -> {
                 try {
                     JsonNode json = ks.getCui(cui);
@@ -162,19 +179,20 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> atoms (String cui) {
+    public CompletionStage<Result> keyAtoms (String cui) {
         return content (cui, "atoms");
     }
     
-    public CompletionStage<Result> definitions (String cui) {
+    public CompletionStage<Result> keyDefinitions (String cui) {
         return content (cui, "definitions");
     }
     
-    public CompletionStage<Result> relations (String cui) {
+    public CompletionStage<Result> keyRelations (String cui) {
         return content (cui, "relations");
     }
 
-    public CompletionStage<Result> source (final String src, final String id) {
+    public CompletionStage<Result> keySource (final String src,
+                                              final String id) {
         return supplyAsync (() -> {
                 try {
                     WSResponse res = ks.source(src, id, "atoms/preferred")
@@ -200,7 +218,7 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> findConcepts
+    public CompletionStage<Result> apiFindConcepts
         (final String term, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
@@ -225,8 +243,8 @@ public class Controller extends play.mvc.Controller {
      * scui - source concept id (e.g., mesh concept ui)
      * sdui - source descriptor id (e.g., mesh descriptor ui)
      */
-    public CompletionStage<Result> concept (final String src,
-                                            final String id) {
+    public CompletionStage<Result> apiConcept (final String src,
+                                               final String id) {
         return supplyAsync (() -> {
                 try {
                     Concept concept = ks.getConcept(src.toLowerCase(), id);
@@ -241,7 +259,7 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> datasources () {
+    public CompletionStage<Result> apiDatasources () {
         return supplyAsync (() -> {
                 try {
                     Map<String, List<Map<String, String>>> data =
@@ -267,7 +285,7 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> datasource (String name) {
+    public CompletionStage<Result> apiDatasource (String name) {
         return supplyAsync (() -> {
                 try {
                     List<Map<String, String>> data = new ArrayList<>();
@@ -286,6 +304,14 @@ public class Controller extends play.mvc.Controller {
                     return internalServerError (ex.getMessage());
                 }
             }, ec.current());
+    }
+
+    public Result jsRoutes () {
+        return ok (JavaScriptReverseRouter.create
+                   ("umlsRoutes",
+                    routes.javascript.Controller.apiConcept(),
+                    routes.javascript.Controller.apiFindConcepts()
+                    )).as("text/javascript");
     }
 }
 

@@ -433,6 +433,9 @@ public class UMLSKSource implements KSource {
     public List<MatchedConcept> findConcepts (String term, int skip, int top)
         throws Exception {
         List<MatchedConcept> matches = new ArrayList<>();
+        
+        if ("".equals(term))
+            return matches;
 
         Matcher m = cuiregex.matcher(term);
         boolean iscui = m.matches();

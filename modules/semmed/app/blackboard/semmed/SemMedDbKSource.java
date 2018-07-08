@@ -342,6 +342,14 @@ public class SemMedDbKSource implements KSource {
                 });
     }
 
+    public SemanticType getSemanticType (String str) {
+        for (SemanticType st : semanticTypes) {
+            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str))
+                return st;
+        }
+        return null;
+    }
+
     /*
       PREDICATION_ID
       SENTENCE_ID

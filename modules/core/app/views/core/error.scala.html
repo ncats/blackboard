@@ -2,10 +2,10 @@
 @(url: String, status: Int)
 
 @main("Error: "+url){
-<div class="container-fluid">
+<div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1>Status: @status</h1>
-    <p>Much like the mythical unicorn, the requested
+    <h1 class="display">Status: @status</h1>
+    <p class="lead">Much like the mythical unicorn, the requested
       resource <code>@url</code> has yet to be discovered.
   </div>
 </div>

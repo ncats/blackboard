@@ -1,0 +1,17 @@
+@import blackboard.semmed.SemMedDbKSource
+@import blackboard.semmed.SemanticType
+
+@(ks: SemMedDbKSource, cui: String, semtype: SemanticType)
+
+@views.html.core.main("SemMedDb: "+cui){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    @defining(ks.umls.getConcept(cui).name) { name =>
+    <h1 class="display-4">@name (@cui)</h1>
+    <p class="lead">Concepts related to <b><i>@name</i></b> by
+    semantic type <b><i>@semtype.name</i></b>
+    (<code>@semtype.abbr</code>).
+    }
+  </div>
+</div>
+}(HtmlFormat.empty)(HtmlFormat.empty)

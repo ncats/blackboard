@@ -90,52 +90,25 @@
   </div>
 </div>
 
-}(HtmlFormat.empty){
+}{
+<script src="@controllers.umls.routes.Controller.jsRoutes" type="text/javascript"></script>
+}{
+    var table;
+    
     function search () {
         var term = $('#search-input').val();
-        console.log('searching for "'+term+'"');
-
-        $('#output-table').DataTable({
-            ajax: {
-                url: '@controllers.umls.routes.Controller.findConcepts("")'
-                    +term+'?top=20',
-                dataSrc: ''
-            },
-            dom: 'pit',
-            destroy: true,
-            searching: false,
-            order: [[0,'desc']],
-            columnDefs: [{
-                targets: 0,
-                render: function(data,type,full,meta) {
-                    return full.score? full.score.toFixed(2): '';
-                }
-            },{
-                targets: 1,
-                render: function(data,type,full,meta) {
-                    return '<a href="#" data-target="#umls-concept-modal" id="concept-"'+data+'" data-toggle="modal" data-cui="'+data+'">'+data+'</a>';
-                }
-            },{
-                targets: 2, // semanticTypes
-                render: function(data,type,full,meta) {
-                    return data.map(d => d.name).join('<br>');
-                }
-            },{
-                targets: 5,
-                render: function(data,type,full,meta) {
-                    return data.map(d=>'<b>['+d.source+']</b>&nbsp;'
-                                    +d.description).join('<br>');
-                }
-            }],
-            columns: [
-                {},
-                { data: 'concept.cui' },
-                { data: 'concept.semanticTypes'},
-                { data: 'concept.source.name' },
-                { data: 'concept.name' },
-                { data: 'concept.definitions'}
-            ]
-        });
+        if (term == '') {
+        }
+        else {
+            console.log('searching for "'+term+'"');
+            $('#search-concept')
+                .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
+            var route = umlsRoutes.controllers
+                .umls.Controller.apiFindConcepts(term, 0, 20);
+            table.ajax.url(route.url).load(function () {
+                $('#search-concept').html('Search');
+            });
+        }
     }
     
     $(document).ready(function () {
@@ -155,13 +128,57 @@
         });
 
         $.ajax({
-            url: '@controllers.umls.routes.Controller.datasources',
+            url: '@controllers.umls.routes.Controller.apiDatasources',
             dataType: 'text',
             success: function (d) {
                 $('#umls-sources').html(d);
             }
         });
 
+        table = $('#output-table').DataTable({
+            ajax: {
+                // empty search to setup an empty table
+                url: '@controllers.umls.routes.Controller.apiFindConcepts("_")',
+                dataSrc: ''
+            },
+            dom: 'pit',
+            destroy: true,
+            searching: false,
+            order: [[0,'desc']],
+            columnDefs: [{
+                targets: 0,
+                width: "5%",
+                render: function(data,type,full,meta) {
+                    return full.score? full.score.toFixed(2): '';
+                }
+            },{
+                targets: 1,
+                render: function(data,type,full,meta) {
+                    return '<a href="#" data-target="#umls-concept-modal" id="concept-"'+data+'" data-toggle="modal" data-cui="'+data+'">'+data+'</a>';
+                }
+            },{
+                targets: 2, // semanticTypes
+                render: function(data,type,full,meta) {
+                    return data.map(d => d.name).join('<br>');
+                }
+            },{
+                targets: 5,
+                width: "50%",
+                render: function(data,type,full,meta) {
+                    return data.map(d=>'<b>['+d.source+']</b>&nbsp;'
+                                    +d.description).join('<br>');
+                }
+            }],
+            columns: [
+                {},
+                { data: 'concept.cui' },
+                { data: 'concept.semanticTypes'},
+                { data: 'concept.source.name' },
+                { data: 'concept.name' },
+                { data: 'concept.definitions'}
+            ]
+        });
+        
         /*
          * after the table is rendered, we iterate through each row
          * and listen to click on each a and intercept it by ajaxing
@@ -170,8 +187,10 @@
         $('#output-table').on('draw.dt', function() {
             $('a[id|=concept-]').on('click', function () {
                 var cui = $(this).data('cui');
+                var route = umlsRoutes.controllers
+                    .umls.Controller.apiConcept('cui', cui);
                 $.ajax({
-                    url: '@controllers.umls.routes.Controller.concept("cui","")'+cui,
+                    url: route.url,
                     dataType: 'text',
                     success: function (data) {
                         $('#concept-title').html(cui);

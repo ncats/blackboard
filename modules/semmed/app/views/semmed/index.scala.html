@@ -69,13 +69,18 @@
     var table;
     function search () {
         var term = $('#search-input').val();
-        console.log('searching for "'+term+'"');
-        $('#search-concept')
-            .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
-        table.ajax.url('@controllers.semmed.routes.Controller.apiSearch("")'
-                       +term+'?top=20').load(function () {
-                           $('#search-concept').html('Search');
-                       });
+        if (term == '') {
+        }
+        else {
+            console.log('searching for "'+term+'"');
+            $('#search-concept')
+                .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
+            var route = semmedRoutes.controllers
+                .semmed.Controller.apiSearch(term, 0, 20);
+            table.ajax.url(route.url).load(function () {
+                $('#search-concept').html('Search');
+            });
+        }
     }
     
     $(document).ready(function () {
@@ -104,14 +109,16 @@
             dom: 'pit',
             destroy: true,
             searching: false,
-            order: [[0,'desc']],
+            order: [[5,'desc'],[0,'desc']],
             columnDefs: [{
                 targets: 0, // score
+                width: "5%",
                 render: function(data,type,full,meta) {
                     return data.score ? data.score.toFixed(2): '';
                 }
             },{
                 targets: 1, // cui
+                width: "10%",
                 render: function(data,type,full,meta) {
                     return '<a href="#">'+data+'</a>';
                 }
@@ -139,13 +146,15 @@
                     for (var p in data) {
                         var route = semmedRoutes.controllers
                             .semmed.Controller.apiSemanticTypeLookup(p);
+                        var link = semmedRoutes.controllers
+                            .semmed.Controller.semtype(full.concept.cui, p);
                         route.ajax({
                             async: false, // synchronous.. 
                             success: function(st) {
                                 //console.log(p +' ==> '+JSON.stringify(st));
                                 html += '<a class="btn btn-default"'
                                     +' data-toggle="tooltip" title="'
-                                    +st.name+'" href="#">'+p
+                                    +st.name+'" href="'+link.url+'">'+p
                                     +' <span class="badge badge-pill badge-secondary">'
                                     +data[p]+'</span></a>';
                             }
@@ -155,6 +164,7 @@
                 }
             },{
                 targets: 5, // publications
+                width: "5%",
                 render: function(data,type,full,meta) {
                     return data.length;
                 }
@@ -171,6 +181,10 @@
     });
 
     $('#output-table').on('draw.dt', function() {
-        $('[data-toggle="tooltip"]').tooltip();        
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+    
+    window.addEventListener("pageshow", function(e) {
+        search ();
     });
 }

@@ -5,8 +5,10 @@
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
     @defining(ks.umls.getConcept(cui).name) { name =>
-    <h1 class="display-4">@name (@cui)</h1>
-    <p class="lead">Concepts related to <i>@name</i> by predicate <code>@predicate</code>.
+    <h1 class="display-4">@name</a> (<a href="@controllers.umls.routes.Controller.cui(cui)">@cui</a>)</h1>
+    <p class="lead">Concepts related
+    to <i><a href="@controllers.umls.routes.Controller.cui(cui)">@name</a></i>
+    by predicate <code>@predicate</code>.
     }
   </div>
 </div>

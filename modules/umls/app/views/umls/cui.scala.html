@@ -1,0 +1,12 @@
+@import blackboard.umls.UMLSKSource
+@import blackboard.umls.Concept
+@(concept: Concept)
+
+@views.html.core.main(concept.name+" ("+concept.cui+")"){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    <h1 class="display-4">@concept.name (@concept.cui)</h1>
+    <p class="lead">
+  </div>
+</div>
+}(HtmlFormat.empty)(HtmlFormat.empty)

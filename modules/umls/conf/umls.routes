@@ -1,16 +1,24 @@
 GET /index   controllers.umls.Controller.index
-GET /ticket controllers.umls.Controller.ticket
-GET /sources        controllers.umls.Controller.datasources
-GET /sources/:name  controllers.umls.Controller.datasource(name: String)
-GET /concepts/:src/:id controllers.umls.Controller.concept(src: String, id: String)
-GET /concepts/:term controllers.umls.Controller.findConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
-GET /search/*q  controllers.umls.Controller.search(q: String, skip: Int ?= 0, top: Int ?= 10)
+GET /:cui    controllers.umls.Controller.cui(cui: String)
+
 #
-# these require API key!
+# api
 #
-GET /:cui controllers.umls.Controller.cui(cui: String)
-GET /:cui/full controllers.umls.Controller.full(cui: String)
-GET /:cui/atoms controllers.umls.Controller.atoms(cui: String)
-GET /:cui/definitions controllers.umls.Controller.definitions(cui: String)
-GET /:cui/relations   controllers.umls.Controller.relations(cui: String)
-GET /source/:src/:id  controllers.umls.Controller.source(src: String, id: String)
+GET /api/sources        controllers.umls.Controller.apiDatasources
+GET /api/sources/:name  controllers.umls.Controller.apiDatasource(name: String)
+GET /api/concepts/:term controllers.umls.Controller.apiFindConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
+GET /api/concepts/:src/:id controllers.umls.Controller.apiConcept(src: String, id: String)
+
+#
+# don't use; these require umls API key!
+#
+GET /api/ticket controllers.umls.Controller.keyTicket
+GET /api/:cui controllers.umls.Controller.keyCui(cui: String)
+GET /api/:cui/full controllers.umls.Controller.keyFull(cui: String)
+GET /api/:cui/atoms controllers.umls.Controller.keyAtoms(cui: String)
+GET /api/:cui/definitions controllers.umls.Controller.keyDefinitions(cui: String)
+GET /api/:cui/relations   controllers.umls.Controller.keyRelations(cui: String)
+GET /api/source/:src/:id  controllers.umls.Controller.keySource(src: String, id: String)
+GET /api/search/*q  controllers.umls.Controller.keySearch(q: String, skip: Int ?= 0, top: Int ?= 10)
+
+GET /assets/js/routes             controllers.umls.Controller.jsRoutes

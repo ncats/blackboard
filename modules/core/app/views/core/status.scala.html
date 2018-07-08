@@ -1,0 +1,11 @@
+
+@(mesg: String, status: String)
+
+@main(status){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron">
+    <h1 class="display">@status</h1>
+    <p class="lead">@HtmlFormat.raw(mesg)
+  </div>
+</div>
+}(HtmlFormat.empty)(HtmlFormat.empty)
