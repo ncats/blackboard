@@ -663,6 +663,15 @@ public class UMLSKSource implements KSource {
                     }
                 });
     }
+
+    public List<DataSource> getDataSources (String name) throws Exception {
+        List<DataSource> sources = new ArrayList<>();
+        for (DataSource ds : getDataSources ()) {
+            if (name.equalsIgnoreCase(ds.name))
+                sources.add(ds);
+        }
+        return sources;
+    }
     
     public List<DataSource> _getDataSources () throws Exception {
         List<DataSource> datasources = new ArrayList<>();

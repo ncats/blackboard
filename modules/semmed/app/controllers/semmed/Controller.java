@@ -107,47 +107,61 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    Result filter (final String cui, Predicate<Predication> pred) {
+    Predication[] filter (final String cui, Predicate<Predication> pred) {
         try {
-            Predication[] preds = ks
-                .getPredications(cui).stream()
+            return ks.getPredications(cui).stream()
                 .filter(pred)
                 .toArray(Predication[]::new);
-            
-            return ok (Json.prettyPrint(Json.toJson(preds)))
-                .as("application/json");
         }
         catch (Exception ex) {
             Logger.error("Predicate failed", ex);
-            return internalServerError (ex.getMessage());
+            return new Predication[0];
         }
     }
   
     public CompletionStage<Result> apiPredicate (final String cui,
                                                  final String predicate) {
         return supplyAsync (() -> {
-                return filter (cui, p -> p.predicate.equals(predicate));
+                Predication[] preds =
+                    filter (cui, p -> p.predicate.equals(predicate));
+                return ok (Json.toJson(preds));
             }, ec.current());
     }
 
     public CompletionStage<Result> apiSemtype (final String cui,
                                                final String semtype) {
         return supplyAsync (() -> {
-                return filter (cui, p -> semtype.equals(p.subtype)
-                               || semtype.equals(p.objtype));
+                Predication[] preds =
+                    filter (cui, p -> semtype.equals(p.subtype)
+                            || semtype.equals(p.objtype));
+                return ok (Json.toJson(preds));
             }, ec.current());
     }
 
-    public Result predicate (final String cui, final String predicate) {
-        return ok (views.html.semmed.predicate.render(ks, cui, predicate));
+    public CompletionStage<Result> predicate (final String cui,
+                                              final String predicate) {
+        return supplyAsync (() -> {
+                Predication[] preds = filter
+                    (cui, p -> p.predicate.equals(predicate));
+                return ok (views.html.semmed.predicate.render
+                           (ks, cui, predicate, preds));
+            }, ec.current());
     }
 
-    public Result semtype (final String cui, final String semtype) {
-        SemanticType st = ks.getSemanticType(semtype);
-        if (st == null)
-            return ok (views.html.core.notfound.render
-                       ("Unknown semantic type <code>"+semtype+"</code>!"));
-        return ok (views.html.semmed.semtype.render(ks, cui, st));
+    public CompletionStage<Result> semtype (final String cui,
+                                            final String semtype) {
+        return supplyAsync (() -> {
+                SemanticType st = ks.getSemanticType(semtype);
+                if (st == null)
+                    return ok (views.html.core.notfound.render
+                               ("Unknown semantic type <code>"
+                                +semtype+"</code>!"));
+                Predication[] preds =
+                    filter (cui, p -> st.abbr.equals(p.subtype)
+                            || st.abbr.equals(p.objtype));
+                return ok (views.html.semmed.semtype.render
+                           (ks, cui, st, preds));
+            }, ec.current());
     }
     
     public Result jsRoutes () {

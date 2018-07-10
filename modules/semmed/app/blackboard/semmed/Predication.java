@@ -19,4 +19,8 @@ public class Predication {
         this.object = object;
         this.objtype = objtype;
     }
+
+    public String getOther (String cui) {
+        return cui.equals(subject) ? object : subject;
+    }
 }

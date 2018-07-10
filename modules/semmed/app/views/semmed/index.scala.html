@@ -16,7 +16,7 @@
                   class="btn btn-default" type="button">Clear</button>
         </span>
         <input id="search-input" type="text" class="form-control"
-               placeholder="Search for concepts...">
+               placeholder="Search for concepts (e.g., gaucher)...">
         <span class="input-group-btn">
         <button id="search-concept"
                 class="btn btn-default" type="button">Search</button>
@@ -65,6 +65,7 @@
 
 }{
 <script src="@controllers.semmed.routes.Controller.jsRoutes" type="text/javascript"></script>
+<script src="@controllers.umls.routes.Controller.jsRoutes" type="text/javascript"></script>
 }{
     var table;
     function search () {
@@ -120,7 +121,9 @@
                 targets: 1, // cui
                 width: "10%",
                 render: function(data,type,full,meta) {
-                    return '<a href="#">'+data+'</a>';
+                    var route = umlsRoutes.controllers
+                        .umls.Controller.cui(data);
+                    return '<a href="'+route.url+'">'+data+'</a>';
                 }
             },{
                 targets: 2, // name

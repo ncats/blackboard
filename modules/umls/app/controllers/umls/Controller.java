@@ -47,20 +47,22 @@ public class Controller extends play.mvc.Controller {
         return ok (views.html.umls.index.render(ks));
     }
 
-    public Result cui (String cui) {
-        try {
-            Concept concept = ks.getConcept(cui);
-            if (concept != null)
-                return ok (views.html.umls.cui.render(concept));
-            return ok (views.html.core.notfound.render
-                       ("Unknown concept <code>"+cui+"</code>"));
-        }
-        catch (Exception ex) {
-            Logger.error("Can't retrieve concept for "+cui, ex);
-            return ok (views.html.core.error.render
-                       ("Can't retrieve concept for "+cui+": "
-                        +ex.getMessage(), 500));
-        }
+    public CompletionStage<Result> cui (String cui) {
+        return supplyAsync (() -> {
+                try {
+                    Concept concept = ks.getConcept(cui);
+                    if (concept != null)
+                        return ok (views.html.umls.cui.render(concept, ks));
+                    return ok (views.html.core.notfound.render
+                               ("Unknown concept <code>"+cui+"</code>"));
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve concept for "+cui, ex);
+                    return ok (views.html.core.error.render
+                               ("Can't retrieve concept for "+cui+": "
+                                +ex.getMessage(), 500));
+                }
+            }, ec.current());
     }
 
     public CompletionStage<Result> keyTicket () {
@@ -310,7 +312,8 @@ public class Controller extends play.mvc.Controller {
         return ok (JavaScriptReverseRouter.create
                    ("umlsRoutes",
                     routes.javascript.Controller.apiConcept(),
-                    routes.javascript.Controller.apiFindConcepts()
+                    routes.javascript.Controller.apiFindConcepts(),
+                    routes.javascript.Controller.cui()
                     )).as("text/javascript");
     }
 }

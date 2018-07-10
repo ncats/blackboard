@@ -1,15 +1,68 @@
 @import blackboard.semmed.SemMedDbKSource
-@(ks: SemMedDbKSource, cui: String, predicate: String)
+@import blackboard.semmed.Predication
+@import blackboard.umls.Concept
+@(ks: SemMedDbKSource, cui: String, predicate: String,
+  preds: Array[Predication])
+
+@predcard(concept: Concept, p: Predication) = {
+<div class="card">
+    @if(concept != null) {
+    <h5 class="card-header">@views.html.umls.displayconcept(concept,ks.umls)</h5>
+    <div class="card-body">
+      <table id="table-@concept.cui" class="table"
+             data-page-length="5" width="100%">
+        <thead>
+          <tr>
+            <th>PMID</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for(e <- p.evidence) {
+             <tr>
+               <td><a href="https://www.ncbi.nlm.nih.gov/pubmed/@e.pmid">@e.pmid</a></td>
+               <td>@e.context</td>
+             </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer">
+      @for(t <- concept.semanticTypes) {
+        <span class="badge badge-pill badge-secondary">@t.name</span>
+      }
+    </div>
+    }
+</div>
+}
 
 @views.html.core.main("SemMedDb: "+cui){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    @defining(ks.umls.getConcept(cui).name) { name =>
-    <h1 class="display-4">@name</a> (<a href="@controllers.umls.routes.Controller.cui(cui)">@cui</a>)</h1>
-    <p class="lead">Concepts related
-    to <i><a href="@controllers.umls.routes.Controller.cui(cui)">@name</a></i>
+    @defining(ks.umls.getConcept(cui)) { concept =>
+    <h1 class="display-4">@views.html.umls.displayconcept(concept,ks.umls)</h1>
+    <p class="lead">@preds.length concept(s) related
+    to <i>@views.html.umls.displayconcept(concept,ks.umls)</i>
     by predicate <code>@predicate</code>.
     }
   </div>
+  @for(p <- preds) {
+    @defining(ks.umls.getConcept(p.getOther(cui))) { concept =>
+      @predcard(concept, p)
+      <br>
+    }
+  }
 </div>
-}(HtmlFormat.empty)(HtmlFormat.empty)
+}(HtmlFormat.empty){
+    $(document).ready(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+        $("table[id|='table']").DataTable({
+            order: [[0, 'desc']],
+            dom: 'pit',
+            searching: true
+        });
+        $('#table-*').on('draw.dt', function () {
+            
+        });
+    });
+}

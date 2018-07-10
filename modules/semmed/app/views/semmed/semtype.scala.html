@@ -1,17 +1,66 @@
 @import blackboard.semmed.SemMedDbKSource
 @import blackboard.semmed.SemanticType
+@import blackboard.semmed.Predication
+@import blackboard.umls.Concept
 
-@(ks: SemMedDbKSource, cui: String, semtype: SemanticType)
+@(ks: SemMedDbKSource, cui: String, semtype: SemanticType,
+  preds: Array[Predication])
+
+@predcard(concept: Concept, p: Predication) = {
+<div class="card">
+    @if(concept != null) {
+    <h5 class="card-header">@views.html.umls.displayconcept(concept,ks.umls)</h5>
+    <div class="card-body">
+      <table id="table-@concept.cui" class="table"
+             data-page-length="5" width="100%">
+        <thead>
+          <tr>
+            <th>PMID</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for(e <- p.evidence) {
+             <tr>
+               <td><a href="https://www.ncbi.nlm.nih.gov/pubmed/@e.pmid">@e.pmid</a></td>
+               <td>@e.context</td>
+             </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer">
+      <span class="badge badge-pill badge-dark">@p.predicate</span>
+    </div>
+    }
+</div>
+}
 
 @views.html.core.main("SemMedDb: "+cui){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    @defining(ks.umls.getConcept(cui).name) { name =>
-    <h1 class="display-4">@name (@cui)</h1>
-    <p class="lead">Concepts related to <b><i>@name</i></b> by
-    semantic type <b><i>@semtype.name</i></b>
-    (<code>@semtype.abbr</code>).
+    @defining(ks.umls.getConcept(cui)) { concept =>
+    <h1 class="display-4">@views.html.umls.displayconcept(concept,ks.umls)</h1>
+    <p class="lead">@preds.length concept(s) related to
+    <i>@views.html.umls.displayconcept(concept,ks.umls)</i> by
+    semantic type <i>@semtype.name</i> (<code>@semtype.abbr</code>).
     }
   </div>
+  @for(p <- preds) {
+     @defining(ks.umls.getConcept(p.getOther(cui))) { concept =>
+       @predcard(concept, p)
+       <br>
+     }
+  }
 </div>
-}(HtmlFormat.empty)(HtmlFormat.empty)
+}(HtmlFormat.empty){
+    $(document).ready(function () {
+        $('[data-toggle="tooltip"]').tooltip();    
+        $('table[id|="table"]').DataTable({
+            order: [[0, 'desc']],
+            dom: 'pit',
+            searching: true
+        });
+    });
+}
+

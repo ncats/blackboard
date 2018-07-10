@@ -1,12 +1,25 @@
 @import blackboard.umls.UMLSKSource
 @import blackboard.umls.Concept
-@(concept: Concept)
+@(concept: Concept, ks: UMLSKSource)
 
 @views.html.core.main(concept.name+" ("+concept.cui+")"){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1 class="display-4">@concept.name (@concept.cui)</h1>
-    <p class="lead">
+    <h1 class="display-4">@displayconcept(concept, ks)</h1>
+    @if(!concept.definitions.isEmpty) {
+      @defining(concept.definitions(0)) { d =>
+      <p class="lead">@d.description
+      [<span data-toggle="tooltip" title="@ks.getDataSources(d.source)(0).description">@d.source</span>]
+      }
+    }
   </div>
+  @if(concept.definitions.size > 1) {
+     
+  }
 </div>
-}(HtmlFormat.empty)(HtmlFormat.empty)
+}(HtmlFormat.empty){
+    $(document).ready(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+}
+
