@@ -30,7 +30,7 @@
       </table>
     </div>
     <div class="card-footer">
-      <span class="badge badge-pill badge-dark">@p.predicate</span>
+      <span class="badge badge-pill badge-warning">@p.predicate</span>
     </div>
     }
 </div>
@@ -58,8 +58,7 @@
         $('[data-toggle="tooltip"]').tooltip();    
         $('table[id|="table"]').DataTable({
             order: [[0, 'desc']],
-            dom: 'pit',
-            searching: true
+            dom: '<"pull-left"f>pit'
         });
     });
 }

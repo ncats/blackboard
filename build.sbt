@@ -133,7 +133,7 @@ lazy val umls = (project in file("modules/umls"))
   name := "umls",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
+).dependsOn(mesh).aggregate(mesh)
 
 lazy val semmed = (project in file("modules/semmed"))
   .enablePlugins(PlayJava)
@@ -151,7 +151,7 @@ lazy val ct = (project in file("modules/ct"))
     name := "ct",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-  ).dependsOn(mesh,umls).aggregate(mesh,umls)
+  ).dependsOn(umls).aggregate(umls)
 
 lazy val chembl = (project in file("modules/chembl"))
   .settings(commonSettings: _*)

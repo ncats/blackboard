@@ -29,7 +29,7 @@
     </div>
     <div class="card-footer">
       @for(t <- concept.semanticTypes) {
-        <span class="badge badge-pill badge-secondary">@t.name</span>
+        <span class="badge badge-pill badge-primary">@t.name</span>
       }
     </div>
     }
@@ -58,8 +58,7 @@
         $('[data-toggle="tooltip"]').tooltip();
         $("table[id|='table']").DataTable({
             order: [[0, 'desc']],
-            dom: 'pit',
-            searching: true
+            dom: '<"pull-left"f>pit'
         });
         $('#table-*').on('draw.dt', function () {
             
