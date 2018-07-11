@@ -8,17 +8,6 @@ GET /api/sources        controllers.umls.Controller.apiDatasources
 GET /api/sources/:name  controllers.umls.Controller.apiDatasource(name: String)
 GET /api/concepts/:term controllers.umls.Controller.apiFindConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
 GET /api/concepts/:src/:id controllers.umls.Controller.apiConcept(src: String, id: String)
-
-#
-# don't use; these require umls API key!
-#
-GET /api/ticket controllers.umls.Controller.keyTicket
-GET /api/:cui controllers.umls.Controller.keyCui(cui: String)
-GET /api/:cui/full controllers.umls.Controller.keyFull(cui: String)
-GET /api/:cui/atoms controllers.umls.Controller.keyAtoms(cui: String)
-GET /api/:cui/definitions controllers.umls.Controller.keyDefinitions(cui: String)
-GET /api/:cui/relations   controllers.umls.Controller.keyRelations(cui: String)
-GET /api/source/:src/:id  controllers.umls.Controller.keySource(src: String, id: String)
-GET /api/search/*q  controllers.umls.Controller.keySearch(q: String, skip: Int ?= 0, top: Int ?= 10)
+GET /api/:cui  controllers.umls.Controller.apiCui(cui: String)
 
 GET /assets/js/routes             controllers.umls.Controller.jsRoutes

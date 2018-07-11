@@ -65,17 +65,6 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> keyTicket () {
-        return supplyAsync (() -> {
-                try {
-                    return ok (ks.ticket());
-                }
-                catch (Exception ex) {
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
     static ObjectNode toObject (JsonNode node) {
         Map<String, JsonNode> fields = new HashMap<>();
         for (Iterator<Map.Entry<String, JsonNode>> it =
@@ -88,137 +77,6 @@ public class Controller extends play.mvc.Controller {
         return n;
     }
     
-    static ObjectNode instrument (JsonNode node) {
-        ObjectNode n = toObject (node);
-        String cui = n.get("ui").asText();
-        n.put("_cui", controllers.umls.routes.Controller.keyCui(cui).url());
-        n.put("_atoms", routes.Controller.keyAtoms(cui).url());
-        n.put("_definitions", routes.Controller.keyDefinitions(cui).url());
-        n.put("_relations", routes.Controller.keyRelations(cui).url());
-        
-        return n;
-    }
-
-    public CompletionStage<Result> keySearch
-        (final String q, final Integer skip, final Integer top) {
-        return supplyAsync (() -> {
-                try {
-                    WSResponse res = ks.search(q)
-                        .setQueryParameter("pageSize", top.toString())
-                        .setQueryParameter("pageNumber",
-                                           String.valueOf(skip/top+1))
-                        .get().toCompletableFuture().get();
-                    JsonNode json = res.asJson();
-                    if (json.hasNonNull("result")) {
-                        JsonNode results = json.get("result").get("results");
-                        ArrayNode ary = Json.newArray();
-                        for (int i = 0; i < results.size(); ++i) {
-                            JsonNode r = results.get(i);
-                            ary.add(instrument (r));
-                        }
-                        json = ary;
-                    }
-                    else
-                        json = Json.newArray();
-                    return status (res.getStatus(), json);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't process search \""+q+"\"", ex);
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current()).exceptionally(ex -> {
-                    return internalServerError (ex.getMessage());
-                });
-    }
-
-    public CompletionStage<Result> keyCui (String cui) {
-        return supplyAsync (() -> {
-                try {
-                    JsonNode json = ks.getCui(cui);
-                    return json != null
-                        ? ok (Json.prettyPrint(json)).as("application/json")
-                        : notFound("Request not matched: "+request().uri());
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve "+cui, ex);
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> keyFull (String cui) {
-        return supplyAsync (() -> {
-                try {
-                    JsonNode json = ks.getCui(cui);
-                    if (json != null) {
-                        ObjectNode n = toObject (json);
-                        n.put("definitions", ks.getContent(cui, "definitions"));
-                        n.put("atoms", ks.getContent(cui, "atoms"));
-                        n.put("relations", ks.getContent(cui, "relations"));
-                        json = n;
-                    }
-                    
-                    return json != null ? ok (json)
-                        : notFound("Request not matched: "+request().uri());
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve "+cui, ex);
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
-    CompletionStage<Result> content (final String cui, final String context) {
-        return supplyAsync (() -> {
-                try {
-                    JsonNode json = ks.getContent(cui, context);
-                    return json != null ? ok (json)
-                        : notFound("Request not matched: "+request().uri());
-                }
-                catch (Exception ex) {
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> keyAtoms (String cui) {
-        return content (cui, "atoms");
-    }
-    
-    public CompletionStage<Result> keyDefinitions (String cui) {
-        return content (cui, "definitions");
-    }
-    
-    public CompletionStage<Result> keyRelations (String cui) {
-        return content (cui, "relations");
-    }
-
-    public CompletionStage<Result> keySource (final String src,
-                                              final String id) {
-        return supplyAsync (() -> {
-                try {
-                    WSResponse res = ks.source(src, id, "atoms/preferred")
-                        .get().toCompletableFuture().get();
-                    try {
-                        JsonNode json = res.asJson();
-                        if (json.hasNonNull("result")) {
-                            return status (res.getStatus(), json.get("result"));
-                        }
-                        return notFound
-                            ("Request not matched: "+request().uri());
-                    }
-                    catch (RuntimeException ex) {
-                        Logger.error
-                            ("Can't parse json for "+id+" for source "+src, ex);
-                        return internalServerError (res.getBody());
-                    }
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve "+id+" for source "+src, ex);
-                    return internalServerError (ex.getMessage());
-                }
-            }, ec.current());
-    }
 
     public CompletionStage<Result> apiFindConcepts
         (final String term, final Integer skip, final Integer top) {
@@ -250,10 +108,21 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 try {
                     Concept concept = ks.getConcept(src.toLowerCase(), id);
-                    return concept != null
-                        ? ok (Json.prettyPrint(Json.toJson(concept)))
-                        .as("application/json")
+                    return concept != null ? ok (Json.toJson(concept))
                         : notFound ("Can't locate concept for "+src+"/"+id);
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> apiCui (final String cui) {
+        return supplyAsync (() -> {
+                try {
+                    Concept concept = ks.getConcept(cui);
+                    return concept != null ? ok (Json.toJson(concept))
+                        : notFound ("Can't locate concept for "+cui);
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());
