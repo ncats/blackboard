@@ -78,6 +78,9 @@
                 .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
             var route = semmedRoutes.controllers
                 .semmed.Controller.apiSearch(term, 0, 20);
+	    if (!table)
+		table = createOutputTable ();
+
             table.ajax.url(route.url).load(function () {
                 $('#search-concept').html('Search');
             });
@@ -99,9 +102,12 @@
                 search ();
             }
         });
-        $('[data-toggle="tooltip"]').tooltip();
 
-        table = $('#output-table').DataTable({
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+
+    function createOutputTable () {
+        return $('#output-table').DataTable({
             ajax: {
                 // empty search 
                 url: '@controllers.semmed.routes.Controller.apiSearch("")'+'/',
@@ -181,7 +187,7 @@
                 { data: 'pmids' }
             ]
         });
-    });
+    }
 
     $('#output-table').on('draw.dt', function() {
         $('[data-toggle="tooltip"]').tooltip();
