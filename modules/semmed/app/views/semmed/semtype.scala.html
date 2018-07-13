@@ -15,13 +15,16 @@
              data-page-length="5" width="100%">
         <thead>
           <tr>
+	    <td>Citation</td>
             <th>PMID</th>
             <th>Evidence</th>
           </tr>
         </thead>
         <tbody>
           @for(e <- p.evidence) {
-             <tr>
+	     <tr>
+	       <td><span class="__dimensions_badge_embed__" data-pmid="@e.pmid"
+	       		 data-style="small_rectangle"></span></td>
                <td><a href="https://www.ncbi.nlm.nih.gov/pubmed/@e.pmid">@e.pmid</a></td>
                <td>@e.context</td>
              </tr>
@@ -43,7 +46,7 @@
     <h1 class="display-4">@views.html.umls.displayconcept(concept,ks.umls)</h1>
     <p class="lead">@preds.length concept(s) related to
     <i>@views.html.umls.displayconcept(concept,ks.umls)</i> by
-    semantic type <i>@semtype.name</i> (<code>@semtype.abbr</code>).
+    topic <i>@semtype.name</i> (<code>@semtype.abbr</code>).
     }
   </div>
   @for(p <- preds) {
@@ -57,7 +60,7 @@
     $(document).ready(function () {
         $('[data-toggle="tooltip"]').tooltip();    
         $('table[id|="table"]').DataTable({
-            order: [[0, 'desc']],
+            order: [[1, 'desc']],
             dom: '<"pull-left"f>pit'
         });
     });

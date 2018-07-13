@@ -13,13 +13,16 @@
              data-page-length="5" width="100%">
         <thead>
           <tr>
+	    <td>Citation</td>
             <th>PMID</th>
             <th>Evidence</th>
           </tr>
         </thead>
         <tbody>
           @for(e <- p.evidence) {
-             <tr>
+	     <tr>
+	       <td><span class="__dimensions_badge_embed__" data-pmid="@e.pmid"
+	       		 data-style="small_rectangle"></span></td>	      
                <td><a href="https://www.ncbi.nlm.nih.gov/pubmed/@e.pmid">@e.pmid</a></td>
                <td>@e.context</td>
              </tr>
@@ -57,7 +60,7 @@
     $(document).ready(function () {
         $('[data-toggle="tooltip"]').tooltip();
         $("table[id|='table']").DataTable({
-            order: [[0, 'desc']],
+            order: [[1, 'desc']],
             dom: '<"pull-left"f>pit'
         });
         $('#table-*').on('draw.dt', function () {
