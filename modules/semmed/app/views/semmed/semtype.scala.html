@@ -45,14 +45,14 @@
 
 @views.html.core.main("SemMedDb: "+cui){
 <div class="container-fluid" style="margin-top:10px;">
-  <div class="jumbotron">
     @defining(ks.umls.getConcept(cui)) { concept =>
+     @views.html.umls.jumbotron(concept, ks.umls){
     <h1 class="display-4">@views.html.umls.displayconcept(concept,ks.umls)</h1>
     <p class="lead">@preds.length concept(s) related to
-    <i>@views.html.umls.displayconcept(concept,ks.umls)</i> by
+    <i><b>@concept.name</b></i> by
     topic <i>@semtype.name</i> (<code>@semtype.abbr</code>).
     }
-  </div>
+  }
   @for(p <- preds) {
      @defining(ks.umls.getConcept(p.getOther(cui))) { concept =>
        @predcard(concept, p)
