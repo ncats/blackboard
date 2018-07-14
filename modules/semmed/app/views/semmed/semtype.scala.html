@@ -18,7 +18,7 @@
 <div class="card">
     @if(concept != null) {
     <div class="card-header">
-      <h5>@views.html.umls.displayconcept(concept,ks.umls)
+      <h5><a href="@controllers.semmed.routes.Controller.index(concept.cui)"><i class="fa fa-search"></i></a> @views.html.umls.displayconcept(concept,ks.umls)
       @if(!concept.semanticTypes.isEmpty){
       <span class="pull-right"><small>
        @for(st <- concept.semanticTypes) {
