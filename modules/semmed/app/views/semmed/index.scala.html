@@ -1,5 +1,5 @@
 @import blackboard.semmed.SemMedDbKSource
-@(ks: SemMedDbKSource)
+@(ks: SemMedDbKSource, q: String)
 
 @views.html.core.main("SemMedDb Knowledge Source"){
 <div class="container-fluid" style="margin-top:10px;">
@@ -104,6 +104,10 @@
         });
 
         $('[data-toggle="tooltip"]').tooltip();
+        @if(q != null) {
+            $('#search-input').val('@q');
+            search ();
+        }
     });
 
     function createOutputTable () {

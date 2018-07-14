@@ -1,4 +1,4 @@
-GET /index   controllers.semmed.Controller.index
+GET /index   controllers.semmed.Controller.index(q: String ?= null)
 GET /:cui/predicate/:pred   controllers.semmed.Controller.predicate(cui: String, pred: String)
 GET /:cui/semtype/:semtype   controllers.semmed.Controller.semtype(cui: String, semtype: String)
 

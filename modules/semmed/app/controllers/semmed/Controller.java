@@ -44,8 +44,8 @@ public class Controller extends play.mvc.Controller {
         this.env = env;
     }
 
-    public Result index () {
-        return ok (views.html.semmed.index.render(ks));
+    public Result index (String query) {
+        return ok (views.html.semmed.index.render(ks, query));
     }
 
     public Result apiSemanticTypes () {
