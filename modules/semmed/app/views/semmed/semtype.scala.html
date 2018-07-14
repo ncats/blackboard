@@ -6,6 +6,14 @@
 @(ks: SemMedDbKSource, cui: String, semtype: SemanticType,
   preds: Array[Predication])
 
+@tabdata(cui: String, p: Predication) = {
+    var @cui = [
+        @for(e <- p.evidence) {
+            {'pmid': @e.pmid, 'text': "@e.context"},
+        }
+    ];
+}
+
 @predcard(concept: Concept, p: Predication) = {
 <div class="card">
     @if(concept != null) {
@@ -13,23 +21,6 @@
     <div class="card-body">
       <table id="table-@concept.cui" class="table"
              data-page-length="5" width="100%">
-        <thead>
-          <tr>
-	    <td>Citation</td>
-            <th>PMID</th>
-            <th>Evidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for(e <- p.evidence) {
-	     <tr>
-	       <td><span class="__dimensions_badge_embed__" data-pmid="@e.pmid"
-	       		 data-style="small_rectangle"></span></td>
-               <td><a href="https://www.ncbi.nlm.nih.gov/pubmed/@e.pmid">@e.pmid</a></td>
-               <td>@e.context</td>
-             </tr>
-          }
-        </tbody>
       </table>
     </div>
     <div class="card-footer">
@@ -57,12 +48,50 @@
   }
 </div>
 }(HtmlFormat.empty){
+    @for(p <- preds) {
+        @defining(ks.umls.getConcept(p.getOther(cui))) { concept =>
+           @if(concept != null) { @tabdata(concept.cui, p) }
+        }
+    }
+    
     $(document).ready(function () {
         $('[data-toggle="tooltip"]').tooltip();    
-        $('table[id|="table"]').DataTable({
-            order: [[1, 'desc']],
-            dom: '<"pull-left"f>pit'
+        $('table[id|="table"]').each(function (index, value) {
+            var cui = value.id.substring(6);
+            var data = eval(cui);
+            var tab = $(this).DataTable({
+                order: [[1, 'desc']],
+                dom: '<"pull-left"f>pit',
+                data: data,
+                columnDefs: [{
+                    targets: 0,
+                    orderable: false,
+                    render: function (data, type, full, meta) {
+                        return '<span class="__dimensions_badge_embed__" '
+                            +'data-pmid="'+data
+                            +'" data-style="small_rectangle"></span>';
+                    }
+                },{
+                    targets: 1,
+                    render: function (data, type, full, meta) {
+                        return '<a href="https://www.ncbi.nlm.nih.gov/pubmed/'
+                            +data+'">'+data+'</a>';
+                    }
+                },{
+                    targets: 2,
+                    orderable: false
+                }],
+                columns: [
+                    {title: 'Citation', data: 'pmid'},
+                    {title: 'PMID', data: 'pmid'},
+                    {title: 'Evidence', data: 'text'}
+                ]
+            });
+            tab.on('draw.dt', function () {
+                window.__dimensions_embed.addBadges();
+            });
         });
+        window.__dimensions_embed.addBadges();                          
     });
 }
 
