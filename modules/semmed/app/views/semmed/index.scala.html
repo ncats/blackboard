@@ -93,7 +93,13 @@
         });
         
         $('#search-clear').on('click', function () {
-            $('#search-input').val('');
+            //$('#search-input').val('');
+            var url = window.location.href;
+            var pos = url.indexOf('?');
+            if (pos > 0) {
+                url = url.substring(0, pos);
+            }
+            window.location.href = url;
         });
         
         $('#search-input').keypress(function (ev) {
@@ -142,6 +148,7 @@
                 }
             },{
                 targets: 3, // predicates
+                orderable: false,
                 render: function(data,type,full,meta) {
                     var html = '';
                     for (var p in data) {
@@ -154,6 +161,7 @@
                 }
             },{
                 targets: 4, // semtypes
+                orderable: false,
                 render: function(data,type,full,meta) {
                     var html = '';
                     for (var p in data) {
