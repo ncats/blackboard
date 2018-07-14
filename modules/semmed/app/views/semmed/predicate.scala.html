@@ -15,16 +15,24 @@
 @predcard(concept: Concept, p: Predication) = {
 <div class="card">
     @if(concept != null) {
-    <h5 class="card-header">@views.html.umls.displayconcept(concept,ks.umls)</h5>
+    <div class="card-header">
+      <h5>@views.html.umls.displayconcept(concept,ks.umls)
+      @if(!concept.semanticTypes.isEmpty){      
+      <span class="pull-right"><small>
+       @for(st <- concept.semanticTypes) {
+          <span class="badge badge-pill badge-secondary">@st.name</span>
+        }
+        </small></span>
+      }
+      </h5>
+      @if(!concept.definitions.isEmpty) {
+         <p>@HtmlFormat.raw(concept.definitions.get(0).description)</p>
+      }
+    </div>
     <div class="card-body">
       <table id="table-@concept.cui" class="table"
              data-page-length="5" width="100%">
       </table>
-    </div>
-    <div class="card-footer">
-      @for(t <- concept.semanticTypes) {
-        <span class="badge badge-pill badge-primary">@t.name</span>
-      }
     </div>
     }
 </div>

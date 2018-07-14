@@ -64,6 +64,9 @@ public class Controller extends play.mvc.Controller {
         (final String q, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
+                    Logger.debug(getClass().getName()+".apiSearch: "
+                                 +"q=\""+q+"\" skip="+skip+" top="+top);
+                    
                     List<MatchedConcept> concepts =
                         ks.umls.findConcepts(q, skip, top);
                     ArrayNode result = Json.newArray();

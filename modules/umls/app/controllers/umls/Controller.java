@@ -82,10 +82,11 @@ public class Controller extends play.mvc.Controller {
         (final String term, final Integer skip, final Integer top) {
         return supplyAsync (() -> {
                 try {
+                    Logger.debug(getClass().getName()+".apiFindConcepts: "
+                                 +"term=\""+term+"\" skip="+skip+" top="+top);
                     List<MatchedConcept> results =
                         ks.findConcepts(term, skip, top);
-                    return ok (Json.prettyPrint(Json.toJson(results)))
-                        .as("application/json");
+                    return ok (Json.toJson(results));
                 }
                 catch (Exception ex) {
                     Logger.error("findConcepts: "+ex.getMessage(), ex);

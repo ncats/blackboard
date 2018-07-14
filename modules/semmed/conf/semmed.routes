@@ -7,7 +7,7 @@ GET /:cui/semtype/:semtype   controllers.semmed.Controller.semtype(cui: String, 
 #
 GET /api/semtypes   controllers.semmed.Controller.apiSemanticTypes
 GET /api/semtypes/:str controllers.semmed.Controller.apiSemanticTypeLookup(str: String)
-GET /api/search/*q  controllers.semmed.Controller.apiSearch(q: String, skip: Int ?= 0, top: Int ?= 5)
+GET /api/search/:q  controllers.semmed.Controller.apiSearch(q: String, skip: Int ?= 0, top: Int ?= 5)
 GET /api/:cui       controllers.semmed.Controller.apiPredicateSummary(cui: String)
 GET /api/:cui/predicate/:pred  controllers.semmed.Controller.apiPredicate(cui: String, pred: String)
 GET /api/:cui/semtype/:semtype    controllers.semmed.Controller.apiSemtype(cui: String, semtype: String)
