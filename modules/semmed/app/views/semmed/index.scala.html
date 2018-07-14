@@ -16,7 +16,7 @@
                   class="btn btn-default" type="button">Clear</button>
         </span>
         <input id="search-input" type="text" class="form-control"
-               placeholder="Search for concepts (e.g., gaucher)...">
+               placeholder="Search for concepts (e.g., als, statin, angiogenesis)...">
         <span class="input-group-btn">
         <button id="search-concept"
                 class="btn btn-default" type="button">Search</button>
@@ -75,14 +75,17 @@
         else {
             console.log('searching for "'+term+'"');
             $('#search-concept')
-                .html('Loading...<i class="fa fa-spinner fa-spin"></i>');
+                .html('Loading...<i class="fa fa-spinner fa-spin"></i>')
+                .prop('disabled', true);
+            
             var route = semmedRoutes.controllers
                 .semmed.Controller.apiSearch(term, 0, 20);
-	    if (!table)
-		table = createOutputTable ();
+            if (!table)
+                table = createOutputTable ();
 
             table.ajax.url(route.url).load(function () {
-                $('#search-concept').html('Search');
+                $('#search-concept').html('Search')
+                    .prop('disabled', false);
             });
         }
     }
