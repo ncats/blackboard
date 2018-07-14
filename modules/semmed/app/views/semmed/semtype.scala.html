@@ -47,7 +47,6 @@
 <div class="container-fluid" style="margin-top:10px;">
     @defining(ks.umls.getConcept(cui)) { concept =>
      @views.html.umls.jumbotron(concept, ks.umls){
-    <h1 class="display-4">@views.html.umls.displayconcept(concept,ks.umls)</h1>
     <p class="lead">@preds.length concept(s) related to
     <i><b>@concept.name</b></i> by
     topic <i>@semtype.name</i> (<code>@semtype.abbr</code>).
