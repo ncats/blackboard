@@ -141,6 +141,19 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> apiPMID (final Long pmid) {
+        return supplyAsync (() -> {
+                try {
+                    return ok (Json.toJson(ks.getPredicationsByPMID
+                                           (pmid.toString())));
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't fetch predication for pmid "+pmid, ex);
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
     public CompletionStage<Result> predicate (final String cui,
                                               final String predicate) {
         return supplyAsync (() -> {

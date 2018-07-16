@@ -393,27 +393,8 @@ public class PubMedKSource implements KSource, KType {
 
     public KNode createPubMedNodeIfAbsent (String pmid, KGraph kg)
         throws Exception { 
-        WSRequest req = wsclient.url(EUTILS_BASE+"/efetch.fcgi")
-            .setFollowRedirects(true)
-            .setQueryParameter("db", "pubmed")
-            .setQueryParameter("rettype", "xml")
-            .setQueryParameter("id", pmid)
-            ;
-        Logger.debug("+++ resolving..."+req.getUrl());
-        
-        WSResponse res = req.get().toCompletableFuture().get();
-        Logger.debug("+++ parsing..."+res.getUri());
-        
-        if (200 != res.getStatus()) {
-            Logger.warn(res.getUri() + " returns status "
-                        + res.getStatus());
-            return null;
-        }
-        
-        Document doc = fromInputSource
-            (new InputSource (new ByteArrayInputStream (res.asByteArray())));
-
-        return instrumentDoc (doc, kg);
+        Document doc = getDocument (pmid);
+        return doc != null ? instrumentDoc (doc, kg) : null;
     }
 
     public KNode resolvePubmed (String pmid, KNode kn, KGraph kg)
@@ -571,7 +552,7 @@ public class PubMedKSource implements KSource, KType {
         return meshes.values().toArray(new MeSH[0]);
     }
 
-    public Document getPubMed (String pmid) throws Exception {
+    public Document _getDocument (String pmid) throws Exception {
         WSRequest req = wsclient.url(EUTILS_BASE + "/efetch.fcgi")
             .setFollowRedirects(true)
             .setQueryParameter("db", "pubmed")
@@ -580,11 +561,32 @@ public class PubMedKSource implements KSource, KType {
         
         Logger.debug("+++ resolving..."+req.getUrl());
         WSResponse res = req.get().toCompletableFuture().get();
-        if (200 != res.getStatus())
+        if (200 != res.getStatus()) {
+            Logger.error(res.getUri()+" return status "+res.getStatus());
             return null;
+        }
 
         return fromInputSource
             (new InputSource (new ByteArrayInputStream (res.asByteArray())));
+    }
+
+    public Document getDocument (final String pmid) throws Exception {
+        return cache.getOrElse
+            ("pubmed/"+pmid+"/doc", new Callable<Document> () {
+                    public Document call () throws Exception {
+                        return _getDocument (pmid);
+                    }
+                });
+    }
+
+    public PubMedDoc getPubMed (final String pmid) throws Exception {
+        return cache.getOrElse
+            ("pubmed/"+pmid+"/"+PubMedDoc.class.getName(),
+             new Callable<PubMedDoc> () {
+                public PubMedDoc call () throws Exception {
+                    return new PubMedDoc (getDocument (pmid), mesh);
+                }
+            });
     }
     
     protected void seedDrug(JsonNode idList, KNode kn, KGraph kg)

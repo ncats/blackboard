@@ -27,6 +27,7 @@ import javax.xml.transform.stream.*;
 import javax.xml.transform.dom.*;
 
 import blackboard.pubmed.PubMedKSource;
+import blackboard.pubmed.PubMedDoc;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -85,8 +86,7 @@ public class Controller extends play.mvc.Controller {
                 ("pubmed/"+pmid+"."+format, new Callable<Result> () {
                         public Result call () throws Exception {
                             return "xml".equalsIgnoreCase(format)
-                                ? getPubMedXml (pmid)
-                                : notFound("json format not yet supported!");
+                                ? getPubMedXml (pmid) : getPubMedJson (pmid);
                         }
                     });
         }
@@ -98,7 +98,7 @@ public class Controller extends play.mvc.Controller {
     }
 
     Result getPubMedXml (Long pmid) throws Exception {
-        Document doc = ks.getPubMed(pmid.toString());
+        Document doc = ks.getDocument(pmid.toString());
         if (doc == null)
             return notFound ("Can't retrieve PubMed article "+pmid);
         
@@ -106,5 +106,13 @@ public class Controller extends play.mvc.Controller {
         Transformer tf = TransformerFactory.newInstance().newTransformer();
         tf.transform(new DOMSource (doc), new StreamResult (baos));
         return ok(baos.toByteArray()).as("application/xml");
+    }
+
+    Result getPubMedJson (Long pmid) throws Exception {
+        PubMedDoc doc = ks.getPubMed(pmid.toString());
+        if (doc == null)
+            return notFound ("Can't retrieve PubMed article "+pmid);
+
+        return ok (Json.toJson(doc));
     }
 }

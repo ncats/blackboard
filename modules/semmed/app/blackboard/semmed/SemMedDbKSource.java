@@ -331,6 +331,76 @@ public class SemMedDbKSource implements KSource {
         return preds;
     }
 
+    public List<Predication> _getPredicationsByPMID (String pmid)
+        throws Exception {
+        List<Predication> preds = new ArrayList<>();
+        long start = System.currentTimeMillis();
+        try (Connection con = db.getConnection();
+             PreparedStatement pstm = con.prepareStatement
+             ("select a.*,b.sentence from PREDICATION a, SENTENCE b "
+              +"where a.pmid = ? and a.sentence_id = b.sentence_id "
+              +"order by a.pmid")) {
+            pstm.setString(1, pmid);
+            ResultSet rset = pstm.executeQuery();
+            Map<Long, Predication> predmap = new TreeMap<>();
+            Map<Long, Evidence> evmap = new TreeMap<>();
+            while (rset.next()) {
+                long predId = rset.getLong("PREDICATION_ID");
+                Predication p = predmap.get(predId);
+                if (p == null) {
+                    String subtype = rset.getString("SUBJECT_SEMTYPE");
+                    String objtype = rset.getString("OBJECT_SEMTYPE");
+                    String pred = rset.getString("PREDICATE");
+                    String sub = rset.getString("SUBJECT_CUI");
+                    int pos = sub.indexOf('|');
+                    if (pos > 0)
+                        sub = sub.substring(0, pos);
+                    String obj = rset.getString("OBJECT_CUI");
+                    pos = obj.indexOf('|');
+                    if (pos > 0)
+                        obj = obj.substring(0, pos);
+                    
+                    if (isBlacklist ("semtype", subtype)
+                        || isBlacklist ("semtype", objtype)
+                        || isBlacklist ("subject_cui", sub)
+                        || isBlacklist ("object_cui", obj)) {
+                    }
+                    else {
+                        p = new Predication (sub, subtype, pred, obj, objtype);
+                        predmap.put(predId, p);
+                    }
+                }
+                
+                if (p != null) {
+                    long sentId = rset.getLong("SENTENCE_ID");
+                    Evidence ev = evmap.get(sentId);
+                    if (ev == null) {
+                        ev = new Evidence (rset.getString("pmid"),
+                                           rset.getString("sentence"));
+                        evmap.put(sentId, ev);
+                    }
+                    p.evidence.add(ev);
+                }
+            }
+            rset.close();
+            Logger.debug("++ fetch predications for PMID "
+                         +pmid+"..."+preds.size());
+            preds.addAll(predmap.values());
+        }
+        return preds;
+    }
+
+    public List<Predication> getPredicationsByPMID (final String pmid)
+        throws Exception {
+        return cache.getOrElse
+            ("semmed/"+pmid+"/pmid", new Callable<List<Predication>> () {
+                    public List<Predication> call () throws Exception {
+                        return _getPredicationsByPMID (pmid);
+                    }
+                });
+    }
+    
+
     public PredicateSummary getPredicateSummary (final String cui)
         throws Exception {
         return cache.getOrElse
