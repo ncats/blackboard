@@ -28,6 +28,7 @@ import akka.actor.ActorSystem;
 import blackboard.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.umls.MatchedConcept;
+import blackboard.pubmed.PubMedKSource;
 
 import static blackboard.KEntity.*;
 
@@ -36,6 +37,7 @@ public class SemMedDbKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     public final UMLSKSource umls;
+    public final PubMedKSource pubmed;
     public final List<SemanticType> semanticTypes;
     
     private final Database db;
@@ -48,12 +50,14 @@ public class SemMedDbKSource implements KSource {
     public SemMedDbKSource (WSClient wsclient, CacheApi cache, Environment env,
                             @Named("semmed") KSourceProvider ksp,
                             @NamedDatabase("semmed") Database db,
-                            UMLSKSource umls, ApplicationLifecycle lifecycle) {
+                            UMLSKSource umls, PubMedKSource pubmed,
+                            ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
         this.db = db;
         this.umls = umls;
+        this.pubmed = pubmed;
 
         blacklist = new ConcurrentHashMap<>();
         whitelist = new ConcurrentHashMap<>();
@@ -231,9 +235,10 @@ public class SemMedDbKSource implements KSource {
                     pstm2.setString(3, object);
                     ResultSet rs = pstm2.executeQuery();
                     while (rs.next()) {
+                        Long id = rs.getLong("a.sentence_id");
                         String pmid = rs.getString("pmid");
                         String sent = rs.getString("sentence");
-                        t.evidence.add(new Evidence (pmid, sent));
+                        t.evidence.add(new Evidence (id, pmid, sent));
                     }
                     rs.close();
                     triples.add(t);
@@ -375,7 +380,8 @@ public class SemMedDbKSource implements KSource {
                     long sentId = rset.getLong("SENTENCE_ID");
                     Evidence ev = evmap.get(sentId);
                     if (ev == null) {
-                        ev = new Evidence (rset.getString("pmid"),
+                        ev = new Evidence (rset.getLong("sentence_id"),
+                                           rset.getString("pmid"),
                                            rset.getString("sentence"));
                         evmap.put(sentId, ev);
                     }

@@ -142,7 +142,7 @@ lazy val semmed = (project in file("modules/semmed"))
   name := "semmed",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-  ).dependsOn(umls).aggregate(umls)
+  ).dependsOn(umls,pubmed).aggregate(umls,pubmed)
 
 lazy val ct = (project in file("modules/ct"))
   .enablePlugins(PlayJava)

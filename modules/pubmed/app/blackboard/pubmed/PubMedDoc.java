@@ -100,7 +100,13 @@ public class PubMedDoc {
                         month = DECEMBER;
                         break;
                     default:
-                        throw new RuntimeException ("Unknown month: "+mon);
+                        try {
+                            int m = Integer.parseInt(mon);
+                            month = m - 1; // 0-based
+                        }
+                        catch (NumberFormatException ex) {
+                            throw new RuntimeException ("Unknown month: "+mon);
+                        }
                     }
                 }
                 cal.set(MONTH, month);

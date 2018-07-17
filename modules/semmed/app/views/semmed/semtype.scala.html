@@ -18,7 +18,7 @@
 <div class="card">
     @if(concept != null) {
     <div class="card-header">
-      <h5><a href="@controllers.semmed.routes.Controller.index(concept.cui)"><i class="fa fa-search"></i></a> @views.html.umls.displayconcept(concept,ks.umls)
+      <h5><a href="@controllers.semmed.routes.Controller.cui(concept.cui)"><i class="fa fa-search"></i></a> @views.html.umls.displayconcept(concept,ks.umls)
       @if(!concept.semanticTypes.isEmpty){
       <span class="pull-right"><small>
        @for(st <- concept.semanticTypes) {
@@ -39,9 +39,9 @@
     <div class="card-footer h6">
       @defining(ks.umls.getConcept(cui)){ sub =>
          @if(cui.equals(p.subject)){
-          <i>@sub.name</i> <b>@p.predicate</b> <a href="@controllers.semmed.routes.Controller.index(concept.cui)">@concept.name</a>
+          <i>@sub.name</i> <b>@p.predicate</b> <a href="@controllers.semmed.routes.Controller.cui(concept.cui)">@concept.name</a>
           }else{
-         <a href="@controllers.semmed.routes.Controller.index(concept.cui)">@concept.name</a> <b>@p.predicate</b> <i>@sub.name</i>
+         <a href="@controllers.semmed.routes.Controller.cui(concept.cui)">@concept.name</a> <b>@p.predicate</b> <i>@sub.name</i>
          }
       }
     </div>
@@ -50,7 +50,8 @@
 }
 
 @views.html.core.main("SemMedDb: "+cui){
-<div class="container-fluid" style="margin-top:10px;">
+@navbar()
+<div class="container-fluid" style="margin-top:60px;">
     @defining(ks.umls.getConcept(cui)) { concept =>
      @views.html.umls.jumbotron(concept, ks.umls){
     <p class="lead">@preds.length concept(s) related to
@@ -65,7 +66,9 @@
      }
   }
 </div>
-}(HtmlFormat.empty){
+}{
+<script src="@controllers.semmed.routes.Controller.jsRoutes" type="text/javascript"></script>    
+}{
     @for(i <- 0 until preds.length) {
         @defining(ks.umls.getConcept(preds(i).getOther(cui))) { concept =>
            @if(concept != null) { @tabdata(i, concept.cui, preds(i)) }
@@ -92,8 +95,9 @@
                 },{
                     targets: 1,
                     render: function (data, type, full, meta) {
-                        return '<a href="https://www.ncbi.nlm.nih.gov/pubmed/'
-                            +data+'">'+data+'</a>';
+                        var routes = semmedRoutes.controllers
+                            .semmed.Controller.pubmed(data);
+                        return '<a href="'+routes.url+'">'+data+'</a>';
                     }
                 },{
                     targets: 2,

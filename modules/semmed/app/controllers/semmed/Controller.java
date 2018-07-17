@@ -29,6 +29,7 @@ import blackboard.semmed.Predication;
 import blackboard.semmed.PredicateSummary;
 import blackboard.semmed.SemanticType;
 import blackboard.umls.MatchedConcept;
+import blackboard.pubmed.PubMedDoc;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -45,7 +46,11 @@ public class Controller extends play.mvc.Controller {
     }
 
     public Result index (String query) {
-        return ok (views.html.semmed.index.render(ks, query));
+        return cui (query);
+    }
+
+    public Result cui (String cui) {
+        return ok (views.html.semmed.index.render(ks, cui));
     }
 
     public Result apiSemanticTypes () {
@@ -179,12 +184,33 @@ public class Controller extends play.mvc.Controller {
                            (ks, cui, st, preds));
             }, ec.current());
     }
+
+    public CompletionStage<Result> pubmed (final Long pmid) {
+        return supplyAsync (() -> {
+                try {
+                    PubMedDoc doc = ks.pubmed.getPubMed(pmid.toString());
+                    List<Predication> preds =
+                        ks.getPredicationsByPMID(doc.getPMID().toString());
+                    Logger.debug("Doc "+pmid+" has "
+                                 +preds.size()+" predicates!");
+                    return ok (views.html.semmed.pubmed.render
+                               (ks, doc, preds.toArray(new Predication[0])));
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve PubMed for "+pmid, ex);
+                    return internalServerError
+                        ("Can't retrieve PubMed for "+pmid);
+                }
+            }, ec.current());
+    }
     
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("semmedRoutes",
+                    routes.javascript.Controller.cui(),
                     routes.javascript.Controller.predicate(),
-                    routes.javascript.Controller.semtype(),                    
+                    routes.javascript.Controller.semtype(),
+                    routes.javascript.Controller.pubmed(),
                     routes.javascript.Controller.apiSemanticTypeLookup(),
                     routes.javascript.Controller.apiSearch()
                     )).as("text/javascript");

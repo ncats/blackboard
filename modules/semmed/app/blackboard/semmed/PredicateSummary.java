@@ -14,17 +14,15 @@ public class PredicateSummary {
 
     protected PredicateSummary (String concept, List<Predication> preds) {
         for (Predication p : preds) {
-            if (p.subject.equals(concept)) {
-                Integer c = semtypes.get(p.objtype);
-                semtypes.put(p.objtype, c == null ? 1 : c+1);
-            }
-            else { // p.object.equals(concept)
-                Integer c = semtypes.get(p.subtype);
-                semtypes.put(p.subtype, c == null ? 1 : c+1);
-            }
-            Integer c = predicates.get(p.predicate);
+            Integer c = semtypes.get(p.objtype);
+            semtypes.put(p.objtype, c == null ? 1 : c+1);
             
+            c = semtypes.get(p.subtype);
+            semtypes.put(p.subtype, c == null ? 1 : c+1);
+
+            c = predicates.get(p.predicate);
             predicates.put(p.predicate, c == null ? 1 : c+1);
+            
             for (Evidence ev : p.evidence) {
                 try {
                     pmids.add(Long.parseLong(ev.pmid));
