@@ -164,8 +164,8 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 Predication[] preds = filter
                     (cui, p -> p.predicate.equals(predicate));
-                return ok (views.html.semmed.predicate.render
-                           (ks, cui, predicate, preds));
+                return ok (views.html.semmed.predication.render
+                           (ks, cui, preds));
             }, ec.current());
     }
 
@@ -180,8 +180,8 @@ public class Controller extends play.mvc.Controller {
                 Predication[] preds =
                     filter (cui, p -> st.abbr.equals(p.subtype)
                             || st.abbr.equals(p.objtype));
-                return ok (views.html.semmed.semtype.render
-                           (ks, cui, st, preds));
+                return ok (views.html.semmed.predication.render
+                           (ks, cui, preds));
             }, ec.current());
     }
 

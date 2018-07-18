@@ -1,8 +1,7 @@
 @import blackboard.semmed.SemMedDbKSource
 @import blackboard.semmed.Predication
 @import blackboard.umls.Concept
-@(ks: SemMedDbKSource, cui: String, predicate: String,
-  preds: Array[Predication])
+@(ks: SemMedDbKSource, cui: String, preds: Array[Predication])
 
 @tabdata(index: Int, cui: String, p: Predication) = {
     var @{cui}@index = [
@@ -35,7 +34,8 @@
              data-page-length="5" width="100%">
       </table>
     </div>
-    <div class="card-footer h6">
+    <div class="card-footer">
+      @vote(p)   
       @defining(ks.umls.getConcept(cui)){ sub =>
          @if(cui.equals(p.subject)){
           <i>@sub.name</i> <b>@p.predicate</b> <a href="@controllers.semmed.routes.Controller.cui(concept.cui)">@concept.name</a>
@@ -54,7 +54,7 @@
    @defining(ks.umls.getConcept(cui)) { concept =>
      @views.html.umls.jumbotron(concept, ks.umls){
     <p class="lead">@preds.length concept(s) related
-    to <i><b>@concept.name</b></i> by predicate <code>@predicate</code>.
+    to <i><b>@concept.name</b></i>
     }
   }
   @for(i <- 0 until preds.length) {

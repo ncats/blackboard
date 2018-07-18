@@ -36,17 +36,18 @@
           @defining(ks.umls.getConcept(p.`object`)){ obj =>
             @if(obj != null) {
             <div class="card">
-              <div class="card-header">
-                  <a href="@controllers.semmed.routes.Controller.cui(sub.cui)">@sub.name</a>
-                  <b>@p.predicate</b>
-            
-                  <a href="@controllers.semmed.routes.Controller.cui(obj.cui)">@obj.name</a>
-              </div>
               <div class="card-body">
               @for(e <- p.evidence) {
                 @e.context<br>
               }
               </div>
+              <div class="card-footer">
+                  @vote(p)
+                  <a href="@controllers.semmed.routes.Controller.cui(sub.cui)">@sub.name</a>
+                  <b>@p.predicate</b>
+            
+                  <a href="@controllers.semmed.routes.Controller.cui(obj.cui)">@obj.name</a>
+              </div>              
             </div>
             <br>
             }

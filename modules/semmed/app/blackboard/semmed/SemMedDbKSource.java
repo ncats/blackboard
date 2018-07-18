@@ -225,8 +225,8 @@ public class SemMedDbKSource implements KSource {
                 }
                 else {
                     int count = rset.getInt("cnt");
-                    Predication t = new Predication (subject, subtype,
-                                                     pred, object, objtype);
+                    Predication t = new Predication
+                        (subject, subtype, pred, object, objtype);
                     Logger.debug(subject+" ["+subtype+"] =="
                                  +pred+"=> "+object+" ["+objtype+"] "
                                  +count);
@@ -344,7 +344,7 @@ public class SemMedDbKSource implements KSource {
              PreparedStatement pstm = con.prepareStatement
              ("select a.*,b.sentence from PREDICATION a, SENTENCE b "
               +"where a.pmid = ? and a.sentence_id = b.sentence_id "
-              +"order by a.pmid")) {
+              +"order by b.number")) {
             pstm.setString(1, pmid);
             ResultSet rset = pstm.executeQuery();
             Map<Long, Predication> predmap = new TreeMap<>();

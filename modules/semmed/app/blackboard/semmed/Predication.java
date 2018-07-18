@@ -11,8 +11,8 @@ public class Predication {
     public final String objtype;
     public List<Evidence> evidence = new ArrayList<>();
     
-    protected Predication (String subject, String subtype, String predicate,
-                           String object, String objtype) {
+    protected Predication (String subject, String subtype,
+                           String predicate, String object, String objtype) {
         this.subject = subject;
         this.subtype = subtype;
         this.predicate = predicate;
