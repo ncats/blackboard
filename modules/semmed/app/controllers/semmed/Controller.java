@@ -29,6 +29,7 @@ import blackboard.semmed.Predication;
 import blackboard.semmed.PredicateSummary;
 import blackboard.semmed.SemanticType;
 import blackboard.umls.MatchedConcept;
+import blackboard.umls.Concept;
 import blackboard.pubmed.PubMedDoc;
 
 @Singleton
@@ -76,7 +77,8 @@ public class Controller extends play.mvc.Controller {
                         ks.umls.findConcepts(q, skip, top);
                     ArrayNode result = Json.newArray();
                     for (MatchedConcept mc : concepts) {
-                        PredicateSummary ps = ks.getPredicateSummary(mc.cui);
+                        final PredicateSummary ps =
+                            ks.getPredicateSummary(mc.cui);
 
                         ObjectNode concept = Json.newObject();
                         if (mc.score != null)
@@ -88,8 +90,34 @@ public class Controller extends play.mvc.Controller {
                                     Json.toJson(mc.concept.semanticTypes
                                                 .stream().map(t -> t.name)
                                                 .toArray(String[]::new)));
-                        ObjectNode obj = (ObjectNode)Json.toJson(ps);
+                        ObjectNode obj = Json.newObject();
                         obj.put("concept", concept);
+                        obj.put("predicates", Json.toJson(ps.predicates));
+                        obj.put("semtypes", Json.toJson(ps.semtypes));
+                        ArrayNode ary = Json.newArray();
+                        Set<String> order = new TreeSet<>((a,b) -> {
+                                int d = ps.concepts.get(b) - ps.concepts.get(a);
+                                if (d == 0)
+                                    d = a.compareTo(b);
+                                return d;
+                            });
+                        order.addAll(ps.concepts.keySet());
+                        for (String k : order) {
+                            Concept c = ks.umls.getConcept(k);
+                            if (c != null) {
+                                ObjectNode oc = Json.newObject();
+                                oc.put("cui", k);
+                                oc.put("count", ps.concepts.get(k));
+                                oc.put("name", c.name);
+                                oc.put("semtypes", Json.toJson
+                                       (c.semanticTypes.stream()
+                                        .map(t -> t.name)
+                                        .toArray(String[]::new)));
+                                ary.add(oc);
+                            }
+                        }
+                        obj.put("concepts", ary);
+                        obj.put("pmids", Json.toJson(ps.pmids));
                         result.add(obj);
                     }
                     return ok (result);
@@ -185,6 +213,16 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> concept (final String sub,
+                                            final String obj) {
+        return supplyAsync (() -> {
+                Predication[] preds = filter
+                    (sub, p->obj.equalsIgnoreCase(p.object));
+                return ok (views.html.semmed.predication.render
+                           (ks, sub, preds));
+            }, ec.current());
+    }
+
     public CompletionStage<Result> pubmed (final Long pmid) {
         return supplyAsync (() -> {
                 try {
@@ -210,6 +248,7 @@ public class Controller extends play.mvc.Controller {
                     routes.javascript.Controller.cui(),
                     routes.javascript.Controller.predicate(),
                     routes.javascript.Controller.semtype(),
+                    routes.javascript.Controller.concept(),                    
                     routes.javascript.Controller.pubmed(),
                     routes.javascript.Controller.apiSemanticTypeLookup(),
                     routes.javascript.Controller.apiSearch()

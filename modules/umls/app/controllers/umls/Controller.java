@@ -181,6 +181,7 @@ public class Controller extends play.mvc.Controller {
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("umlsRoutes",
+                    routes.javascript.Controller.apiCui(),
                     routes.javascript.Controller.apiConcept(),
                     routes.javascript.Controller.apiFindConcepts(),
                     routes.javascript.Controller.cui()

@@ -29,14 +29,15 @@
   <br>
   <div class="row">
     <div class="col">
-      <table id="output-table" class="table" data-page-length="10" width="100%">
+      <table id="output-table" class="table" data-page-length="1" width="100%">
         <thead>
           <tr>
             <th>Score</th>
             <th>CUI</th>
             <th>Name</th>
             <th>Predicates</th>
-            <th>Topics</th>
+            <th>Types</th>
+            <th>Related Concepts</th>
             <th>Publications</th>
           </tr>
         </thead>
@@ -127,10 +128,9 @@
                 url: '@controllers.semmed.routes.Controller.apiSearch("")'+'/',
                 dataSrc: ''
             },
-            dom: 'pit',
+            dom: '<"pull-left"f>pit',
             destroy: true,
-            searching: false,
-            order: [[5,'desc'],[0,'desc']],
+            order: [[6,'desc'],[0,'desc']],
             columnDefs: [{
                 targets: 0, // score
                 width: "5%",
@@ -188,7 +188,40 @@
                     return html;
                 }
             },{
-                targets: 5, // publications
+                targets: 5, // concepts
+                orderable: false,
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    var count = 0, total = 0;
+                    for (var i = 0; i < data.length; ++i) {
+                        var p = data[i];
+                        if (true || count < 20) {
+                            var route = semmedRoutes.controllers.semmed
+                                .Controller.concept(full.concept.cui, p.cui);
+                            //console.log(p.cui+' '+p.semtypes[0]);
+                            html += '<a class="btn btn-default" href="'
+                                +route.url+'" data-toggle="tooltip" title="'
+                                +p.semtypes[0]+'">'+p.name
+                                +' <span class="badge badge-pill badge-secondary">'
+                                +p.count+'</span></a>';
+                            ++count;
+                        }
+                        ++total;
+                    }
+
+                    if (count < total) {
+                        var more = total - count;
+                        console.log(' there are '+more
+                                    +' concepts left to display!');
+                        html += ' <a class="btn btn-warning" href="#">MORE...'
+                            +'<span class="badge badge-pill badge-secondary">'
+                            +more+'</span></a>';
+                    }
+                    //console.log(html);
+                    return html;
+                }
+            },{
+                targets: 6, // publications
                 width: "5%",
                 render: function(data,type,full,meta) {
                     return data.length;
@@ -200,6 +233,7 @@
                 { data: 'concept'},
                 { data: 'predicates' },
                 { data: 'semtypes'},
+                { data: 'concepts'},
                 { data: 'pmids' }
             ]
         });

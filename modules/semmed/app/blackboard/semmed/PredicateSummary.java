@@ -10,6 +10,7 @@ public class PredicateSummary {
     public final String concept;
     public final Map<String, Integer> predicates = new TreeMap<>();
     public final Map<String, Integer> semtypes = new TreeMap<>();
+    public final Map<String, Integer> concepts = new TreeMap<>();
     public final Set<Long> pmids = new TreeSet<>();
 
     protected PredicateSummary (String concept, List<Predication> preds) {
@@ -22,6 +23,11 @@ public class PredicateSummary {
 
             c = predicates.get(p.predicate);
             predicates.put(p.predicate, c == null ? 1 : c+1);
+
+            if (p.object.charAt(0) == 'C') {
+                c = concepts.get(p.object);
+                concepts.put(p.object, c == null ? 1 : c+1);
+            }
             
             for (Evidence ev : p.evidence) {
                 try {
