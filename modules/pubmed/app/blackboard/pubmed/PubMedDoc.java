@@ -24,7 +24,7 @@ public class PubMedDoc {
     Long pmid;
     String doi;
     String title;
-    String abs;
+    List<String> abs = new ArrayList<>();
     String journal;
     Date date;
     List<MeshHeading> headings = new ArrayList<>();
@@ -38,8 +38,24 @@ public class PubMedDoc {
         title = nodes.getLength() > 0
             ? ((Element)nodes.item(0)).getTextContent() : null;
         nodes = doc.getElementsByTagName("Abstract");
-        abs = nodes.getLength() > 0
-            ? ((Element)nodes.item(0)).getTextContent() : null;
+        if (nodes.getLength() > 0) {
+            Element elm = (Element)nodes.item(0);
+            nodes = elm.getElementsByTagName("AbstractText");
+            if (nodes.getLength() > 0) {
+                for (int i = 0; i < nodes.getLength(); ++i) {
+                    elm = (Element)nodes.item(i);
+                    String cat = elm.getAttribute("Label");
+                    if (cat != null && !"".equals(cat))
+                        cat = cat + ": ";
+                    else
+                        cat = "";
+                    abs.add(cat+elm.getTextContent());
+                }
+            }
+            else {
+                abs.add(elm.getTextContent());
+            }
+        }
         nodes = doc.getElementsByTagName("Journal");
         
         if (nodes.getLength() > 0) {
@@ -174,7 +190,7 @@ public class PubMedDoc {
 
     public Long getPMID () { return pmid; }
     public String getTitle () { return title; }
-    public String getAbstract () { return abs; }
+    public List<String> getAbstract () { return abs; }
     public Date getDate () { return date; }
     public String getDOI () { return doi; }
     public String getJournal () { return journal; }
