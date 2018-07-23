@@ -62,6 +62,7 @@ public class UMLSKSource implements KSource {
         }
 
         String ticket () throws Exception {
+            Logger.debug("URL :"+url);
             WSResponse res = wsclient.url(url)
                 .setContentType("application/x-www-form-urlencoded")
                 .post("service=http%3A%2F%2Fumlsks.nlm.nih.gov")
@@ -87,16 +88,18 @@ public class UMLSKSource implements KSource {
     }
     
     String getTGTUrl () throws Exception {
+        Logger.debug("getTGTUrl");
         WSResponse res = wsclient.url
             ("https://utslogin.nlm.nih.gov/cas/v1/api-key")
             .setFollowRedirects(true)
             .setContentType("application/x-www-form-urlencoded")
             .post("apikey="+APIKEY)
             .toCompletableFuture().get();
-
+        Logger.debug(APIKEY);
         String url = null;
         int status = res.getStatus();
-        String body = res.getBody();                
+        String body = res.getBody();
+        Logger.debug("status="+status);
         if (status == 201 || status == 200) {
             int pos = body.indexOf("https");
             if (pos > 0) {
@@ -187,7 +190,7 @@ public class UMLSKSource implements KSource {
             for (KNode kn : nodes) {
                 switch (kn.getType()) {
                 case "query":
-                    seedQuery ((String) kn.get("term"), kn, kgraph);
+                    seedQueryDb ((String) kn.get("term"), kn, kgraph);
                     break;
 
                 case "concept":
@@ -197,7 +200,7 @@ public class UMLSKSource implements KSource {
                 default:
                     { String name = (String)kn.get("name");
                         if (name != null) {
-                            seedQuery (name, kn, kgraph);
+                            seedQueryDb (name, kn, kgraph);
                         }
                         else {
                             Logger.debug(ksp.getId()
@@ -216,6 +219,7 @@ public class UMLSKSource implements KSource {
 
     protected void seedQuery (String query, KNode kn, KGraph kg)
         throws Exception {
+//        //The line below hits the API; should convert to db instance
         WSRequest req = search (query);
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
@@ -231,6 +235,30 @@ public class UMLSKSource implements KSource {
                 kg.createEdgeIfAbsent(kn, xn, "resolve", props, null);
             }
         }
+
+    }
+    protected void seedQueryDb(String query, KNode kn, KGraph kg)
+            throws Exception
+    {
+        List<MatchedConcept> concepts = new ArrayList();
+        concepts = findConcepts(query);
+        if(concepts==null||concepts.isEmpty())
+        {
+            Logger.warn("UMLS query on "+query+" failed");
+        }
+        else
+        {
+            for (MatchedConcept concept : concepts) {
+                String cui = concept.concept.cui;
+                Logger.debug("CUI="+cui);
+                Map<String,Object> props = new HashMap<>();
+                props.put("name",concept.name);
+                //Hitting DB for concepts instead of API here.  Revert to createConceptNodeIfAbsent if API is desired
+                KNode xn = createConceptNodeIfAbsentDb(kg,cui);
+
+                kg.createEdgeIfAbsent(kn,xn,"resolve",props,null);
+            }
+        }
     }
 
     public KNode createConceptNodeIfAbsent (KGraph kg, String cui)
@@ -238,7 +266,7 @@ public class UMLSKSource implements KSource {
         JsonNode n = getCui (cui);
         if (n == null)
             return null;
-            
+
         Map<String, Object> props = new HashMap<>();
         props.put("cui", n.get("ui").asText());
         String uri = n.get("atoms").asText();
@@ -246,13 +274,13 @@ public class UMLSKSource implements KSource {
         if (pos > 0) {
             uri = uri.substring(0, pos);
         }
-        
+
         props.put(URI_P, uri);
         props.put(NAME_P, n.get("name").asText());
         props.put(TYPE_P, "concept");
         List<String> types = new ArrayList<>();
         Set<String> semtypes = new TreeSet<>();
-        JsonNode sn = n.get("semanticTypes");        
+        JsonNode sn = n.get("semanticTypes");
         for (int i = 0; i < sn.size(); ++i) {
             String t = sn.get(i).get("uri").asText();
             pos = t.lastIndexOf('/');
@@ -270,6 +298,33 @@ public class UMLSKSource implements KSource {
             kn.addTag(semtypes.toArray(new String[0]));
         
         return kn;
+    }
+    public KNode createConceptNodeIfAbsentDb( KGraph kg, String cui)
+            throws Exception
+    {
+        Concept concept = getConcept(cui);
+        Map<String, Object> props = new HashMap<>();
+        List<String> types = new ArrayList<>();
+        Set<String> semtypes = new TreeSet<>();
+        props.put("cui",concept.cui);
+        props.put(NAME_P,concept.name);
+        props.put(TYPE_P,"concept");
+        List<SemanticType> st = concept.semanticTypes;
+        st.forEach(type->{
+            Logger.debug("TYPE+TYPE.NAME "+type.id+" "+type.name.toString());
+            types.add(type.id);
+            semtypes.add(type.name.toString());
+        });
+        props.put("semtypes", types.toArray(new String[0]));
+        KNode kn = kg.createNodeIfAbsent(props, URI_P);
+        for (String t : kn.getTags())
+            semtypes.remove(t);
+
+        if (!semtypes.isEmpty())
+            kn.addTag(semtypes.toArray(new String[0]));
+
+        return kn;
+
     }
 
     public Map<String, String> getRelatedCuis (String cui) throws Exception {
@@ -292,7 +347,7 @@ public class UMLSKSource implements KSource {
         return relations;
     }
 
-    public Database getDatabase () { return db; }
+    public Database getDatabase () {return db;}
     
     public List<KEdge> expand (KGraph kg, KNode node, String... types)
         throws Exception {
