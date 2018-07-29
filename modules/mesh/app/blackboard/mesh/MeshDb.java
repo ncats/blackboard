@@ -30,24 +30,22 @@ import play.Logger;
 import play.inject.ApplicationLifecycle;
 import com.google.inject.assistedinject.Assisted;
 
-public class MeshDb implements Mesh {
-    final Map<String, String> indexConfig = new HashMap<>();
-    final GraphDatabaseService gdb;
-    final File dbdir;
+import blackboard.neo4j.Neo4j;
+
+public class MeshDb extends Neo4j implements Mesh {
     final Map<String, Integer> files;
 
     @Inject
     public MeshDb (ApplicationLifecycle lifecycle, @Assisted File dbdir) {
-        gdb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbdir)
-            //.setConfig(GraphDatabaseSettings.read_only, "true")
-            .newGraphDatabase();
+        super (dbdir);
 
         files = new TreeMap<>();
-        try (Transaction tx = gdb.beginTx();
-             ResourceIterator<Node> it =
-             gdb.findNodes(Label.label(MeshDb.class.getName()))) {
-            while (it.hasNext()) {
-                Node n = it.next();
+        
+        Node meta = getMetaNode ();
+        try (Transaction tx = gdb.beginTx()) {
+            for (Relationship rel : meta.getRelationships
+                     (RelationshipType.withName("file"))) {
+                Node n = rel.getOtherNode(meta);
                 Logger.debug("## name="+n.getProperty("name")
                              +" count="+n.getProperty("count"));
                 files.put((String)n.getProperty("name"),
@@ -57,25 +55,20 @@ public class MeshDb implements Mesh {
         }
         
         if (files.isEmpty()) {
-            shutdown ();
             throw new RuntimeException
                 ("Not a valid MeSH database: "+dbdir);
         }
-
-        indexConfig.put("type", "fulltext");
-        indexConfig.put("to_lower_case", "true");
-
+        
         lifecycle.addStopHook(() -> {
                 shutdown ();
                 return F.Promise.pure(null);
             });
         
         Logger.debug("## "+dbdir+" mesh database initialized...");
-        this.dbdir = dbdir;
     }
 
     Index<Node> nodeIndex () {
-        return gdb.index().forNodes(EXACT_INDEX);
+        return getNodeIndex (EXACT_INDEX);
     }
 
     Entry instrument (Entry entry, Node node) {
@@ -432,7 +425,7 @@ public class MeshDb implements Mesh {
         
         List<Entry> matches = new ArrayList<>();
         try (Transaction tx = gdb.beginTx()) {
-            Index<Node> index = gdb.index().forNodes(TEXT_INDEX, indexConfig);
+            Index<Node> index = getTextIndex ();
             Set<Label> labels = new HashSet<>();
             if (label != null) {
                 for (String l : label) {
@@ -469,15 +462,5 @@ public class MeshDb implements Mesh {
         }
         
         return matches;
-    }
-
-    public void shutdown () {
-        Logger.debug("## shutting down MeshDb instance "+dbdir+"...");        
-        try {
-            gdb.shutdown();
-        }
-        catch (Exception ex) {
-            Logger.error("Can't shutdown MeshDb!", ex);
-        }
     }
 }

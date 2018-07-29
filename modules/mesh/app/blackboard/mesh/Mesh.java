@@ -25,6 +25,5 @@ public interface Mesh {
     RelationshipType MAPPED_RELTYPE = RelationshipType.withName("mapped");
     RelationshipType INDEXED_RELTYPE = RelationshipType.withName("indexed");
     
-    String EXACT_INDEX = "MSH.exact";
-    String TEXT_INDEX = "MSH.text";
+    String EXACT_INDEX = "exact";
 }

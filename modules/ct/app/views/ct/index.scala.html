@@ -6,8 +6,9 @@
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
     <h1 class="display-4">Clinical Trials</h1>
-    <p class="lead">This is the clinical trials module. Currently,
-      this module contains <b>@ctdb.getClinicalTrialCount</b> clinical
+    <p class="lead">This is the clinical trials knowledge source. Currently,
+      this knowledge source
+      contains <b>@ctdb.getClinicalTrialCount</b> clinical 
       trials, <b>@ctdb.getConditionCount</b> conditions, and
       <b>@ctdb.getInterventionCount</b> interventions. Conditions and
       interventions have been mapped
@@ -31,6 +32,25 @@
       <br>
       <button id="load-btn" type="submit" class="btn btn-primary">Initialize</button>
     </div>
+  </div> <!-- row -->
+  } else {
+  <div class="row">
+    <div class="col-3"></div>
+    <div class="col">
+      <div class="input-group">
+        <span class="input-group-btn">  
+          <button id="search-clear"
+                  class="btn btn-default" type="button">Clear</button>
+        </span>
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search mapped clinical trials...">
+        <span class="input-group-btn">
+        <button id="search-concept"
+                class="btn btn-default" type="button">Search</button>
+        </span>
+      </div><!-- /input-group -->
+    </div>
+    <div class="col-3"></div>
   </div> <!-- row -->
   }
 </div>

@@ -33,6 +33,7 @@ import javax.xml.transform.dom.*;
 import blackboard.ct.ClinicalTrialKSource;
 import blackboard.ct.Condition;
 import blackboard.ct.ClinicalTrialDb;
+import blackboard.ct.ClinicalTrial;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -59,7 +60,9 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> resolve (final String id) {
         return supplyAsync (() -> {
                 try {
-                    return ok (id);
+                    ClinicalTrial ct = ctdb.getStudy(id);
+                    return ct != null ? ok (Json.toJson(ct))
+                        : notFound("Unknown study: "+id);
                 }
                 catch (Exception ex) {
                     ex.printStackTrace();
