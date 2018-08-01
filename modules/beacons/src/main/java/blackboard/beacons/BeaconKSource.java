@@ -180,7 +180,6 @@ public class BeaconKSource implements KSource {
             }
         }
     }
-    //TODO convert this method to use POST instead of GET as is the standard with Beacons now
     void resolveQuery (JsonNode json, KNode kn, KGraph kg)
     {
         Logger.debug("resolveQuery");
@@ -189,37 +188,29 @@ public class BeaconKSource implements KSource {
                 resolveQuery(json.get(i), kn, kg);
         }
         else {
-//            String semantic = json.get("semanticGroup").asText();
-//            String type = getBeaconType(semantic);
-//            Logger.debug("TYPE: "+type);
-//            String clique = unquote(json.get("clique").toString());
-//            String beacondId = unquote(json.get("id").toString());
-//            props.put(TYPE_P,type);
-//            props.put(URI_P, ksp.getUri()+"/concepts/data/"+URLEncoder.encode(clique));
-//            props.put(NAME_P, json.get("name").asText());
-//            List<String> syns = new ArrayList<>();
-//            JsonNode sn = json.get(SYNONYMS_P);
-//            props.put("clique",clique);
-//            props.put("beaconId",beacondId);
-//            if (sn != null) {
-//                for (int i = 0; i < sn.size(); ++i)
-//                    syns.add(sn.get(i).asText());
-//                props.put(SYNONYMS_P, syns.toArray(new String[0]));
-//            }
-            prettyPrint(json);
             JsonNode results = json.get("results");
             Logger.debug("Resolve Query Results:");
             for(int i = 0;i<results.size();++i)
             {
-                prettyPrint(results.get(i));
                 JsonNode currentResult = results.get(i);
                 String clique=currentResult.get("clique").asText();
                 String name = currentResult.get("name").asText();
-                String category = currentResult.get("category").asText();
+                StringBuilder cat = new StringBuilder();
+                Iterator<JsonNode> categories = currentResult.get("categories").elements();
+                while(categories.hasNext())
+                {
+                    cat.append(categories.next().asText());
+                    cat.append(";");
+                }
+                //Taking out the last (unnecessary) delimeter
+                cat.setLength(cat.length()-1);
+                String category = cat.toString();
+
                 Map<String, Object> props = new TreeMap<>();
                 props.put(TYPE_P,category);
-                props.put(URI_P,ksp.getUri()+"/concepts/data/"+URLEncoder.encode(clique));
+                props.put(URI_P,ksp.getUri()+"/concepts/details/"+URLEncoder.encode(clique));
                 props.put(NAME_P,name);
+                Logger.debug("PROPS:");
                 KNode xn = kg.createNodeIfAbsent(props, URI_P);
                 if (xn.getId() != kn.getId()) {
                     xn.addTag("KS:"+ksp.getId());
@@ -229,82 +220,8 @@ public class BeaconKSource implements KSource {
         }
     }
 
-//    void resolveConcept(JsonNode json, KNode kn, KGraph kg)
-//    {
-//        Logger.debug("Resolve Concept");
-//        if (json.isArray()) {
-//            for (int i = 0; i < json.size(); ++i)
-//                resolveConcept(json.get(i), kn, kg);
-//        }
-//        else
-//        {
-//            Map<String, Object> props = new TreeMap<>();
-//            JsonNode subject = json.get("subject");
-//            JsonNode predicate = json.get("predicate");
-//            JsonNode object = json.get("object");
-//            JsonNode newNode = null;
-//
-//            String knId = unquote(kn.get("beaconId").toString());
-//            String objId = unquote(object.get("id").toString());
-//            String subId = unquote(subject.get("id").toString());
-//            String knClique = unquote(kn.get("clique").toString());
-//            String objClique = unquote(object.get("clique").toString());
-//            String subClique = unquote(subject.get("clique").toString());
-//            String action = unquote(predicate.get("name").toString());
-//            if(knId.equals(objId)
-//                    && !knId.equals(subId))
-//            {
-//                newNode = subject;
-//            }
-//            else if(knId.equals(subId) &&
-//                    !knId.equals(objId))
-//            {
-//                newNode = object;
-//            }
-//            else if(knClique.equals(objClique))
-//            {
-//                newNode = subject;
-//            }
-//            else if(knClique.equals(subClique))
-//            {
-//                newNode = object;
-//            }
-//            prettyPrint(object);
-//            prettyPrint(predicate);
-//            prettyPrint(subject);
-//
-//            String id = unquote(newNode.get("id").toString());
-//            String clique = unquote(newNode.get("clique").toString());
-//            String type = getBeaconType(unquote(newNode.get("semanticGroup").toString()));
-//            String name = unquote(newNode.get("name").toString());
-//            props.put("beaconId",id);
-//            props.put("clique",clique);
-//            props.put(TYPE_P,type);
-//            props.put(NAME_P,name);
-//            props.put(URI_P, ksp.getUri()+"/concepts/data/"+URLEncoder.encode(id));
-//            KNode xn = kg.createNodeIfAbsent(props,URI_P);
-//            if(xn.getId() != kn.getId())
-//            {
-//                xn.addTag("KS:"+ksp.getId());
-//                kg.createEdgeIfAbsent(kn,xn,action);
-//            }
-//        }
-//    }
-//    void seedConcept(String id, KNode kn, KGraph kg)
-//    {
-//        Logger.debug("Seed Concept");
-//        try {
-//            Map<String, String> q = new HashMap<>();
-//            q.put("source",id);
-//            resolve(ksp.getUri()+"/statements/data/",q,kn,kg,this::resolveConcept);
-//        }
-//        catch (Exception ex) {
-//            Logger.error("Can't resolve url: "+ksp.getUri()+"/statements?source="+id, ex);
-//        }
-//    }
     void resolveConcept(JsonNode json, KNode kn, KGraph kg)
     {
-
         Logger.debug("Resolve Concept");
         prettyPrint(json);
         if (json.isArray()) {
