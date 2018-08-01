@@ -57,11 +57,10 @@ import blackboard.umls.MatchedConcept;
 
 import blackboard.KType;
 import blackboard.KEntity;
+import blackboard.neo4j.Neo4j;
 import com.google.inject.assistedinject.Assisted;
 
-public class ClinicalTrialDb extends TransactionEventHandler.Adapter
-    implements KType {
-    
+public class ClinicalTrialDb extends Neo4j implements KType {
     static final String ALL_CONDITIONS =
         "https://clinicaltrials.gov/ct2/search/browse?brwse=cond_alpha_all";
     static final String DOWNLOAD_FIELDS =
@@ -69,11 +68,12 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
 
     static final Label CONDITION_LABEL = Label.label(CONDITION_T);
     static final Label INTERVENTION_LABEL = Label.label(INTERVENTION_T);
-    static final Label META_LABEL =
-        Label.label(ClinicalTrialDb.class.getName());
     static final Label UMLS_LABEL = Label.label("umls");
     static final Label CLINICALTRIAL_LABEL = Label.label(CLINICALTRIAL_T);
+    static final Label CONCEPT_LABEL = Label.label(CONCEPT_T);
 
+    static final RelationshipType ATOM_RELTYPE =
+        RelationshipType.withName("atom");
     static final RelationshipType MESH_RELTYPE =
         RelationshipType.withName("mesh");
     static final RelationshipType UMLS_RELTYPE =
@@ -87,16 +87,10 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
     static final RelationshipType INTERVENTION_RELTYPE =
         RelationshipType.withName(INTERVENTION_T);
     
-    final GraphDatabaseService gdb;
-    final File dbdir;
-    
-    final Map<String, String> indexConfig = new HashMap<>();
     final Pattern cntregex;
-    
     final WSClient wsclient;
     final MeshKSource mesh;
     final UMLSKSource umls;
-    final long metanode;
     final Map<String, EntityRepo> repo;
 
     class EntityRepo extends UniqueFactory.UniqueNodeFactory {
@@ -244,17 +238,12 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
     public ClinicalTrialDb (WSClient wsclient, MeshKSource mesh,
                             UMLSKSource umls, ApplicationLifecycle lifecycle,
                             @Assisted File dbdir) {
-        indexConfig.put("type", "fulltext");
-        indexConfig.put("to_lower_case", "true");
+        super (dbdir);
         cntregex = Pattern.compile("\"([^\"]+)");
-
-        gdb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbdir)
-            .newGraphDatabase();
-
+        
         this.wsclient = wsclient;
         this.mesh = mesh;
         this.umls = umls;
-        this.dbdir = dbdir;
 
         repo = new TreeMap<>();
         try (Transaction tx = gdb.beginTx()) {
@@ -267,30 +256,9 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
                 }) {
                 repo.put(er.name, er);
             }
-
-            try (ResourceIterator<Node> it = gdb.findNodes(META_LABEL)) {
-                Node node;
-                if (it.hasNext()) {
-                    node = it.next();
-                    Logger.debug("## "+dbdir
-                                 +" ClinicalTrial database initialized..."
-                                 +new Date ((Long)node.getProperty("created")));
-
-                }
-                else {
-                    node = gdb.createNode(META_LABEL);
-                    node.setProperty("created", System.currentTimeMillis());
-                    Logger.debug("## "+dbdir
-                                 +" ClinicalTrial database hasn't "
-                                 +"been initialized...");
-                }
-                metanode = node.getId();                
-            }
-            
             tx.success();
         }
 
-        gdb.registerTransactionEventHandler(this);
         lifecycle.addStopHook(() -> {
                 shutdown ();
                 return CompletableFuture.completedFuture(null);
@@ -298,37 +266,9 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
     }
 
     @Override
-    public void afterCommit (TransactionData data, Object state) {
-    }
-    
-    Index<Node> getNodeIndex (String name) {
-        return gdb.index().forNodes(ClinicalTrialDb.class.getName()+"."+name);
-    }
-
-    void addTextIndex (Node node, String text) {
-        Index<Node> index = gdb.index().forNodes
-            (ClinicalTrialDb.class.getName()+".text", indexConfig);
-        if (text != null)
-            index.add(node, "text", text);
-        else
-            index.remove(node, "text", text);
-    }
-
-    public File getDbFile () { return dbdir; }
-    public Date getLastUpdate () {
-        Long updated = null;
-        try (Transaction tx = gdb.beginTx()) {
-            Node node = gdb.getNodeById(metanode);
-            if (node.hasProperty("updated"))
-                updated = (Long)node.getProperty("updated");
-            tx.success();
-        }
-        return updated != null ? new Date(updated) : null;
-    }
-    
     public void shutdown () throws Exception {
         Logger.debug("## shutting down ClinicalTrialDb instance "+dbdir+"...");
-        gdb.shutdown();
+        super.shutdown();
         wsclient.close();
     }
 
@@ -738,8 +678,7 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
                             Logger.debug("umls "+un.getId()+" <=> mesh "
                                          +rel.getOtherNode(node).getId());
                             createRelationshipIfAbsent
-                                (rel.getOtherNode(node), un,
-                                 RelationshipType.withName("atom"),
+                                (rel.getOtherNode(node), un, ATOM_RELTYPE,
                                  "scui", mesh.ui);
                         }
                     }
@@ -1161,5 +1100,168 @@ public class ClinicalTrialDb extends TransactionEventHandler.Adapter
 
             tx.success();
         }
+    }
+
+    List<Condition> getStudyConditions (Node n) {
+        List<Condition> conditions = new ArrayList<>();        
+        for (Relationship rel : n.getRelationships(CONDITION_RELTYPE)) {
+            Node cn = rel.getOtherNode(n);
+            Condition cond = new Condition ((String)cn.getProperty("name"));
+            
+            // now get all umls mapping with null score (exact match)
+            Set<Node> umls = new HashSet<>();
+            for (Relationship r : cn.getRelationships(UMLS_RELTYPE)) {
+                Node u = r.getOtherNode(cn);
+                if (!r.hasProperty("score")) {
+                    if (umls.add(u)) {
+                        cond.umls.add(new Entry
+                                      ((String)u.getProperty("ui"),
+                                       (String)u.getProperty("name")));
+                        /*
+                        for (Relationship ro : u.getRelationships()) {
+                            Node o = ro.getOtherNode(u);
+                            if (o.hasLabel(CONCEPT_LABEL) && umls.add(o)) {
+                                cond.umls.add(new Entry
+                                              ((String)o.getProperty("ui"),
+                                               (String)o.getProperty("name")));
+                            }
+                        }
+                        */
+                    }
+                }
+            }
+            
+            // now check to see if there's a mesh entry
+            for (Node u : umls) {
+                for (Relationship r : u.getRelationships(ATOM_RELTYPE)) {
+                    if (r.hasProperty("scui")) { // mesh concept
+                        Node m = r.getOtherNode(u);
+                        cond.mesh.add(new Entry
+                                      ((String)m.getProperty("ui"),
+                                       (String)m.getProperty("name")));
+                    }
+                }
+            }
+            
+            conditions.add(cond);
+        }
+        
+        return conditions;
+    }
+
+    List<Intervention> getStudyInterventions (Node n) {
+        List<Intervention> interventions = new ArrayList<>();
+        for (Relationship rel : n.getRelationships(INTERVENTION_RELTYPE)) {
+            Node in = rel.getOtherNode(n);
+            Intervention inv = new Intervention
+                ((String)in.getProperty("unii"),
+                 (String)in.getProperty("name"));
+            Set<Node> umls = new HashSet<>();
+            for (Relationship r : in.getRelationships(UMLS_RELTYPE)) {
+                if (!r.hasProperty("score")) {
+                    Node u = r.getOtherNode(in);
+                    if (umls.add(u)) {
+                        inv.umls.add(new Entry ((String)u.getProperty("ui"),
+                                                (String)u.getProperty("name")));
+                        // also add other umls nodes directly related to
+                        //  this one
+                        for (Relationship ro : u.getRelationships()) {
+                            Node o = ro.getOtherNode(u);
+                            if (o.hasLabel(CONCEPT_LABEL) && umls.add(o)) {
+                                inv.umls.add
+                                    (new Entry
+                                     ((String)o.getProperty("ui"),
+                                      (String)o.getProperty("name")));
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (Relationship r : in.getRelationships(MESH_RELTYPE)) {
+                Node m = r.getOtherNode(in);
+                Relationship mr = m.getSingleRelationship
+                    (ATOM_RELTYPE, Direction.OUTGOING);
+                
+                boolean add = false;
+                if (mr != null && umls.contains(mr.getOtherNode(m))) {
+                    add = true;
+                }
+                else if (m.hasProperty("regno")) {
+                    String[] regno = (String[])m.getProperty("regno");
+                    for (String s : regno) {
+                        if (s.equals(inv.unii)) {
+                            add = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (add) {
+                    inv.mesh.add(new Entry ((String)m.getProperty("ui"),
+                                            (String)m.getProperty("name")));
+                }
+            }
+            interventions.add(inv);
+        }
+        return interventions;
+    }
+    
+    ClinicalTrial toStudy (Node n) {
+        if (!n.hasLabel(CLINICALTRIAL_LABEL)) 
+            throw new IllegalArgumentException ("Not a clinical trial node");
+        
+        ClinicalTrial ct = new ClinicalTrial ((String)n.getProperty("nct_id"));
+        ct.title = (String)n.getProperty("title");
+        ct.status = (String)n.getProperty("status");
+        Object phase = n.getProperty("phase");
+        if (phase.getClass().isArray()) {
+            int len = Array.getLength(phase);
+            for (int i = 0; i < len; ++i)
+                ct.phase.add((String)Array.get(phase, i));
+        }
+        else {
+            ct.phase.add((String)phase);
+        }
+        ct.enrollment = (Integer)n.getProperty("enrollment");
+        ct.conditions.addAll(getStudyConditions (n));
+        ct.interventions.addAll(getStudyInterventions (n));
+        
+        return ct;
+    }
+
+    public ClinicalTrial getStudy (String nctId) {
+        ClinicalTrial ct = null;
+        try (Transaction tx = gdb.beginTx();
+             IndexHits<Node> hits =
+             getNodeIndex("study").get("nct_id", nctId)) {
+            Node n = hits.getSingle();
+            if (n != null) {
+                ct = toStudy (n);
+            }
+            tx.success();
+        }
+        return ct;
+    }
+
+    public List<ClinicalTrial> findStudiesForConcept
+        (String ui, String concept, int skip, int top) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("ui", ui);
+        params.put("skip", skip);
+        params.put("top", skip+top);
+        List<ClinicalTrial> studies = new ArrayList<>();
+        try (Transaction tx = gdb.beginTx();
+             Result results = gdb.execute
+             ("match(n:clinicaltrial)-[]-()-[:`"+concept+"`]-(m{ui:$ui}) "
+              +"return n order by n.nct_id skip $skip limit $top", params)) {
+            while (results.hasNext()) {
+                Map<String, Object> row = results.next();
+                Node n = (Node) row.get("n");
+                studies.add(toStudy (n));
+            }
+            tx.success();
+        }
+        return studies;
     }
 }

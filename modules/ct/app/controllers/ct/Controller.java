@@ -33,6 +33,7 @@ import javax.xml.transform.dom.*;
 import blackboard.ct.ClinicalTrialKSource;
 import blackboard.ct.Condition;
 import blackboard.ct.ClinicalTrialDb;
+import blackboard.ct.ClinicalTrial;
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -59,7 +60,9 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> resolve (final String id) {
         return supplyAsync (() -> {
                 try {
-                    return ok (id);
+                    ClinicalTrial ct = ctdb.getStudy(id);
+                    return ct != null ? ok (Json.toJson(ct))
+                        : notFound("Unknown study: "+id);
                 }
                 catch (Exception ex) {
                     ex.printStackTrace();
@@ -76,8 +79,7 @@ public class Controller extends play.mvc.Controller {
                         ("ct/conditions/"+skip+"/"+top,
                          new Callable<List<Condition>> () {
                              public List<Condition> call () throws Exception {
-                                 return ks.getClinicalTrialDb()
-                                 .getConditions(skip, top);
+                                 return ctdb.getConditions(skip, top);
                              }
                          });
                     return ok (Json.toJson(conditions));
@@ -127,6 +129,22 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> index () {
         return supplyAsync (() -> {
                 return ok (views.html.ct.index.render(ctdb));
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> findStudiesForConcept
+        (String ui, String concept, Integer skip, Integer top) {
+        return supplyAsync (() -> {
+                try {
+                    List<ClinicalTrial> studies =
+                        ctdb.findStudiesForConcept(ui, concept, skip, top);
+                    return ok (Json.toJson(studies));
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve studies for concept "
+                                 +concept+"="+ui, ex);
+                    return internalServerError (ex.getMessage());
+                }
             }, ec.current());
     }
 }

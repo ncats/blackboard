@@ -18,11 +18,12 @@ import org.neo4j.graphdb.index.*;
 import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.IndexCreator;
 
+import blackboard.neo4j.Neo4j;
 
 /*
  * sbt mesh/"run-main blackboard.mesh.BuildMeshDb OUTDIR INDIR"
  */
-public class BuildMeshDb implements Mesh, AutoCloseable {
+public class BuildMeshDb extends Neo4j implements Mesh, AutoCloseable {
     static final Logger logger =
         Logger.getLogger(BuildMeshDb.class.getName());
 
@@ -30,42 +31,22 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
         void instrument (Index<Node> index, Node node, T entry);
     }
 
-    GraphDatabaseService gdb;
     File indir;
-    File outdir;
     AtomicInteger pacnt = new AtomicInteger ();
     AtomicInteger qualcnt = new AtomicInteger ();
     AtomicInteger desccnt = new AtomicInteger ();
     AtomicInteger suppcnt = new AtomicInteger ();
-    Map<String, String> textIndexConfig;
     
     public BuildMeshDb (File outdir, File indir) throws IOException {
+        super (outdir);
         this.indir = indir;
-        this.outdir = outdir;
-
-        outdir.mkdirs();
-        logger.info("Initializing "+outdir+"...");
-        
-        gdb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(outdir)
-            .setConfig(GraphDatabaseSettings.dump_configuration, "true")
-            .newGraphDatabase();
-        //gdb.registerTransactionEventHandler(this);
-        textIndexConfig = new HashMap<>();
-        textIndexConfig.put(IndexManager.PROVIDER, "lucene");
-        textIndexConfig.put("type", "fulltext");
     }
+
+    @Override
+    protected String getDbName () { return MeshDb.class.getName(); }
 
     Index<Node> exactNodeIndex () {
-        return gdb.index().forNodes(EXACT_INDEX);
-    }
-
-    Index<Node> textNodeIndex (Node n, String text) {
-        Index<Node> index = gdb.index().forNodes(TEXT_INDEX, textIndexConfig);
-        if (text != null)
-            index.add(n, "text", text);
-        else
-            index.remove(n, "text", text);
-        return index;
+        return getNodeIndex (EXACT_INDEX);
     }
 
     public void build () throws Exception {
@@ -95,12 +76,14 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
 
             logger.info("## "+fname+": count="+count+" sha="+sha);
             if (sha != null) {
+                Node meta = getMetaNode ();
                 try (Transaction tx = gdb.beginTx()) {
-                    Node node = gdb.createNode
-                        (Label.label(MeshDb.class.getName()));
+                    Node node = gdb.createNode(Label.label(fname));
                     node.setProperty("sha", sha);
                     node.setProperty("name", fname);
                     node.setProperty("count", count);
+                    node.createRelationshipTo
+                        (meta, RelationshipType.withName("file"));
                     tx.success();
                 }
             }
@@ -174,7 +157,7 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                 Descriptor desc = (Descriptor)e;
                 if (desc.annotation != null) {
                     node.setProperty("annotation", desc.annotation);
-                    textNodeIndex (node, desc.annotation);
+                    addTextIndex (node, desc.annotation);
                 }
                 
                 if (!desc.treeNumbers.isEmpty()) {
@@ -277,19 +260,19 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                     setProperty (index, n, "casn1", c.casn1);
                 if (c.regno != null) {
                     setProperty (index, n, "regno", c.regno);
-                    textNodeIndex (n, c.regno);
+                    addTextIndex (n, c.regno);
                 }
                 
                 if (c.note != null) {
                     n.setProperty("note", c.note);
-                    textNodeIndex (n, c.note);
+                    addTextIndex (n, c.note);
                 }
                 
                 if (!c.relatedRegno.isEmpty()) {
                     setProperty (index, n, "relatedRegno",
                                  c.relatedRegno.toArray(new String[0]));
                     for (String regno : c.relatedRegno)
-                        textNodeIndex (n, regno);
+                        addTextIndex (n, regno);
                 }
                 
                 RelationshipType type = RelationshipType.withName("term");
@@ -407,7 +390,7 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                 setProperty (index, node, "freq", supp.freq);
                 if (supp.note != null) {
                     node.setProperty("note", supp.note);
-                    textNodeIndex (node, supp.note);
+                    addTextIndex (node, supp.note);
                 }
                 
                 if (!supp.sources.isEmpty())
@@ -537,8 +520,8 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
                 */
                 if (nodeinstr != null)
                     nodeinstr.instrument(index, n, entry);
-                textNodeIndex (n, entry.name);
-                textNodeIndex (n, ui);
+                addTextIndex (n, entry.name);
+                addTextIndex (n, ui);
             }
             else if (nodeinstr != null)
                 nodeinstr.instrument(index, n, entry);
@@ -550,7 +533,7 @@ public class BuildMeshDb implements Mesh, AutoCloseable {
 
     public void close () throws Exception {
         logger.info(getClass().getName()+": shutting down");
-        gdb.shutdown();
+        shutdown ();
     }
     
     public static void main (String[] argv) throws Exception {
