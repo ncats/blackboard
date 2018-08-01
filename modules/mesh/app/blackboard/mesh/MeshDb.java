@@ -32,7 +32,7 @@ import com.google.inject.assistedinject.Assisted;
 
 import blackboard.neo4j.Neo4j;
 
-public class MeshDb extends Neo4j implements Mesh {
+public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
     final Map<String, Integer> files;
 
     @Inject
@@ -59,12 +59,17 @@ public class MeshDb extends Neo4j implements Mesh {
                 ("Not a valid MeSH database: "+dbdir);
         }
         
-        lifecycle.addStopHook(() -> {
-                shutdown ();
-                return F.Promise.pure(null);
-            });
-        
+        if (lifecycle != null) {
+            lifecycle.addStopHook(() -> {
+                    shutdown ();
+                    return F.Promise.pure(null);
+                });
+        }
         Logger.debug("## "+dbdir+" mesh database initialized...");
+    }
+
+    public void close () throws Exception {
+        shutdown ();
     }
 
     Index<Node> nodeIndex () {

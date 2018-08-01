@@ -80,6 +80,10 @@ public class Neo4j extends TransactionEventHandler.Adapter {
             return n;
         }
     }
+
+    protected Index<Node> getDbIndex () {
+        return gdb.index().forNodes(getDbName());
+    }
     
     protected Index<Node> getNodeIndex (String name) {
         return gdb.index().forNodes(getDbName()+"."+name);

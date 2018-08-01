@@ -20,15 +20,18 @@ import blackboard.mesh.Qualifier;
 import blackboard.mesh.Entry;
 
 public class PubMedDoc {
-    Document doc;
     Long pmid;
     String doi;
+    String pmc;
     String title;
     List<String> abs = new ArrayList<>();
     String journal;
     Date date;
     List<MeshHeading> headings = new ArrayList<>();
     List<Entry> chemicals = new ArrayList<>();
+
+    protected PubMedDoc () {
+    }
     
     protected PubMedDoc (Document doc, MeshDb mesh) {
         NodeList nodes = doc.getElementsByTagName("PMID");
@@ -78,52 +81,7 @@ public class PubMedDoc {
                 int month = 0;
                 if (nodes.getLength() > 0) {
                     String mon = ((Element)nodes.item(0)).getTextContent();
-                    switch (mon) {
-                    case "jan": case "Jan":
-                        month = JANUARY;
-                        break;
-                    case "feb": case "Feb":
-                        month = FEBRUARY;
-                        break;
-                    case "mar": case "Mar":
-                        month = MARCH;
-                        break;
-                    case "apr": case "Apr":
-                        month = APRIL;
-                        break;
-                    case "may": case "May":
-                        month = MAY;
-                        break;
-                    case "jun": case "Jun":
-                        month = JUNE;
-                        break;
-                    case "jul": case "Jul":
-                        month = JULY;
-                        break;
-                    case "aug": case "Aug":
-                        month = AUGUST;
-                        break;
-                    case "sep": case "Sep":
-                        month = SEPTEMBER;
-                        break;
-                    case "oct": case "Oct":
-                        month = OCTOBER;
-                        break;
-                    case "nov": case "Nov":
-                        month = NOVEMBER;
-                        break;
-                    case "dec": case "Dec":
-                        month = DECEMBER;
-                        break;
-                    default:
-                        try {
-                            int m = Integer.parseInt(mon);
-                            month = m - 1; // 0-based
-                        }
-                        catch (NumberFormatException ex) {
-                            throw new RuntimeException ("Unknown month: "+mon);
-                        }
-                    }
+                    month = parseMonth (mon);
                 }
                 cal.set(MONTH, month);
                 
@@ -145,6 +103,9 @@ public class PubMedDoc {
             String type = elm.getAttribute("IdType");
             if ("doi".equals(type)) {
                 doi = elm.getTextContent();
+            }
+            else if ("pmc".equals(type)) {
+                pmc = elm.getTextContent();
             }
         }
 
@@ -184,8 +145,6 @@ public class PubMedDoc {
             if (chem != null)
                 chemicals.add(chem);
         }
-
-        this.doc = doc;        
     }
 
     public Long getPMID () { return pmid; }
@@ -193,9 +152,59 @@ public class PubMedDoc {
     public List<String> getAbstract () { return abs; }
     public Date getDate () { return date; }
     public String getDOI () { return doi; }
+    public String getPMC () { return pmc; }
     public String getJournal () { return journal; }
     public List<MeshHeading> getMeshHeadings () { return headings; }
     public List<Entry> getChemicals () { return chemicals; }
-    @JsonIgnore
-    public Document getDoc () { return doc; }
+
+    public static int parseMonth (String mon) {
+        int month = 0;
+        switch (mon) {
+        case "jan": case "Jan":
+            month = JANUARY;
+            break;
+        case "feb": case "Feb":
+            month = FEBRUARY;
+            break;
+        case "mar": case "Mar":
+            month = MARCH;
+            break;
+        case "apr": case "Apr":
+            month = APRIL;
+            break;
+        case "may": case "May":
+            month = MAY;
+            break;
+        case "jun": case "Jun":
+            month = JUNE;
+            break;
+        case "jul": case "Jul":
+            month = JULY;
+            break;
+        case "aug": case "Aug":
+            month = AUGUST;
+            break;
+        case "sep": case "Sep":
+            month = SEPTEMBER;
+            break;
+        case "oct": case "Oct":
+            month = OCTOBER;
+            break;
+        case "nov": case "Nov":
+            month = NOVEMBER;
+            break;
+        case "dec": case "Dec":
+            month = DECEMBER;
+            break;
+        default:
+            try {
+                int m = Integer.parseInt(mon);
+                month = m - 1; // 0-based
+            }
+            catch (NumberFormatException ex) {
+                throw new RuntimeException ("Unknown month: "+mon);
+            }
+        }
+        return month;
+    }
 }

@@ -79,8 +79,7 @@ public class Controller extends play.mvc.Controller {
                         ("ct/conditions/"+skip+"/"+top,
                          new Callable<List<Condition>> () {
                              public List<Condition> call () throws Exception {
-                                 return ks.getClinicalTrialDb()
-                                 .getConditions(skip, top);
+                                 return ctdb.getConditions(skip, top);
                              }
                          });
                     return ok (Json.toJson(conditions));
@@ -130,6 +129,22 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> index () {
         return supplyAsync (() -> {
                 return ok (views.html.ct.index.render(ctdb));
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> findStudiesForConcept
+        (String ui, String concept, Integer skip, Integer top) {
+        return supplyAsync (() -> {
+                try {
+                    List<ClinicalTrial> studies =
+                        ctdb.findStudiesForConcept(ui, concept, skip, top);
+                    return ok (Json.toJson(studies));
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve studies for concept "
+                                 +concept+"="+ui, ex);
+                    return internalServerError (ex.getMessage());
+                }
             }, ec.current());
     }
 }

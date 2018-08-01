@@ -70,7 +70,10 @@ public class ClinicalTrialDb extends Neo4j implements KType {
     static final Label INTERVENTION_LABEL = Label.label(INTERVENTION_T);
     static final Label UMLS_LABEL = Label.label("umls");
     static final Label CLINICALTRIAL_LABEL = Label.label(CLINICALTRIAL_T);
+    static final Label CONCEPT_LABEL = Label.label(CONCEPT_T);
 
+    static final RelationshipType ATOM_RELTYPE =
+        RelationshipType.withName("atom");
     static final RelationshipType MESH_RELTYPE =
         RelationshipType.withName("mesh");
     static final RelationshipType UMLS_RELTYPE =
@@ -675,8 +678,7 @@ public class ClinicalTrialDb extends Neo4j implements KType {
                             Logger.debug("umls "+un.getId()+" <=> mesh "
                                          +rel.getOtherNode(node).getId());
                             createRelationshipIfAbsent
-                                (rel.getOtherNode(node), un,
-                                 RelationshipType.withName("atom"),
+                                (rel.getOtherNode(node), un, ATOM_RELTYPE,
                                  "scui", mesh.ui);
                         }
                     }
@@ -1104,48 +1106,44 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         List<Condition> conditions = new ArrayList<>();        
         for (Relationship rel : n.getRelationships(CONDITION_RELTYPE)) {
             Node cn = rel.getOtherNode(n);
-            String condname = (String)cn.getProperty("name");
+            Condition cond = new Condition ((String)cn.getProperty("name"));
             
             // now get all umls mapping with null score (exact match)
-            List<Condition> conds = new ArrayList<>();
+            Set<Node> umls = new HashSet<>();
             for (Relationship r : cn.getRelationships(UMLS_RELTYPE)) {
                 Node u = r.getOtherNode(cn);
                 if (!r.hasProperty("score")) {
-                    Condition cond = new Condition (condname);
-                    cond.umls.add(new Entry ((String)u.getProperty("ui"),
-                                             (String)u.getProperty("name")));
-                    // now check to see if there's a mesh entry
-                    for (Relationship a : u.getRelationships
-                             (RelationshipType.withName("atom"))) {
-                        if (a.hasProperty("scui")) { // mesh concept
-                            Node m = a.getOtherNode(u);
-                            // make sure it's connected to the
-                            //  original condition
-                            Entry me = null;
-                            for (Relationship mr :
-                                     cn.getRelationships(MESH_RELTYPE)) {
-                                if (m.equals(mr.getOtherNode(cn))) {
-                                    me = new Entry
-                                        ((String)m.getProperty("ui"),
-                                         (String)m.getProperty("name"));
-                                    break;
-                                }
+                    if (umls.add(u)) {
+                        cond.umls.add(new Entry
+                                      ((String)u.getProperty("ui"),
+                                       (String)u.getProperty("name")));
+                        /*
+                        for (Relationship ro : u.getRelationships()) {
+                            Node o = ro.getOtherNode(u);
+                            if (o.hasLabel(CONCEPT_LABEL) && umls.add(o)) {
+                                cond.umls.add(new Entry
+                                              ((String)o.getProperty("ui"),
+                                               (String)o.getProperty("name")));
                             }
-                            
-                            if (me != null)
-                                cond.mesh.add(me);
                         }
+                        */
                     }
-                    conds.add(cond);
                 }
             }
             
-            if (conds.isEmpty()) {
-                // unable to map this study's condition to umls
-                conds.add(new Condition (condname));
+            // now check to see if there's a mesh entry
+            for (Node u : umls) {
+                for (Relationship r : u.getRelationships(ATOM_RELTYPE)) {
+                    if (r.hasProperty("scui")) { // mesh concept
+                        Node m = r.getOtherNode(u);
+                        cond.mesh.add(new Entry
+                                      ((String)m.getProperty("ui"),
+                                       (String)m.getProperty("name")));
+                    }
+                }
             }
             
-            conditions.addAll(conds);
+            conditions.add(cond);
         }
         
         return conditions;
@@ -1162,17 +1160,28 @@ public class ClinicalTrialDb extends Neo4j implements KType {
             for (Relationship r : in.getRelationships(UMLS_RELTYPE)) {
                 if (!r.hasProperty("score")) {
                     Node u = r.getOtherNode(in);
-                    inv.umls.add(new Entry ((String)u.getProperty("ui"),
-                                            (String)u.getProperty("name")));
-                    umls.add(u);
+                    if (umls.add(u)) {
+                        inv.umls.add(new Entry ((String)u.getProperty("ui"),
+                                                (String)u.getProperty("name")));
+                        // also add other umls nodes directly related to
+                        //  this one
+                        for (Relationship ro : u.getRelationships()) {
+                            Node o = ro.getOtherNode(u);
+                            if (o.hasLabel(CONCEPT_LABEL) && umls.add(o)) {
+                                inv.umls.add
+                                    (new Entry
+                                     ((String)o.getProperty("ui"),
+                                      (String)o.getProperty("name")));
+                            }
+                        }
+                    }
                 }
             }
 
-            RelationshipType atom = RelationshipType.withName("atom");
             for (Relationship r : in.getRelationships(MESH_RELTYPE)) {
                 Node m = r.getOtherNode(in);
                 Relationship mr = m.getSingleRelationship
-                    (atom, Direction.OUTGOING);
+                    (ATOM_RELTYPE, Direction.OUTGOING);
                 
                 boolean add = false;
                 if (mr != null && umls.contains(mr.getOtherNode(m))) {
@@ -1205,7 +1214,15 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         ClinicalTrial ct = new ClinicalTrial ((String)n.getProperty("nct_id"));
         ct.title = (String)n.getProperty("title");
         ct.status = (String)n.getProperty("status");
-        ct.phase = (String)n.getProperty("phase");
+        Object phase = n.getProperty("phase");
+        if (phase.getClass().isArray()) {
+            int len = Array.getLength(phase);
+            for (int i = 0; i < len; ++i)
+                ct.phase.add((String)Array.get(phase, i));
+        }
+        else {
+            ct.phase.add((String)phase);
+        }
         ct.enrollment = (Integer)n.getProperty("enrollment");
         ct.conditions.addAll(getStudyConditions (n));
         ct.interventions.addAll(getStudyInterventions (n));
@@ -1225,5 +1242,26 @@ public class ClinicalTrialDb extends Neo4j implements KType {
             tx.success();
         }
         return ct;
+    }
+
+    public List<ClinicalTrial> findStudiesForConcept
+        (String ui, String concept, int skip, int top) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("ui", ui);
+        params.put("skip", skip);
+        params.put("top", skip+top);
+        List<ClinicalTrial> studies = new ArrayList<>();
+        try (Transaction tx = gdb.beginTx();
+             Result results = gdb.execute
+             ("match(n:clinicaltrial)-[]-()-[:`"+concept+"`]-(m{ui:$ui}) "
+              +"return n order by n.nct_id skip $skip limit $top", params)) {
+            while (results.hasNext()) {
+                Map<String, Object> row = results.next();
+                Node n = (Node) row.get("n");
+                studies.add(toStudy (n));
+            }
+            tx.success();
+        }
+        return studies;
     }
 }

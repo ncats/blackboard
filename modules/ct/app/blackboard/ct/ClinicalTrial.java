@@ -6,7 +6,7 @@ public class ClinicalTrial {
     public String nctId;
     public String title;
     public String status;
-    public String phase;
+    public List<String> phase = new ArrayList<>();
     public Integer enrollment;
     public List<Intervention> interventions = new ArrayList<>();
     public List<Condition> conditions = new ArrayList<>();
