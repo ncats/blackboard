@@ -112,6 +112,7 @@ public class PubMedKSource implements KSource, KType {
         this.cache = cache;
         this.mesh = meshKS.getMeshDb();
 
+
         Map<String, String> props = ksp.getProperties();
         EUTILS_BASE = props.get("uri");
         MESH_BASE = props.get("mesh");
@@ -216,7 +217,7 @@ public class PubMedKSource implements KSource, KType {
             JsonNode esearchresult = json.get("esearchresult");
             JsonNode idList = esearchresult.get("idlist");
             //seedDrug (idList,kn,kg);
-            //seedGene (idList,kn,kg);
+            seedGene (idList,kn,kg);
             resolvePubmed (idList, kn, kg);
         }
         catch (Exception ex) {
@@ -477,6 +478,7 @@ public class PubMedKSource implements KSource, KType {
     }
 
     String[] getTreeNumbers (String ui) throws Exception {
+        Logger.debug("UI = "+ui);
         Entry entry = mesh.getEntry(ui);
         String[] treeNums = new String[0];
         if (entry != null && entry instanceof Qualifier) {
