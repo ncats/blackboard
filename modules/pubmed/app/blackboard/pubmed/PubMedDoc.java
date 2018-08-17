@@ -19,7 +19,9 @@ import blackboard.mesh.Descriptor;
 import blackboard.mesh.Qualifier;
 import blackboard.mesh.Entry;
 
-public class PubMedDoc {
+public class PubMedDoc implements java.io.Serializable {
+    static private final Long serialVerionUID = 0x010101l;
+        
     Long pmid;
     String doi;
     String pmc;

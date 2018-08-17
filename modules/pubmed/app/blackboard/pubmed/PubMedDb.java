@@ -6,6 +6,7 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.zip.GZIPInputStream;
 import java.util.function.Consumer;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import blackboard.mesh.Entry;
@@ -35,6 +36,8 @@ import javax.inject.Inject;
 public class PubMedDb extends Neo4j implements AutoCloseable {
     static final public RelationshipType MESH_RELTYPE =
         RelationshipType.withName("mesh");
+
+    static final PubMedDoc POISON_DOC = new PubMedDoc ();
         
     class PubMedSax extends DefaultHandler {
         StringBuilder content = new StringBuilder ();
@@ -183,6 +186,7 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
     } // PubMedSax
     
     class PubMedNodeFactory extends UniqueFactory.UniqueNodeFactory {
+        int count;
         PubMedNodeFactory () {
             super (getDbIndex ());
         }
@@ -194,10 +198,14 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
             }
             node.setProperty("created", System.currentTimeMillis());
             node.addLabel(Label.label("article"));
+            ++count;
         }
+
+        public int getCount () { return count; }
     }
 
     class MeshNodeFactory extends UniqueFactory.UniqueNodeFactory {
+        int count;
         MeshNodeFactory () {
             super (getNodeIndex ("mesh"));
         }
@@ -209,6 +217,31 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
             }
             node.setProperty("created", System.currentTimeMillis());
             node.addLabel(Label.label("mesh"));
+            ++count;
+        }
+
+        public int getCount () { return count; }
+    }
+
+    class IndexTask implements Callable<Integer> {
+        SimpleDateFormat sdf = new SimpleDateFormat ("yyyy.MM.dd");        
+        IndexTask () {
+        }
+
+        public Integer call () throws Exception {
+            Logger.debug(Thread.currentThread().getName()
+                         +": index thread started...");
+            int ndocs = 0;
+            for (PubMedDoc d; (d = queue.take()) != POISON_DOC;) {
+                Logger.debug(count.incrementAndGet()+" "+d.pmid+" "
+                             +sdf.format(d.date)+" chem="+d.chemicals.size()
+                             +" mh="+d.headings.size());
+                add (d);
+                ++ndocs;
+            }
+            Logger.debug(Thread.currentThread().getName()
+                         +": thread processed "+ndocs+" documents!");
+            return ndocs;
         }
     }
 
@@ -216,6 +249,9 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
     final MeshDb mesh;
     final PubMedNodeFactory pmf;
     final MeshNodeFactory mnf;
+    final AtomicInteger count = new AtomicInteger ();
+    final BlockingQueue<PubMedDoc> queue =
+        new ArrayBlockingQueue<PubMedDoc>(1000);
 
     @Inject
     public PubMedDb (WSClient wsclient, MeshKSource mesh,
@@ -261,7 +297,17 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
         }
     }
 
-    UniqueFactory.UniqueEntity<Node> add (PubMedDoc d) {
+    public Node add (PubMedDoc doc) {
+        Node n = null;
+        try (Transaction tx = gdb.beginTx()) {
+            UniqueFactory.UniqueEntity<Node> uf = _add (doc);
+            n = uf.entity();
+            tx.success();
+        }
+        return n;
+    }
+    
+    UniqueFactory.UniqueEntity<Node> _add (PubMedDoc d) {
         UniqueFactory.UniqueEntity<Node> uf = pmf
             .getOrCreateWithOutcome("pmid", d.pmid);
         if (!uf.wasCreated())
@@ -370,42 +416,84 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
                     mh.qualifiers.toArray(new Entry[0]));
     }
 
-    public int add (InputStream is) throws Exception {
-        AtomicInteger count = new AtomicInteger ();
-        SimpleDateFormat sdf = new SimpleDateFormat ("yyyy.MM.dd");
+    public int index (InputStream is) throws Exception {
+        return index (is, 1);
+    }
+    
+    public int index (InputStream is, int nthreads) throws Exception {
+        ExecutorService es = Executors.newFixedThreadPool(nthreads);
+        Future[] futures = new Future[nthreads];
+        for (int i = 0; i < nthreads; ++i)
+            futures[i] = es.submit(new IndexTask ());
+        
         new PubMedSax(d -> {
-                try (Transaction tx = gdb.beginTx()) {
-                    add (d);
-                    tx.success();
+                try {
+                    //Logger.debug("queuing "+d.pmid+"...");
+                    queue.put(d);
                 }
-                Logger.debug(count.incrementAndGet()+" "+d.pmid+" "
-                             +sdf.format(d.date)+" chem="+d.chemicals.size()
-                             +" mh="+d.headings.size());
-                /*
-                for (MeshHeading mh : d.headings) {
-                    Logger.debug(mh.descriptor.ui+"...quals="
-                                 +mh.qualifiers.size());
+                catch (Exception ex) {
+                    Logger.error("Can't queue document", ex);
                 }
-                */
         }).parse(is);
+        
+        for (Future f : futures)
+            queue.put(POISON_DOC);
+        es.shutdown();
 
         return count.get();
     }
 
-    /*
-     * sbt pubmed/"runMain blackboard.pubmed.PubMedDb ..."
-     */
-    public static void main (String[] argv) throws Exception {
-        if (argv.length < 3) {
-            System.err.println
-                ("Usage: blackboard.pubmed.PubMedDb DBDIR MESHDB FILES...");
-            System.exit(1);
-        }
+    public int index (String fname) throws Exception {
+        int count = 0;
+        try {
+            File file = new File (fname);
+            Node meta = getMetaNode();
+            RelationshipType ftype = RelationshipType.withName("file");
+            try (Transaction tx = gdb.beginTx()) {
+                for (Relationship rel : meta.getRelationships(ftype)) {
+                    Node fn = rel.getOtherNode(meta);
+                    if (file.getName().equals(fn.getProperty("name"))) {
+                        count = (Integer)fn.getProperty("count");
+                        break;
+                    }
+                }
+                tx.success();
+            }
 
-        try (MeshDb mesh = new MeshDb (null, new File (argv[1]));
-             PubMedDb pdb = new PubMedDb (new File (argv[0]), mesh)) {
-            for (int i = 2; i < argv.length; ++i) {
-                pdb.add(new GZIPInputStream (new FileInputStream (argv[i])));
+            if (count == 0) {
+                count = index (new GZIPInputStream
+                               (new FileInputStream (file)));
+                try (Transaction tx = gdb.beginTx()) {
+                    Node fn = gdb.createNode(Label.label(file.getName()));
+                    fn.setProperty("name", file.getName());
+                    fn.setProperty("count", count);
+                    meta.createRelationshipTo(fn, ftype);
+                    tx.success();
+                }
+            }
+        }
+        catch (Exception ex) {
+            Logger.error("Can't process file: "+fname, ex);
+        }
+        return count;
+    }
+
+    /*
+     * sbt pubmed/'runMain blackboard.pubmed.PubMedDb$BuildIndex ...'
+     */
+    public static class BuildIndex {
+        public static void main (String[] argv) throws Exception {
+            if (argv.length < 3) {
+                System.err.println
+                    ("Usage: blackboard.pubmed.PubMedDb$BuildIndex "
+                     +"DBDIR MESHDB FILES...");
+                System.exit(1);
+            }
+            
+            try (MeshDb mesh = new MeshDb (null, new File (argv[1]));
+                 PubMedDb pdb = new PubMedDb (new File (argv[0]), mesh)) {
+                for (int i = 2; i < argv.length; ++i)
+                    pdb.index(argv[i]);
             }
         }
     }
