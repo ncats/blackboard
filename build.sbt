@@ -38,6 +38,7 @@ lazy val root = (project in file("."))
     umls,
     semmed,
     ct,
+    hpo,
     chembl
   )
   .aggregate(
@@ -48,6 +49,7 @@ lazy val root = (project in file("."))
     umls,
     semmed,
     ct,
+    hpo,
     chembl
   )
 
@@ -152,6 +154,15 @@ lazy val ct = (project in file("modules/ct"))
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
   ).dependsOn(umls).aggregate(umls)
+
+lazy val hpo = (project in file("modules/hpo"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "hpo",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+  ).dependsOn(core).aggregate(core)
 
 lazy val chembl = (project in file("modules/chembl"))
   .settings(commonSettings: _*)

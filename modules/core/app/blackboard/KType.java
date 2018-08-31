@@ -12,4 +12,5 @@ public interface KType {
     String CLINICALTRIAL_T = "clinicaltrial";
     String CONDITION_T = "condition";
     String INTERVENTION_T = "intervention";
+    String PHENOTYPE_T = "phenotype";
 }
