@@ -25,6 +25,9 @@ import blackboard.umls.UMLSKSource;
 import blackboard.umls.Concept;
 import blackboard.umls.MatchedConcept;
 import blackboard.umls.DataSource;
+import blackboard.umls.MetaMap;
+
+
 
 @Singleton
 public class Controller extends play.mvc.Controller {
@@ -76,7 +79,6 @@ public class Controller extends play.mvc.Controller {
         n.setAll(fields);
         return n;
     }
-    
 
     public CompletionStage<Result> apiFindConcepts
         (final String term, final Integer skip, final Integer top) {
@@ -171,6 +173,17 @@ public class Controller extends play.mvc.Controller {
                     }
                     
                     return ok (Json.toJson(data));
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> apiMetaMap (String terms) {
+        return supplyAsync (() -> {
+                try {
+                    return ok (ks.getMetaMap().annotateAsJson(terms));
                 }
                 catch (Exception ex) {
                     return internalServerError (ex.getMessage());

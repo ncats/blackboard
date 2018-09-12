@@ -35,6 +35,7 @@ public class UMLSKSource implements KSource {
     private final CacheApi cache;
     private final Database db;
     private final TGT tgt;
+    private final MetaMap metamap;
 
     final Pattern cuiregex = Pattern.compile("^[cC]\\d+");    
     private final Map<String, Set<String>> blacklist;    
@@ -131,13 +132,13 @@ public class UMLSKSource implements KSource {
         this.db = db;
 
         Map<String, String> props = ksp.getProperties();
-        APIKEY = props.get("apikey");
+        APIKEY = props.get("api.key");
         if (APIKEY == null) {
             Logger.warn("No UMLS \"apikey\" specified!");
         }
 
-        APIVER = props.containsKey("umls-version")
-            ? props.get("umls-version") : "current";
+        APIVER = props.containsKey("api.version")
+            ? props.get("api.version") : "current";
 
         blacklist = new ConcurrentHashMap<>();
         if (ksp.getData() != null) {
@@ -151,7 +152,24 @@ public class UMLSKSource implements KSource {
                 Logger.debug("source: "+set.size()+" blacklsit entries!");
             }
         }
-        
+
+        if (props.containsKey("metamap.host")) {
+            String host = props.get("metamap.host");
+            if (props.containsKey("metamap.port")) {
+                metamap = new MetaMap
+                    (host, Integer.parseInt(props.get("metamap.port")));
+            }
+            else {
+                metamap = new MetaMap (host);
+            }
+        }
+        else {
+            metamap = null;
+        }
+
+        if (metamap == null)
+            Logger.warn("*** METAMAP server is not available! ***");
+            
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
@@ -744,4 +762,6 @@ public class UMLSKSource implements KSource {
         }
         return datasources;
     }
+
+    public MetaMap getMetaMap () { return metamap; }
 }
