@@ -205,6 +205,39 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
+
+    public CompletionStage<Result> apiSemRep (String text) {
+        return supplyAsync (() -> {
+                try {
+                    byte[] xml = ks.getSemRepAsXml(text);
+                    if (xml != null)
+                        return ok (xml).as("application/xml");
+                    return badRequest ("SemRep is not supported!");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    @BodyParser.Of(value = BodyParser.AnyContent.class)
+    public CompletionStage<Result> apiSemRepPost () {
+        return supplyAsync (() -> {
+                try {
+                    String text = request().body().asText();
+                    if (text != null) {
+                        byte[] xml = ks.getSemRepAsXml(text);
+                        if (xml != null)
+                            return ok(xml).as("application/xml");
+                        return badRequest ("SemRep is not supported!");
+                    }
+                    return badRequest ("Invalid POST payload!");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
     
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create

@@ -36,6 +36,7 @@ public class UMLSKSource implements KSource {
     private final Database db;
     private final TGT tgt;
     private final MetaMap metamap;
+    private final String SEMREP_URL;
 
     final Pattern cuiregex = Pattern.compile("^[cC]\\d+");    
     private final Map<String, Set<String>> blacklist;    
@@ -169,6 +170,13 @@ public class UMLSKSource implements KSource {
 
         if (metamap == null)
             Logger.warn("*** METAMAP server is not available! ***");
+
+        if (props.containsKey("semrep.url")) {
+            SEMREP_URL = props.get("semrep.url");
+        }
+        else {
+            SEMREP_URL = null;
+        }
             
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -764,4 +772,19 @@ public class UMLSKSource implements KSource {
     }
 
     public MetaMap getMetaMap () { return metamap; }
+    public byte[] getSemRepAsXml (String text) throws Exception {
+        if (SEMREP_URL == null)
+            return null;
+        WSResponse res = wsclient.url(SEMREP_URL)
+            .setContentType("text/plain")
+            .post(text)
+            .toCompletableFuture().get();
+        int status = res.getStatus();
+        Logger.debug(status+": "+SEMREP_URL);
+        if (status == 200 || status == 201) {
+            return res.asByteArray();
+        }
+        Logger.error("status="+status+" body="+res.getBody());
+        return null;
+    }
 }
