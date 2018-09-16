@@ -190,7 +190,22 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
-
+    
+    @BodyParser.Of(value = BodyParser.AnyContent.class)
+    public CompletionStage<Result> apiMetaMapPost () {
+        return supplyAsync (() -> {
+                try {
+                    String text = request().body().asText();
+                    if (text != null)
+                        return ok (ks.getMetaMap().annotateAsJson(text));
+                    return badRequest ("Invalid POST payload!");
+                }
+                catch (Exception ex) {
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+    
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("umlsRoutes",
