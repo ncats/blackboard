@@ -4,10 +4,10 @@
 @views.html.core.main("UMLS Knowledge Source"){
 <div class="container-fluid" style="margin-top:10px;">
   <div class="jumbotron">
-    <h1 class="display-4">UMLS</h1>
+    <h1 class="display-4">UMLS (@ks.ksp.getVersion)</h1>
     <p class="lead">This is <a href="#" data-toggle="modal"
                                data-target="#umls-sources-modal">UMLS</a>
-      knowledge source. The JDBC url is <code>@ks.getDatabase.getUrl</code>.
+      knowledge source.
   </div>
   <div class="row">
     <div class="col-3"></div>
@@ -97,9 +97,9 @@
 
     function createOutputTable () {
         var term = $('#search-input').val();
-	if (term == '') {
-	    term = '_';
-	}
+    if (term == '') {
+        term = '_';
+    }
         var route = umlsRoutes.controllers
             .umls.Controller.apiFindConcepts(term, 0, 20);
 
@@ -122,11 +122,11 @@
             },{
                 targets: 1,
                 render: function(data,type,full,meta) {
-		    var route = umlsRoutes.controllers
-			.umls.Controller.cui(data);
+            var route = umlsRoutes.controllers
+            .umls.Controller.cui(data);
                     return '<a href="'+route.url
-			+'" id="concept-"'+data+'" data-cui="'+data+'">'
-			+data+'</a>';
+            +'" id="concept-"'+data+'" data-cui="'+data+'">'
+            +data+'</a>';
                 }
             },{
                 targets: 2, // semanticTypes
@@ -163,8 +163,8 @@
             var route = umlsRoutes.controllers
                 .umls.Controller.apiFindConcepts(term, 0, 20);
 
-	    if (!table)
-		table = createOutputTable ();
+        if (!table)
+        table = createOutputTable ();
 
             table.ajax.url(route.url).load(function () {
                 $('#search-concept').html('Search');
@@ -203,7 +203,7 @@
          * to get the content of the modal based on the cui clicked.
          */
         $('#output-table').on('draw.dt', function() {
-	    /*
+        /*
             $('a[id|=concept-]').on('click', function () {
                 var cui = $(this).data('cui');
                 var route = umlsRoutes.controllers
@@ -219,14 +219,14 @@
                     console.log(cui+' loaded!');
                 });
             });
-	    */
+        */
         });
         
         $('#umls-concept-modal').on('show.bs.modal', function () {
         });     
 
-	window.addEventListener("pageshow", function(e) {
+    window.addEventListener("pageshow", function(e) {
             search ();
-	});
+    });
     });
 }

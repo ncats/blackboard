@@ -1,4 +1,4 @@
-GET /info   controllers.pubmed.Controller.index
+GET /   controllers.pubmed.Controller.index
 ##GET /mesh/search/*q controllers.pubmed.Controller.searchMeSH(q: String)
 ##GET /mesh/:id       controllers.pubmed.Controller.mesh(id: String)
 GET /search/*q      controllers.pubmed.Controller.search(q: String)

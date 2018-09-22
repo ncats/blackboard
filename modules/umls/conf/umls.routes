@@ -1,4 +1,4 @@
-GET /index   controllers.umls.Controller.index
+GET /   controllers.umls.Controller.index
 GET /:cui    controllers.umls.Controller.cui(cui: String)
 
 #

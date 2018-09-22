@@ -263,17 +263,15 @@ public class UMLSKSource implements KSource {
         }
 
     }
+    
     protected void seedQueryDb(String query, KNode kn, KGraph kg)
-            throws Exception
-    {
+            throws Exception {
         List<MatchedConcept> concepts = new ArrayList();
         concepts = findConcepts(query);
-        if(concepts==null||concepts.isEmpty())
-        {
+        if(concepts==null||concepts.isEmpty()) {
             Logger.warn("UMLS query on "+query+" failed");
         }
-        else
-        {
+        else {
             for (MatchedConcept concept : concepts) {
                 String cui = concept.concept.cui;
                 Logger.debug("CUI="+cui);
