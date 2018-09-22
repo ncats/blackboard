@@ -16,16 +16,13 @@ import blackboard.mesh.MeshDb;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.Concept;
 import blackboard.mesh.CommonDescriptor;
+
 import blackboard.neo4j.Neo4j;
 
 import com.google.inject.assistedinject.Assisted;
 
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.*;
-
-import javax.xml.parsers.*;
-import org.xml.sax.helpers.*;
-import org.xml.sax.*;
 
 import play.Logger;
 import play.libs.F;
@@ -38,152 +35,6 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
         RelationshipType.withName("mesh");
 
     static final PubMedDoc POISON_DOC = new PubMedDoc ();
-        
-    class PubMedSax extends DefaultHandler {
-        StringBuilder content = new StringBuilder ();
-        LinkedList<String> stack = new LinkedList<>();
-        PubMedDoc doc;
-        Calendar cal = Calendar.getInstance();
-        String idtype, ui, majorTopic;
-        MeshHeading mh;
-        Consumer<PubMedDoc> consumer;
-        
-        PubMedSax (Consumer<PubMedDoc> consumer) {
-            this.consumer = consumer;
-        }
-        
-        public void parse (InputStream is) throws Exception {
-            SAXParserFactory.newInstance().newSAXParser().parse(is, this);
-        }
-        
-        public void startDocument () {
-        }
-        
-        public void endDocument () {
-        }
-        
-        public void startElement (String uri, String localName, String qName, 
-                                  Attributes attrs) {
-            switch (qName) {
-            case "PubmedArticle":
-                doc = new PubMedDoc ();
-                break;
-            case "PubDate":
-                cal.clear();
-                break;
-            case "ArticleId":
-                idtype = attrs.getValue("IdType");
-                break;
-                
-            case "DescriptorName":
-                majorTopic = attrs.getValue("MajorTopicYN");
-                // fallthrough
-                
-            case "NameOfSubstance":
-            case "QualifierName":
-                ui = attrs.getValue("UI");
-                break;
-
-            case "MeshHeading":
-                mh = null;
-                break;
-            }
-            stack.push(qName);
-            content.setLength(0);
-        }
-        
-        public void endElement (String uri, String localName, String qName) {
-            stack.pop();
-            String parent = stack.peek();
-            String value = content.toString();
-            switch (qName) {
-            case "PMID":
-                if ("MedlineCitation".equals(parent)) {
-                    try {
-                        doc.pmid = Long.parseLong(value);
-                    }
-                    catch (NumberFormatException ex) {
-                        Logger.error("Bogus PMID: "+content, ex);
-                    }
-                }
-                break;
-                
-            case "Year":
-                if ("PubDate".equals(parent))
-                    cal.set(Calendar.YEAR, Integer.parseInt(value));
-                break;
-            case "Month":
-                if ("PubDate".equals(parent))
-                    cal.set(Calendar.MONTH, PubMedDoc.parseMonth(value));
-                break;
-            case "Day":
-                if ("PubDate".equals(parent))
-                    cal.set(Calendar.DAY_OF_MONTH, Integer.parseInt(value));
-                break;
-                
-            case "PubDate":
-                doc.date = cal.getTime();
-                break;
-
-            case "Title":
-                if ("Journal".equals(parent))
-                    doc.journal = value;
-                break;
-
-            case "AbstractText":
-                if ("Abstract".equals(parent))
-                    doc.abs.add(value);
-                break;
-
-            case "ArticleTitle":
-                doc.title = value;
-                break;
-
-            case "ArticleId":
-                if ("doi".equals(idtype))
-                    doc.doi = value;
-                else if ("pmc".equals(idtype))
-                    doc.pmc = value;
-                break;
-                
-            case "NameOfSubstance":
-                if (ui != null) {
-                    Entry chem = mesh.getEntry(ui);
-                    if (chem != null)
-                        doc.chemicals.add(chem);
-                }
-                break;
-
-            case "DescriptorName":
-                if ("MeshHeading".equals(parent)) {
-                    Entry desc = mesh.getEntry(ui);
-                    if (desc != null) {
-                        mh = new MeshHeading
-                            (desc, "Y".equals(majorTopic));
-                        doc.headings.add(mh);
-                    }
-                }
-                break;
-
-            case "QualifierName":
-                if (mh != null) {
-                    Entry qual = mesh.getEntry(ui);
-                    if (qual != null)
-                        mh.qualifiers.add(qual);
-                }
-                break;
-
-            case "PubmedArticle":
-                if (consumer != null)
-                    consumer.accept(doc);
-                break;
-            }
-        }
-        
-        public void characters (char[] ch, int start, int length) {
-            content.append(ch, start, length);
-        }
-    } // PubMedSax
     
     class PubMedNodeFactory extends UniqueFactory.UniqueNodeFactory {
         int count;
@@ -426,7 +277,7 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
         for (int i = 0; i < nthreads; ++i)
             futures[i] = es.submit(new IndexTask ());
         
-        new PubMedSax(d -> {
+        new PubMedSax(mesh, d -> {
                 try {
                     //Logger.debug("queuing "+d.pmid+"...");
                     queue.put(d);
