@@ -21,6 +21,7 @@ import blackboard.mesh.Entry;
 
 public class PubMedDoc implements java.io.Serializable {
     static private final Long serialVerionUID = 0x010101l;
+    public static final PubMedDoc EMPTY = new PubMedDoc ();
         
     Long pmid;
     String doi;

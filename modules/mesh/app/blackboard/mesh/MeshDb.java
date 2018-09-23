@@ -68,6 +68,10 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         Logger.debug("## "+dbdir+" mesh database initialized...");
     }
 
+    public MeshDb (File dbdir) {
+        this (null, dbdir);
+    }
+
     public void close () throws Exception {
         shutdown ();
     }

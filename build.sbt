@@ -11,6 +11,7 @@ lazy val commonDependencies = Seq(
   javaWs,
   javaJdbc,
   "mysql" % "mysql-connector-java" % "5.1.31",
+  "org.apache.lucene" % "lucene-facet" % "5.5.5",
   // can't seem to get beyond version 3.2.1; getting npe in netty!
   "org.neo4j" % "neo4j" % "3.2.1"
 )
