@@ -43,7 +43,7 @@ public class PubMedIndex implements AutoCloseable {
     final DirectoryTaxonomyWriter taxonWriter;
     final FacetsConfig facetConfig;
 
-    final MetaMap metamap = new MetaMap ();
+    MetaMap metamap = new MetaMap ();
     
     public PubMedIndex (File dir) throws IOException {
         File text = new File (dir, "text");
@@ -69,6 +69,10 @@ public class PubMedIndex implements AutoCloseable {
     public File getDbFile () { return root; }
     public void close () throws Exception {
         IOUtils.close(indexWriter, indexDir, taxonWriter, taxonDir);
+    }
+
+    public void setMMPort (int port) {
+        metamap = new MetaMap (port);
     }
 
     protected void metamap (Document doc, String text) {

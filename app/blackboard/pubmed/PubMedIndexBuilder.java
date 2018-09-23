@@ -13,10 +13,19 @@ import blackboard.mesh.MeshDb;
 public class PubMedIndexBuilder implements AutoCloseable {
     class Builder implements Callable<PubMedIndex> {
         PubMedIndex index;
+        Integer port;
         int count;
 
         Builder (File db) throws IOException {
+            this (db, null);
+        }
+        
+        Builder (File db, Integer port) throws IOException {
             index = new PubMedIndex (db);
+            if (port != null && port > 1024) {
+                index.setMMPort(port);
+                this.port = port;
+            }
         }
 
         public PubMedIndex call () throws Exception {
@@ -33,7 +42,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 }
             }
             Logger.debug(Thread.currentThread().getName()+": "
-                         +index.getDbFile()+" "+index.size());
+                         +index.getDbFile()+" port="+port+" "+index.size());
             return index;
         }
     }
@@ -50,11 +59,17 @@ public class PubMedIndexBuilder implements AutoCloseable {
         this (base, 2);
     }
     
-    public PubMedIndexBuilder (String base, int threads) throws IOException {
+    public PubMedIndexBuilder (String base, int threads, Integer... ports)
+        throws IOException {
         es = Executors.newFixedThreadPool(threads);
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
-            this.threads.add(es.submit(new Builder (db)));
+            Integer port;
+            if (i >= ports.length)
+                port = ports.length > 0 ? ports[i % ports.length] : null;
+            else
+                port = ports[i];
+            this.threads.add(es.submit(new Builder (db, port)));
         }
     }
 
@@ -95,19 +110,56 @@ public class PubMedIndexBuilder implements AutoCloseable {
         }
     }
 
+    static void usage () {
+        System.err.println
+            ("Usage: PubMedIndexBuilder "
+             +"[BASE=pubmed|THREADS=2|METAMAP=8066..] MESHDB FILES...");
+        System.exit(1);
+    }
+    
     public static void main (String[] argv) throws Exception {
-        if (argv.length < 4) {
-            System.err.println
-                ("Usage: PubMedIndexBuilder BASE MESHDB THREADS FILES...");
-            System.exit(1);
+        if (argv.length < 2)
+            usage ();
+
+        List<Integer> ports = new ArrayList<>();
+        int threads = 2;
+        String base = "pubmed";
+        String meshdb = null;
+        List<String> files = new ArrayList<>();
+        for (String a : argv) {
+            if (a.startsWith("BASE=")) {
+                base = a.substring(5);
+                Logger.debug("BASE: "+base);
+            }
+            else if (a.startsWith("THREADS=")) {
+                threads = Integer.parseInt(a.substring(8));
+                Logger.debug("THEADS: "+threads);
+            }
+            else if (a.startsWith("METAMAP=")) {
+                for (String p : a.substring(8).split(",")) {
+                    ports.add(Integer.parseInt(p));
+                }
+                Logger.debug("PORTS: "+ports);
+            }
+            else if (meshdb == null) {
+                meshdb = a;
+                Logger.debug("MESH: "+meshdb);
+            }
+            else {
+                files.add(a);
+            }
         }
 
-        int threads = Integer.parseInt(argv[2]);
-        try (PubMedIndexBuilder pmb = new PubMedIndexBuilder (argv[0], threads);
-             MeshDb mesh = new MeshDb (new File (argv[1]))) {
-            for (int i = 3; i < argv.length; ++i) {
+        if (meshdb == null || files.isEmpty())
+            usage ();
+
+        Logger.debug("processing "+files.size()+" files!");
+        try (PubMedIndexBuilder pmb = new PubMedIndexBuilder
+             (base, threads, ports.toArray(new Integer[0]));
+             MeshDb mesh = new MeshDb (new File (meshdb))) {
+            for (String f : files) {
                 pmb.build(new java.util.zip.GZIPInputStream
-                          (new FileInputStream (argv[i])), mesh);
+                          (new FileInputStream (f)), mesh);
             }
         }
     }
