@@ -113,7 +113,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     static void usage () {
         System.err.println
             ("Usage: PubMedIndexBuilder "
-             +"[BASE=pubmed|THREADS=2|METAMAP=8066..] MESHDB FILES...");
+             +"[BASE=pubmed|THREADS=2|METAMAP=8066[,8067,..]|INPUT=FILE] MESHDB FILES...");
         System.exit(1);
     }
     
@@ -125,7 +125,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         int threads = 2;
         String base = "pubmed";
         String meshdb = null;
-        List<String> files = new ArrayList<>();
+        List<File> files = new ArrayList<>();
         for (String a : argv) {
             if (a.startsWith("BASE=")) {
                 base = a.substring(5);
@@ -141,12 +141,29 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 }
                 Logger.debug("PORTS: "+ports);
             }
+            else if (a.startsWith("INPUT=")) {
+                try (BufferedReader br = new BufferedReader
+                     (new InputStreamReader (new FileInputStream
+                                             (a.substring(6))));) {
+                    for (String line; (line = br.readLine()) != null; ) {
+                        File f = new File (line.trim());
+                        if (f.exists())
+                            files.add(f);
+                        else
+                            Logger.warn("Skipping unknown file: \""+f+"\"");
+                    }
+                }
+            }
             else if (meshdb == null) {
                 meshdb = a;
                 Logger.debug("MESH: "+meshdb);
             }
             else {
-                files.add(a);
+                File f = new File (a);
+                if (f.exists())
+                    files.add(f);
+                else
+                    Logger.warn("Skipping unknown file: \""+a+"\"");
             }
         }
 
@@ -157,7 +174,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         try (PubMedIndexBuilder pmb = new PubMedIndexBuilder
              (base, threads, ports.toArray(new Integer[0]));
              MeshDb mesh = new MeshDb (new File (meshdb))) {
-            for (String f : files) {
+            for (File f : files) {
                 pmb.build(new java.util.zip.GZIPInputStream
                           (new FileInputStream (f)), mesh);
             }
