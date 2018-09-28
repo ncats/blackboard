@@ -88,7 +88,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     public void build (InputStream is, MeshDb mesh) {
         AtomicInteger count = new AtomicInteger ();
         PubMedSax pms = new PubMedSax (mesh, d -> {
-                if (true || count.incrementAndGet() < 1000) {
+                if (true || count.incrementAndGet() < 100) {
                     try {
                         queue.put(d);
                     }
@@ -175,9 +175,16 @@ public class PubMedIndexBuilder implements AutoCloseable {
              (base, threads, ports.toArray(new Integer[0]));
              MeshDb mesh = new MeshDb (new File (meshdb))) {
             for (File f : files) {
+                Logger.debug("########## "+f+" #########");
+                long start = System.currentTimeMillis();
                 pmb.build(new java.util.zip.GZIPInputStream
                           (new FileInputStream (f)), mesh);
+                Logger.debug("##### finished "+f+" in "+String.format
+                             ("%1$.3fs", (System.currentTimeMillis()-start)
+                              /1000.));
             }
+            Logger.debug("### "+new java.util.Date()+"; "
+                         +files.size()+" file(s)");
         }
     }
 }
