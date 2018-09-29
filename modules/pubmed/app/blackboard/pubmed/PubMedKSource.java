@@ -56,10 +56,10 @@ import play.mvc.BodyParser;
 import static blackboard.KEntity.*;
 
 public class PubMedKSource implements KSource, KType {
-    private final WSClient wsclient;
-    private final KSourceProvider ksp;
-    private final CacheApi cache;
-    private final MeshDb mesh;
+    public final WSClient wsclient;
+    public final KSourceProvider ksp;
+    public final CacheApi cache;
+    public final MeshDb mesh;
     
     private final String[] blacklist;
     private final String[] whitelist;
@@ -67,6 +67,7 @@ public class PubMedKSource implements KSource, KType {
     private final String EUTILS_BASE;
     private final String MESH_BASE;
     private final Integer MAX_RESULTS;
+    private final String API_KEY;
     
     interface Resolver {
         void resolve (JsonNode json, KNode kn, KGraph kg);
@@ -112,9 +113,9 @@ public class PubMedKSource implements KSource, KType {
         this.cache = cache;
         this.mesh = meshKS.getMeshDb();
 
-
         Map<String, String> props = ksp.getProperties();
-        EUTILS_BASE = props.get("uri");
+        EUTILS_BASE = props.get("api.uri");
+        API_KEY = props.get("api.key");
         MESH_BASE = props.get("mesh");
         MAX_RESULTS = Integer.parseInt((String)props.get("max-results"));
 
@@ -124,6 +125,8 @@ public class PubMedKSource implements KSource, KType {
         if (MESH_BASE == null)
             throw new IllegalArgumentException
                 (ksp.getId()+" doesn't have \"mesh\" property defined!");
+        if (API_KEY == null)
+            Logger.warn("No api.key defined for "+ksp.getId());
 
         List<String> wlist = new ArrayList<>();
         List<String> blist = new ArrayList<>();
@@ -200,6 +203,8 @@ public class PubMedKSource implements KSource, KType {
         // resolve through pubmed
         String url = ksp.getUri() + "/esearch.fcgi";
         Map<String, String> q = new HashMap<>();
+        if (API_KEY != null)
+            q.put("api_key", API_KEY);
         q.put("db", "pubmed");
         q.put("retmax", String.valueOf(MAX_RESULTS));
         q.put("retmode", "json");
@@ -554,15 +559,30 @@ public class PubMedKSource implements KSource, KType {
         return meshes.values().toArray(new MeSH[0]);
     }
 
-    public Document _getDocument (String pmid) throws Exception {
-        WSRequest req = wsclient.url(EUTILS_BASE + "/efetch.fcgi")
+    public WSRequest eutils (String endpoint) {
+        WSRequest req = wsclient.url(EUTILS_BASE + "/"+endpoint)
             .setFollowRedirects(true)
             .setQueryParameter("db", "pubmed")
+            ;
+        return API_KEY != null
+            ? req.setQueryParameter("api_key", API_KEY) : req;
+    }
+
+    public Document _getDocument (String pmid) throws Exception {
+        WSRequest req = eutils("efetch.fcgi")
             .setQueryParameter("rettype", "xml")
             .setQueryParameter("id", pmid);
         
-        Logger.debug("+++ resolving..."+req.getUrl());
+        Logger.debug("+++ resolving..."+pmid+" "+req.getUrl());
         WSResponse res = req.get().toCompletableFuture().get();
+        if (429 == res.getStatus()) {
+            Logger.debug("Eutils rate exceeded; trying again...");
+            do {
+                res = req.get().toCompletableFuture().get();
+            }
+            while (429 == res.getStatus());
+        }
+        
         if (200 != res.getStatus()) {
             Logger.error(res.getUri()+" return status "+res.getStatus());
             return null;
@@ -581,7 +601,11 @@ public class PubMedKSource implements KSource, KType {
                 });
     }
 
-    public PubMedDoc getPubMed (final String pmid) throws Exception {
+    public PubMedDoc getPubMedDoc (final Long pmid) throws Exception {
+        return pmid != null ? getPubMedDoc (pmid.toString()) : null;
+    }
+    
+    public PubMedDoc getPubMedDoc (final String pmid) throws Exception {
         return cache.getOrElse
             ("pubmed/"+pmid+"/"+PubMedDoc.class.getName(),
              new Callable<PubMedDoc> () {

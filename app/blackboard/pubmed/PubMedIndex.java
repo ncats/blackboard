@@ -67,7 +67,7 @@ public class PubMedIndex implements AutoCloseable {
     final Directory taxonDir;
     final DirectoryTaxonomyWriter taxonWriter;
     final FacetsConfig facetConfig;
-
+    final SearcherManager searcherManager;
     final ObjectMapper mapper = new ObjectMapper ();
     MetaMap metamap = new MetaMap ();
     
@@ -95,12 +95,15 @@ public class PubMedIndex implements AutoCloseable {
         tvFieldType.setStoreTermVectorPayloads(true);
         tvFieldType.setStoreTermVectorOffsets(true);
         tvFieldType.freeze();
-        
+
+        searcherManager = new SearcherManager
+            (indexWriter, new SearcherFactory ());
         this.root = dir;
     }
 
     public File getDbFile () { return root; }
     public void close () throws Exception {
+        searcherManager.close();
         IOUtils.close(indexWriter, indexDir, taxonWriter, taxonDir);
     }
 
@@ -179,6 +182,30 @@ public class PubMedIndex implements AutoCloseable {
         return json.toArray(new JsonNode[0]);
     }
 
+    public boolean indexed (Long pmid) throws IOException {
+        IndexSearcher searcher = null;
+        try {
+            searcher = new IndexSearcher
+                (DirectoryReader.open(indexWriter, true));
+            NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
+                (FIELD_PMID, pmid, pmid, true, true);
+            TopDocs hits = searcher.search(query, 1);
+            return hits.totalHits > 0;
+        }
+        finally {
+            if (searcher != null)
+                IOUtils.close(searcher.getIndexReader());
+        }
+    }
+    
+    public boolean addIfAbsent (PubMedDoc d) throws IOException {
+        if (!indexed (d.getPMID())) {
+            add (d);
+            return true;
+        }
+        return false;
+    }
+
     public void add (PubMedDoc d) throws IOException {
         Logger.debug(d.getPMID()+": "+d.getTitle());
         Document doc = new Document ();
@@ -239,6 +266,7 @@ public class PubMedIndex implements AutoCloseable {
             Logger.debug(facets.getTopChildren(20, FIELD_SEMTYPE).toString());
             Logger.debug(facets.getTopChildren(20, FIELD_SOURCE).toString());
 
+            /*
             IndexReader reader = searcher.getIndexReader();
             Document doc = reader.document(reader.maxDoc() - 1);
             JsonNode[] json = toJson (doc, FIELD_MM_TITLE);
@@ -249,6 +277,7 @@ public class PubMedIndex implements AutoCloseable {
             for (JsonNode n : json) {
                 Logger.debug(">>>> MetaMap Abstract Json:\n"+n);
             }
+            */
             
             IOUtils.close(taxonReader);
         }

@@ -1,16 +1,23 @@
 package blackboard.pubmed;
 
 import play.Logger;
+import play.Application;
+import play.inject.Injector;
+import play.inject.guice.GuiceApplicationBuilder;
 
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.inject.Inject;
 
 import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
 
+
 public class PubMedIndexBuilder implements AutoCloseable {
+    
     class Builder implements Callable<PubMedIndex> {
         PubMedIndex index;
         Integer port;
@@ -31,8 +38,17 @@ public class PubMedIndexBuilder implements AutoCloseable {
         public PubMedIndex call () throws Exception {
             for (PubMedDoc doc; (doc = queue.take()) != PubMedDoc.EMPTY;) {
                 try {
-                    index.add(doc);
-                    ++count;
+                    if (addIfAbsent.get()) {
+                        boolean added = index.addIfAbsent(doc);
+                        if (added)
+                            ++count;
+                        Logger.debug(Thread.currentThread().getName()
+                                     +": added "+doc.getPMID()+"..."+added);
+                    }
+                    else {
+                        index.add(doc);
+                        ++count;
+                    }
                     Logger.debug(Thread.currentThread().getName()
                                  +": "+doc.getPMID()+"/"+count);
                 }
@@ -50,7 +66,10 @@ public class PubMedIndexBuilder implements AutoCloseable {
     final BlockingQueue<PubMedDoc> queue = new ArrayBlockingQueue<>(1000);
     final ExecutorService es;
     final List<Future<PubMedIndex>> threads = new ArrayList<>();
-
+    final PubMedKSource pubmed;
+    final Application app;
+    final AtomicBoolean addIfAbsent = new AtomicBoolean (false);
+    
     public PubMedIndexBuilder () throws IOException {
         this ("pubmed");
     }
@@ -71,7 +90,17 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 port = ports[i];
             this.threads.add(es.submit(new Builder (db, port)));
         }
+        
+        app = new GuiceApplicationBuilder()
+            .in(new File("."))
+            .build();
+        pubmed = app.injector().instanceOf(PubMedKSource.class);
     }
+
+    public void setAddIfAbsent (boolean b) {
+        addIfAbsent.set(b);
+    }
+    public boolean getAddIfAbsent () { return addIfAbsent.get(); }
 
     public void close () throws Exception {
         for (Future<PubMedIndex> f : threads)
@@ -83,11 +112,12 @@ public class PubMedIndexBuilder implements AutoCloseable {
             pmi.close();
         }
         es.shutdownNow();
+        play.api.Play.stop(app.getWrappedApplication());
     }
 
-    public void build (InputStream is, MeshDb mesh) {
+    public void buildXml (InputStream is) throws Exception {
         AtomicInteger count = new AtomicInteger ();
-        PubMedSax pms = new PubMedSax (mesh, d -> {
+        PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
                 if (true || count.incrementAndGet() < 100) {
                     try {
                         queue.put(d);
@@ -105,27 +135,43 @@ public class PubMedIndexBuilder implements AutoCloseable {
         }
         catch (RuntimeException ex) {
         }
-        catch (Exception ex) {
-            Logger.error("Can't build index", ex);
+    }
+
+    public void build (InputStream is) throws Exception {
+        try (BufferedReader br = new BufferedReader
+             (new InputStreamReader (is))) {
+            for (String line; (line = br.readLine()) != null; ) {
+                try {
+                    Long pmid = Long.parseLong(line);
+                    queue.put(pubmed.getPubMedDoc(pmid));
+                }
+                catch (NumberFormatException ex) {
+                    Logger.warn("Bogus PMID: "+line, ex);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't queue pmid "+line, ex);
+                }
+            }
         }
     }
 
     static void usage () {
         System.err.println
             ("Usage: PubMedIndexBuilder "
-             +"[BASE=pubmed|THREADS=2|METAMAP=8066[,8067,..]|INPUT=FILE] MESHDB FILES...");
+             +"[BASE=pubmed|THREADS=2|METAMAP=8066[,8067,..]"
+             +"|INPUT=FILE|PMID=FILE] FILES...");
         System.exit(1);
     }
     
     public static void main (String[] argv) throws Exception {
-        if (argv.length < 2)
+        if (argv.length < 1)
             usage ();
 
         List<Integer> ports = new ArrayList<>();
         int threads = 2;
         String base = "pubmed";
-        String meshdb = null;
         List<File> files = new ArrayList<>();
+        List<File> pmids = new ArrayList<>();
         for (String a : argv) {
             if (a.startsWith("BASE=")) {
                 base = a.substring(5);
@@ -154,9 +200,14 @@ public class PubMedIndexBuilder implements AutoCloseable {
                     }
                 }
             }
-            else if (meshdb == null) {
-                meshdb = a;
-                Logger.debug("MESH: "+meshdb);
+            else if (a.startsWith("PMID=")) {
+                File file = new File (a.substring(5));
+                if (!file.exists()) {
+                    Logger.debug(file+" does not exist!");
+                }
+                else {
+                    pmids.add(file);
+                }
             }
             else {
                 File f = new File (a);
@@ -167,24 +218,45 @@ public class PubMedIndexBuilder implements AutoCloseable {
             }
         }
 
-        if (meshdb == null || files.isEmpty())
+        if (files.isEmpty() && pmids.isEmpty())
             usage ();
 
         Logger.debug("processing "+files.size()+" files!");
-        try (PubMedIndexBuilder pmb = new PubMedIndexBuilder
-             (base, threads, ports.toArray(new Integer[0]));
-             MeshDb mesh = new MeshDb (new File (meshdb))) {
+        final PubMedIndexBuilder pmb = new PubMedIndexBuilder
+            (base, threads, ports.toArray(new Integer[0]));
+        Runtime.getRuntime().addShutdownHook(new Thread () {
+                public void run () {
+                    Logger.debug("##### SHUTTING DOWN! ######");
+                    try {
+                        pmb.close();
+                    }
+                    catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            });
+        
+        if (!files.isEmpty()) {
             for (File f : files) {
                 Logger.debug("########## "+f+" #########");
                 long start = System.currentTimeMillis();
-                pmb.build(new java.util.zip.GZIPInputStream
-                          (new FileInputStream (f)), mesh);
+                pmb.buildXml(new java.util.zip.GZIPInputStream
+                             (new FileInputStream (f)));
                 Logger.debug("##### finished "+f+" in "+String.format
                              ("%1$.3fs", (System.currentTimeMillis()-start)
                               /1000.));
             }
             Logger.debug("### "+new java.util.Date()+"; "
                          +files.size()+" file(s)");
+        }
+        
+        pmb.setAddIfAbsent(true);
+        for (File f : pmids) {
+            Logger.debug("########## "+f+" #########");
+            try (FileInputStream fis = new FileInputStream (f)) {
+                pmb.build(fis);
+            }
+            Logger.debug("### "+new java.util.Date()+": "+f);
         }
     }
 }

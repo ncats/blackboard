@@ -109,7 +109,7 @@ public class Controller extends play.mvc.Controller {
     }
 
     Result getPubMedJson (Long pmid) throws Exception {
-        PubMedDoc doc = ks.getPubMed(pmid.toString());
+        PubMedDoc doc = ks.getPubMedDoc(pmid.toString());
         if (doc == null)
             return notFound ("Can't retrieve PubMed article "+pmid);
 

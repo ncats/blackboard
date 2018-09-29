@@ -226,7 +226,7 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> pubmed (final Long pmid) {
         return supplyAsync (() -> {
                 try {
-                    PubMedDoc doc = ks.pubmed.getPubMed(pmid.toString());
+                    PubMedDoc doc = ks.pubmed.getPubMedDoc(pmid.toString());
                     List<Predication> preds =
                         ks.getPredicationsByPMID(doc.getPMID().toString());
                     Logger.debug("Doc "+pmid+" has "
