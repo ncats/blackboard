@@ -103,6 +103,11 @@ public class PubMedIndexBuilder implements AutoCloseable {
     public boolean getAddIfAbsent () { return addIfAbsent.get(); }
 
     public void close () throws Exception {
+        if (es.isShutdown() || es.isTerminated()) {
+            Logger.debug("### Instance already closed!");
+            return;
+        }
+        
         for (Future<PubMedIndex> f : threads)
             queue.put(PubMedDoc.EMPTY);
         
@@ -116,9 +121,12 @@ public class PubMedIndexBuilder implements AutoCloseable {
     }
 
     public void buildXml (InputStream is) throws Exception {
+        if (es.isShutdown() || es.isTerminated())
+            throw new RuntimeException ("Instance has already been closed!");
+        
         AtomicInteger count = new AtomicInteger ();
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
-                if (true || count.incrementAndGet() < 100) {
+                if (/*true ||*/ count.incrementAndGet() < 100) {
                     try {
                         queue.put(d);
                     }
@@ -138,6 +146,9 @@ public class PubMedIndexBuilder implements AutoCloseable {
     }
 
     public void build (InputStream is) throws Exception {
+        if (es.isShutdown() || es.isTerminated())
+            throw new RuntimeException ("Instance has already been closed!");
+        
         try (BufferedReader br = new BufferedReader
              (new InputStreamReader (is))) {
             for (String line; (line = br.readLine()) != null; ) {
@@ -222,41 +233,42 @@ public class PubMedIndexBuilder implements AutoCloseable {
             usage ();
 
         Logger.debug("processing "+files.size()+" files!");
-        final PubMedIndexBuilder pmb = new PubMedIndexBuilder
-            (base, threads, ports.toArray(new Integer[0]));
-        Runtime.getRuntime().addShutdownHook(new Thread () {
-                public void run () {
-                    Logger.debug("##### SHUTTING DOWN! ######");
-                    try {
-                        pmb.close();
+        try (final PubMedIndexBuilder pmb = new PubMedIndexBuilder
+             (base, threads, ports.toArray(new Integer[0]))) {
+            Runtime.getRuntime().addShutdownHook(new Thread () {
+                    public void run () {
+                        Logger.debug("##### SHUTTING DOWN! ######");
+                        try {
+                            pmb.close();
+                        }
+                        catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }
-                    catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
+                });
+            
+            if (!files.isEmpty()) {
+                for (File f : files) {
+                    Logger.debug("########## "+f+" #########");
+                    long start = System.currentTimeMillis();
+                    pmb.buildXml(new java.util.zip.GZIPInputStream
+                                 (new FileInputStream (f)));
+                    Logger.debug("##### finished "+f+" in "+String.format
+                                 ("%1$.3fs", (System.currentTimeMillis()-start)
+                                  /1000.));
                 }
-            });
-        
-        if (!files.isEmpty()) {
-            for (File f : files) {
+                Logger.debug("### "+new java.util.Date()+"; "
+                             +files.size()+" file(s)");
+            }
+            
+            pmb.setAddIfAbsent(true);
+            for (File f : pmids) {
                 Logger.debug("########## "+f+" #########");
-                long start = System.currentTimeMillis();
-                pmb.buildXml(new java.util.zip.GZIPInputStream
-                             (new FileInputStream (f)));
-                Logger.debug("##### finished "+f+" in "+String.format
-                             ("%1$.3fs", (System.currentTimeMillis()-start)
-                              /1000.));
-            }
-            Logger.debug("### "+new java.util.Date()+"; "
-                         +files.size()+" file(s)");
-        }
-        
-        pmb.setAddIfAbsent(true);
-        for (File f : pmids) {
-            Logger.debug("########## "+f+" #########");
-            try (FileInputStream fis = new FileInputStream (f)) {
+                try (FileInputStream fis = new FileInputStream (f)) {
                 pmb.build(fis);
+                }
+                Logger.debug("### "+new java.util.Date()+": "+f);
             }
-            Logger.debug("### "+new java.util.Date()+": "+f);
         }
     }
 }
