@@ -1,6 +1,8 @@
 package blackboard.umls;
 
 import java.util.List;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
 
 import gov.nih.nlm.nls.metamap.AcronymsAbbrevs;
 import gov.nih.nlm.nls.metamap.ConceptPair;
@@ -25,6 +27,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import se.sics.prologbeans.PBTerm;
 import play.libs.Json;
+import play.Logger;
 
 public class MetaMap {
     // Jackson can't serialize PBTerm, so we need to mask these and other
@@ -71,11 +74,11 @@ public class MetaMap {
     }
 
     public List<Result> annotate (String text) throws Exception {
-        return api.processCitationsFromString(text);
+        return api.processCitationsFromString(toAscii (text));
     }
 
     public JsonNode annotateAsJson (String text) throws Exception {
-        List<Result> results = api.processCitationsFromString(text);
+        List<Result> results = annotate (text);
         return results.isEmpty() ? Json.newObject() : toJson (results.get(0));
     }
 
@@ -87,5 +90,70 @@ public class MetaMap {
         mapper.addMixInAnnotations(MatchMap.class, MetaMapMixIn.class);
         mapper.addMixInAnnotations(Phrase.class, MetaMapMixIn.class);
         return mapper.valueToTree(value);
+    }
+
+    public static String toAscii (String text) {
+        StringBuilder ascii = new StringBuilder ();
+        CharsetEncoder enc = Charset.forName("ASCII").newEncoder();
+        for (int i = 0, len = text.length(); i < len; ++i) {
+            char ch = text.charAt(i);
+            switch (ch) {
+            case 'Ê': 
+            case 'È':
+            case 'É':
+                ascii.append('E');
+                break;
+            case 'ë': 
+            case 'é':
+            case 'è':
+            case 'ĕ':
+                ascii.append('e');
+                break;
+            case 'ü':
+            case 'ú':
+                ascii.append('u');
+                break;
+            case 'Å':
+            case 'Ä':
+            case 'Â':
+            case 'Ã':
+                ascii.append('A');
+                break;
+            case 'å':
+            case 'à':
+            case 'á':
+            case 'ä':
+            case 'ã':
+                ascii.append('a');
+                break;
+            case 'ß':
+                ascii.append("ss");
+                break;
+            case 'Ç': ascii.append('C'); break;
+            case 'Ö':
+            case 'Ó':
+                ascii.append('O');
+                break;
+            case 'Ñ': ascii.append('N'); break;
+            case 'Ü': ascii.append('U'); break;
+            case 'ö':
+                //case 'º':
+                ascii.append('o');
+                break;
+            case '£': ascii.append('L'); break;
+            case 'ł': ascii.append('l'); break;
+            case 'ş': ascii.append('s'); break;
+            case 'ĭ': ascii.append('i'); break;
+            default:
+                if (enc.canEncode(ch))
+                    ascii.append(ch);
+                else {
+                    Logger.warn("***** Unable to encode '"
+                                +ch+"' to ASCII! ******");
+                }
+            }
+        }
+        //Logger.debug(">>"+text+"\n<<"+ascii+"\n");
+        return ascii.toString();
     }
 }
