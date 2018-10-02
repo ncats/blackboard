@@ -126,7 +126,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         
         AtomicInteger count = new AtomicInteger ();
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
-                if (true || count.incrementAndGet() < 100) {
+                if (true || count.incrementAndGet() < 1000) {
                     try {
                         queue.put(d);
                     }
@@ -151,10 +151,14 @@ public class PubMedIndexBuilder implements AutoCloseable {
         
         try (BufferedReader br = new BufferedReader
              (new InputStreamReader (is))) {
+            int count = 0;
             for (String line; (line = br.readLine()) != null; ) {
                 try {
-                    Long pmid = Long.parseLong(line);
-                    queue.put(pubmed.getPubMedDoc(pmid));
+                    if (true || count < 1000) {
+                        Long pmid = Long.parseLong(line);
+                        queue.put(pubmed.getPubMedDoc(pmid));
+                        ++count;
+                    }
                 }
                 catch (NumberFormatException ex) {
                     Logger.warn("Bogus PMID: "+line, ex);

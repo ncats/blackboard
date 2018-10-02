@@ -107,10 +107,12 @@ public class MetaMap {
             case 'é':
             case 'è':
             case 'ĕ':
+            case 'ę':
                 ascii.append('e');
                 break;
             case 'ü':
             case 'ú':
+            case 'μ':
                 ascii.append('u');
                 break;
             case 'Å':
@@ -129,25 +131,104 @@ public class MetaMap {
             case 'ß':
                 ascii.append("ss");
                 break;
+            case 'ç': ascii.append('c'); break;
             case 'Ç': ascii.append('C'); break;
             case 'Ö':
             case 'Ó':
                 ascii.append('O');
                 break;
+            case 'ñ': ascii.append('n'); break;
             case 'Ñ': ascii.append('N'); break;
             case 'Ü': ascii.append('U'); break;
             case 'ö':
+            case 'ô':
+            case 'ø':
+            case 'ó':
+            case 'ō':
                 //case 'º':
                 ascii.append('o');
                 break;
             case '£': ascii.append('L'); break;
             case 'ł': ascii.append('l'); break;
-            case 'ş': ascii.append('s'); break;
-            case 'ĭ': ascii.append('i'); break;
+            case '₅':
+            case 'ş':
+                ascii.append('s');
+                break;
+            case 'ĭ':
+            case 'ï':
+                ascii.append('i');
+                break;
+            case '°': ascii.append("{^o}"); break;
+            case '∼': ascii.append('~'); break;
+            case '≈': ascii.append("[approx]"); break;
+            case 'α': ascii.append("[alpha]"); break;
+            case 'β': ascii.append("[beta]"); break;
+            case 'Δ': ascii.append("[DELTA]"); break;
+            case 'δ': ascii.append("[delta]"); break;
+            case 'ε': ascii.append("[epsilon]"); break;
+            case 'γ': ascii.append("[gamma]"); break;
+            case 'Κ': ascii.append("[KAPPA]"); break;
+            case 'κ': ascii.append("[kappa]"); break;
+            case 'λ': ascii.append("[lambda]"); break;
+            case 'Μ': ascii.append("[MU]"); break;
+            case 'Ω': ascii.append("[OMEGA]"); break;
+            case 'ω': ascii.append("[omega]"); break;
+            case 'ν': ascii.append("[nu]"); break;
+            case 'φ': 
+            case 'Φ':
+                ascii.append("[phi]");
+                break;
+            case 'π': ascii.append("[pi]"); break;
+            case 'ψ': ascii.append("[psi]"); break;
+            case 'ρ': ascii.append("[rho]"); break;
+            case '∑': 
+            case 'Σ':
+                ascii.append("[SIGMA]");
+                break;
+            case 'σ': ascii.append("[sigma]"); break;
+            case 'τ': ascii.append("[tau]"); break;
+            case '×': ascii.append('x'); break;
+            case '±': ascii.append("+/-"); break;
+            case '≧':
+            case '≥':
+                ascii.append(">=");
+                break;
+            case '≦':
+            case '≤': 
+            case '⩽':
+                ascii.append("<=");
+                break;
+            case '♀': ascii.append("[maternal]"); break; // or [female]
+            case '♂': ascii.append("[paternal]"); break; // or [male]
+            case '₀': ascii.append("{_0}"); break;
+            case '₁': ascii.append("{_1}"); break;
+            case '¹': ascii.append("{^1}"); break;
+            case '²': ascii.append("{^2}"); break;
+            case '₂': ascii.append("{_2}"); break;
+            case '³': ascii.append("{^3}"); break;
+            case '₄': ascii.append("{_4}"); break;
+            case '©': ascii.append("(c)"); break;
+            case '®': ascii.append("(R)"); break;
+            case '™': ascii.append("[tm]"); break;
+            case '‰': ascii.append("[permil]"); break;
+            case '℃': ascii.append("[celsius]"); break;
+            case '€': ascii.append("[euro]"); break;
+            case '•':
+            case '·':
+                ascii.append('*');
+                break;
+            case '´': ascii.append('\''); break;
+            case '˙': ascii.append("{^*}"); break;
+            case '–': ascii.append('-'); break;
+            case '〈': ascii.append('<'); break;
+            case '〉': ascii.append('>'); break;
+            case ' ': ascii.append('_'); break;
+            case ' ': ascii.append(' '); break;
             default:
                 if (enc.canEncode(ch))
                     ascii.append(ch);
                 else {
+                    ascii.append("[.]");
                     Logger.warn("***** Unable to encode '"
                                 +ch+"' to ASCII! ******");
                 }

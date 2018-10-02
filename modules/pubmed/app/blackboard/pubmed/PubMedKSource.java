@@ -56,6 +56,8 @@ import play.mvc.BodyParser;
 import static blackboard.KEntity.*;
 
 public class PubMedKSource implements KSource, KType {
+    static final int MAX_TRIES = 5; // max number of tries 
+    
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     public final CacheApi cache;
@@ -63,7 +65,7 @@ public class PubMedKSource implements KSource, KType {
     
     private final String[] blacklist;
     private final String[] whitelist;
-    
+
     private final String EUTILS_BASE;
     private final String MESH_BASE;
     private final Integer MAX_RESULTS;
@@ -596,7 +598,20 @@ public class PubMedKSource implements KSource, KType {
         return cache.getOrElse
             ("pubmed/"+pmid+"/doc", new Callable<Document> () {
                     public Document call () throws Exception {
-                        return _getDocument (pmid);
+                        int ntries = 0;
+                        do {
+                            try {
+                                return _getDocument (pmid);
+                            }
+                            catch (Exception ex) {
+                                Logger.warn("Can't retrieve document "+pmid
+                                            +": "+ex.getMessage());
+                                ++ntries;
+                                Logger.warn("trying again..."+ntries);
+                            }
+                        }
+                        while (ntries <= MAX_TRIES);
+                        return null;
                     }
                 });
     }
