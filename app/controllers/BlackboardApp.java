@@ -28,29 +28,6 @@ import controllers.api.kg.BlackboardSystem;
 @Singleton
 public class BlackboardApp extends Controller {
 
-    class ConsoleWebSocket extends LegacyWebSocket<JsonNode> {
-        final KGraph kgraph;
-        ConsoleWebSocket (KGraph kgraph) {
-            this.kgraph = kgraph;
-        }
-
-        public void onReady (WebSocket.In<JsonNode> in,
-                             WebSocket.Out<JsonNode> out) {
-            Logger.debug("WebSocket initialized for kgraph="+kgraph.getId());
-        }
-        
-        public boolean isActor () { return true; }
-        public akka.actor.Props actorProps (ActorRef out) {
-            try {
-                return akka.actor.Props.create
-                    (WebSocketConsoleActor.class, out, kgraph, consoles);
-            }
-            catch (Exception ex) {
-                throw new RuntimeException (ex);
-            }
-        }
-    }
-
     private final Map<Long, ActorRef> consoles = new ConcurrentHashMap<>();
     private final Blackboard blackboard;
     private final KEvents events;
@@ -101,7 +78,7 @@ public class BlackboardApp extends Controller {
 
         lifecycle.addStopHook(() -> {
                 shutdown ();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
     }
 
@@ -133,14 +110,6 @@ public class BlackboardApp extends Controller {
         return ok (views.html.blackboard.render());
     }
 
-    public LegacyWebSocket<JsonNode> console (final Long id) {
-        KGraph kg = blackboard.getKGraph(id);   
-        if (kg != null) {
-            return new ConsoleWebSocket (kg);
-        }
-        return WebSocket.reject(badRequest ());
-    }
-
     public Result kgraph (String id) {
         try {
             KGraph kg = blackboard.getKGraph(Long.parseLong(id));
@@ -158,6 +127,6 @@ public class BlackboardApp extends Controller {
 
     public String getWebSocketUrl (long kg) {
         String wshost = config.getString("play.http.ws", "ws://localhost:9000");
-        return wshost+routes.BlackboardApp.console(kg);
+        return wshost+"/"+kg;
     }
 }

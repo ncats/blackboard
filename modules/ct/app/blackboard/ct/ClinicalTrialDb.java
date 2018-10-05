@@ -192,12 +192,12 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         }
         
         void instrumentOld (Node node, String unii) throws Exception {
-            WSResponse res = wsclient.url
+            WSRequest req = wsclient.url
                 ("https://drugs.ncats.io/api/v1/substances")
-                .setQueryParameter("filter", "approvalID='"+unii+"'")
-                .get().toCompletableFuture().get();
+                .setQueryParameter("filter", "approvalID='"+unii+"'");
+            WSResponse res = req.get().toCompletableFuture().get();
             
-            Logger.debug(res.getUri()+"..."+res.getStatus());
+            Logger.debug(req.getUrl()+"..."+res.getStatus());
             if (res.getStatus() == 200) {
                 JsonNode n = res.asJson();
                 if ((n = n.get("content")) != null) {
@@ -218,7 +218,7 @@ public class ClinicalTrialDb extends Neo4j implements KType {
                 }
             }
             else {
-                Logger.error(res.getUri()+" return status "+res.getStatus());
+                Logger.error(req.getUrl()+" return status "+res.getStatus());
             }
         }
     }
@@ -273,14 +273,14 @@ public class ClinicalTrialDb extends Neo4j implements KType {
     }
 
     Map<String, String> loadUniiToNames () throws Exception {
-        WSResponse res = wsclient
+        WSRequest req = wsclient
             .url("https://fdasis.nlm.nih.gov/srs/download/srs/UNIIs.zip")
-            .setFollowRedirects(true)
-            .get().toCompletableFuture().get();
+            .setFollowRedirects(true);
+        WSResponse res = req.get().toCompletableFuture().get();
 
         Map<String, String> lut = new HashMap<>();
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri()+" returns status "+res.getStatus());
+            Logger.warn(req.getUrl()+" returns status "+res.getStatus());
         }
         else {
             try (ZipInputStream zis =
@@ -392,9 +392,9 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         List<Condition> conditions = new ArrayList<>();
         WSResponse res = req.get().toCompletableFuture().get();
 
-        Logger.debug("+++ parsing..."+res.getUri());
+        Logger.debug("+++ parsing..."+req.getUrl());
         if (200 != res.getStatus()) {
-            Logger.error(res.getUri()+" returns status "+res.getStatus());
+            Logger.error(req.getUrl()+" returns status "+res.getStatus());
             return conditions;
         }
         
@@ -909,16 +909,16 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         throws Exception {
         
         //String term = (String) node.getProperty("name");
-        WSResponse res = wsclient.url(DOWNLOAD_FIELDS)
+        WSRequest req = wsclient.url(DOWNLOAD_FIELDS)
             //.setQueryParameter("cond", "\""+term+"\"")
             .setQueryParameter("down_fmt", "xml")
             .setQueryParameter("down_flds", "all")
             .setQueryParameter("down_count", String.valueOf(top))
-            .setQueryParameter("down_chunk", String.valueOf(chunk))
-            .get().toCompletableFuture().get();
+            .setQueryParameter("down_chunk", String.valueOf(chunk));
+        WSResponse res = req.get().toCompletableFuture().get();
         
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri()+" return status "+res.getStatus());
+            Logger.warn(req.getUrl()+" return status "+res.getStatus());
             return 0;
         }
 
@@ -929,7 +929,7 @@ public class ClinicalTrialDb extends Neo4j implements KType {
                                                         
         NodeList studies = doc.getElementsByTagName("study");
         int ns = studies.getLength();
-        Logger.debug("## fetching "+res.getUri()+"..."+(ns*chunk)
+        Logger.debug("## fetching "+req.getUrl()+"..."+(ns*chunk)
                      +"/"+count);
 
         for (int i = 0; i < ns; ++i) {

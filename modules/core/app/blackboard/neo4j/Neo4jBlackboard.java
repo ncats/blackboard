@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import javax.inject.*;
 import java.util.stream.Collectors;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -77,7 +78,7 @@ public class Neo4jBlackboard extends TransactionEventHandler.Adapter
 
         lifecycle.addStopHook(() -> {
                 shutdown ();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
         this.config = config;
         this.events = events;

@@ -1,4 +1,4 @@
-package blackboard.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 import play.Application;

@@ -6,6 +6,7 @@ import java.util.regex.*;
 import java.util.*;
 import java.sql.*;
 import java.net.URLEncoder;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -181,7 +182,7 @@ public class UMLSKSource implements KSource {
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
 
         TGT _tgt = null;
@@ -249,7 +250,7 @@ public class UMLSKSource implements KSource {
         WSRequest req = search (query);
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri()+": status="+res.getStatus());
+            Logger.warn(req.getUrl()+": status="+res.getStatus());
         }
         else {
             JsonNode results = res.asJson().get("result").get("results");

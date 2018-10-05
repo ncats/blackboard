@@ -113,7 +113,7 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
         if (lifecycle != null) {
             lifecycle.addStopHook(() -> {
                     wsclient.close();
-                    return F.Promise.pure(null);
+                    return CompletableFuture.completedFuture(null);
                 });
         }
         this.wsclient = wsclient;

@@ -51,7 +51,7 @@ public class PharosKSource implements KSource, KType {
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
@@ -229,7 +229,7 @@ public class PharosKSource implements KSource, KType {
         
         try {   
             WSResponse res = req.get().toCompletableFuture().get();
-            Logger.debug("+++ url: "+res.getUri());
+            Logger.debug("+++ url: "+req.getUrl());
             JsonNode json = res.asJson();
             resolver.resolve(json, kn, kg);
         }

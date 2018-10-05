@@ -3,7 +3,6 @@
 # ~~~~
 
 GET     /	controllers.BlackboardApp.index
-GET	/console/:id	controllers.BlackboardApp.console(id: Long)
 GET	/kg/:id		controllers.BlackboardApp.kgraph(id: String)
 
 ->  /core  core.Routes

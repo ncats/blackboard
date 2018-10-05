@@ -6,6 +6,7 @@ import java.util.regex.*;
 import java.util.*;
 import java.sql.*;
 import java.io.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -97,7 +98,7 @@ public class SemMedDbKSource implements KSource {
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()

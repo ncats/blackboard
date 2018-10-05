@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.lang.reflect.Array;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static blackboard.KEntity.*;
@@ -26,7 +27,7 @@ import static blackboard.KEntity.*;
 /**
  * Created by williamsmard on 11/27/17.
  */
-public class ChemblKSource implements KSource{
+public class ChemblKSource implements KSource {
 
     protected final KSourceProvider ksp;
     @Inject protected WSClient wsclient;
@@ -48,7 +49,7 @@ public class ChemblKSource implements KSource{
     protected void setLifecycle (ApplicationLifecycle lifecycle) {
         lifecycle.addStopHook(() -> {
             wsclient.close();
-            return F.Promise.pure(null);
+            return CompletableFuture.completedFuture(null);
         });
         Logger.debug("lifecycle hook registered!");
     }
@@ -372,7 +373,7 @@ public class ChemblKSource implements KSource{
 
         try {
             WSResponse res = req.get().toCompletableFuture().get();
-            Logger.debug("+++ resolving..."+res.getUri());
+            Logger.debug("+++ resolving..."+url);
             JsonNode json = res.asJson();
             resolver.resolve(json, kn, kg);
         }

@@ -7,11 +7,13 @@ lazy val buildDate = (new java.text.SimpleDateFormat("yyyyMMdd"))
 lazy val appVersion = "%s-%s-%s".format(branch, buildDate, commit)
 
 lazy val commonDependencies = Seq(
-  cache,
+  guice,
+  ehcache,
   javaWs,
   javaJdbc,
   "mysql" % "mysql-connector-java" % "5.1.31",
   "org.apache.lucene" % "lucene-facet" % "5.5.5",
+  "org.apache.lucene" % "lucene-highlighter" % "5.5.5",
   // can't seem to get beyond version 3.2.1; getting npe in netty!
   "org.neo4j" % "neo4j" % "3.2.1"
 )
@@ -24,7 +26,7 @@ lazy val javaBuildOptions = Seq(
 
 lazy val commonSettings = Seq(
   name := """blackboard""",
-  scalaVersion := "2.11.8",
+  scalaVersion := "2.12.6",
   version := appVersion
 )
 
@@ -57,7 +59,7 @@ lazy val root = (project in file("."))
 lazy val buildinfo = (project in file("modules/build"))
   .settings(commonSettings: _*)
   .settings(name := "buildinfo",
-    sourceGenerators in Compile <+= sourceManaged in Compile map { dir =>
+    sourceGenerators in Compile += sourceManaged in Compile map { dir =>
       val file = dir / "BuildInfo.java"
       IO.write(file, """
 package blackboard;
@@ -79,8 +81,8 @@ lazy val core =  (project in file("modules/core"))
   .settings(
     name := "core",
     libraryDependencies ++= commonDependencies,
-    libraryDependencies += "org.webjars" %% "webjars-play" % "2.5.0",
-    libraryDependencies += "org.webjars" % "jquery" % "3.2.0",
+    libraryDependencies += "org.webjars" % "webjars-play_2.12" % "2.6.3",
+    libraryDependencies += "org.webjars" % "jquery" % "3.3.1-1",
     libraryDependencies += "org.webjars" % "font-awesome" % "4.7.0",
     javacOptions ++= javaBuildOptions
 ).dependsOn(buildinfo).aggregate(buildinfo)

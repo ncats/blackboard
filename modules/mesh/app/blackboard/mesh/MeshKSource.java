@@ -86,7 +86,7 @@ public class MeshKSource implements KSource {
         
         lifecycle.addStopHook(() -> {
                 wsclient.close();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()

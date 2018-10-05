@@ -7,8 +7,8 @@ import play.Logger;
 
 public class Assets extends controllers.AssetsBuilder {
     @Inject
-    Assets (HttpErrorHandler eh) {
-        super (eh);
+    Assets (HttpErrorHandler eh, controllers.AssetsMetadata meta) {
+        super (eh, meta);
     }
 
     public Action<AnyContent> versioned

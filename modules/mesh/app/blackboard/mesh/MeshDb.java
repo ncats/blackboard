@@ -62,7 +62,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         if (lifecycle != null) {
             lifecycle.addStopHook(() -> {
                     shutdown ();
-                    return F.Promise.pure(null);
+                    return CompletableFuture.completedFuture(null);
                 });
         }
         Logger.debug("## "+dbdir+" mesh database initialized...");
@@ -313,6 +313,18 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
             Node node = getNode (ui);
             if (node != null)
                 entry = toEntry (node);
+            tx.success();
+        }
+        return entry;
+    }
+
+    public Entry getEntryByName (String name) {
+        Entry entry = null;
+        try (Transaction tx = gdb.beginTx();
+             IndexHits<Node> hits = nodeIndex().get("name", name)) {
+            if (hits.hasNext()) {
+                entry = toEntry (hits.next());
+            }
             tx.success();
         }
         return entry;

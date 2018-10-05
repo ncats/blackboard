@@ -8,8 +8,8 @@ import static controllers.Assets.Asset;
 
 public class CustomAssets extends controllers.AssetsBuilder {
     @Inject
-    CustomAssets (HttpErrorHandler eh) {
-        super (eh);
+    CustomAssets (HttpErrorHandler eh, controllers.AssetsMetadata meta) {
+        super (eh, meta);
     }
 
     public Action<AnyContent> versioned (String path, Asset file) {

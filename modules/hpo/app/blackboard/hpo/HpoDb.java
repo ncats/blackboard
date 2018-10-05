@@ -2,6 +2,7 @@ package blackboard.hpo;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.*;
 import java.util.function.Function;
 import java.lang.reflect.Array;
@@ -105,7 +106,7 @@ public class HpoDb extends Neo4j implements AutoCloseable, KType {
         if (lifecycle != null) {
             lifecycle.addStopHook(() -> {
                     shutdown ();
-                    return F.Promise.pure(null);
+                    return CompletableFuture.completedFuture(null);
                 });
         }
         Logger.debug("## "+dbdir+" HPO database initialized...");        

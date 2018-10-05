@@ -154,7 +154,7 @@ public class PubMedKSource implements KSource, KType {
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
-                return F.Promise.pure(null);
+                return CompletableFuture.completedFuture(null);
             });
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
@@ -466,7 +466,7 @@ public class PubMedKSource implements KSource, KType {
         Logger.debug("  ++++ "+req.getUrl()+"..."+res.getStatus());
         
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri() + " returns status "
+            Logger.warn(req.getUrl() + " returns status "
                         + res.getStatus());
         }
         else {
@@ -537,7 +537,7 @@ public class PubMedKSource implements KSource, KType {
 
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri() + " returns status "
+            Logger.warn(req.getUrl() + " returns status "
                         + res.getStatus());
         }
         else {
@@ -586,7 +586,7 @@ public class PubMedKSource implements KSource, KType {
         }
         
         if (200 != res.getStatus()) {
-            Logger.error(res.getUri()+" return status "+res.getStatus());
+            Logger.error(req.getUrl()+" return status "+res.getStatus());
             return null;
         }
 
@@ -800,7 +800,7 @@ public class PubMedKSource implements KSource, KType {
         Logger.debug("+++ resolving..."+req.getUrl());
 
         try {
-            System.out.println(req.get().toCompletableFuture().get().getUri());
+            //System.out.println(req.getUrl());
             WSResponse res = req.get().toCompletableFuture().get();
             JsonNode json = res.asJson();
             resolver.resolve(json, kn, kg);
@@ -824,7 +824,7 @@ public class PubMedKSource implements KSource, KType {
         Logger.debug("+++ resolving..."+req.getUrl());
 
         try {
-            System.out.println(req.get().toCompletableFuture().get().getUri());
+            //System.out.println(req.get().toCompletableFuture().get().getUri());
             WSResponse res = req.get().toCompletableFuture().get();
             ObjectMapper mapper = new ObjectMapper();
             String XMLString =res.getBody().replaceAll("<!DOCTYPE[^>]*>\n", "");
@@ -852,7 +852,7 @@ public class PubMedKSource implements KSource, KType {
         
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
-//            Logger.warn(res.getUri()+" returns status "+res.getStatus());
+//            Logger.warn(req.getUrl()+" returns status "+res.getStatus());
             return;
         }
 
@@ -883,7 +883,7 @@ public class PubMedKSource implements KSource, KType {
         Logger.debug("fetching "+pmid);
         WSResponse res = req.get().toCompletableFuture().get();
         if (200 != res.getStatus()) {
-            Logger.warn(res.getUri()+" returns status "+res.getStatus());
+            Logger.warn(req.getUrl()+" returns status "+res.getStatus());
             return;
         }
         DocumentBuilder db = DocumentBuilderFactory
@@ -909,7 +909,7 @@ public class PubMedKSource implements KSource, KType {
                 WSResponse meshRes = meshReq.get().toCompletableFuture().get();
                 TimeUnit.SECONDS.sleep(2);
                 if (200 != meshRes.getStatus()) {
-                    Logger.warn(meshRes.getUri()+" returns status "+meshRes.getStatus());
+                    Logger.warn(meshReq.getUrl()+" returns status "+meshRes.getStatus());
                     return;
                 }
                 try {

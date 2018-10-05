@@ -1,4 +1,4 @@
-package blackboard.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 import blackboard.pubmed.*;
@@ -30,6 +30,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
 import gov.nih.nlm.nls.metamap.AcronymsAbbrevs;
 import gov.nih.nlm.nls.metamap.ConceptPair;
@@ -286,6 +290,57 @@ public class PubMedIndex implements AutoCloseable {
                 IOUtils.close(searcher.getIndexReader());
         }
     }
+
+    public int search (Query query) throws Exception {
+        try (IndexReader reader = DirectoryReader.open(indexWriter);
+             TaxonomyReader taxonReader =
+             new DirectoryTaxonomyReader (taxonWriter)) {
+            FastVectorHighlighter fvh = new FastVectorHighlighter ();
+            FieldQuery fq = fvh.getFieldQuery(query, reader);
+            IndexSearcher searcher = new IndexSearcher (reader);
+            FacetsCollector fc = new FacetsCollector ();
+            TopDocs result = FacetsCollector.search
+                (searcher, query, reader.maxDoc(), fc);
+            Facets facets = new FastTaxonomyFacetCounts
+                (taxonReader, facetConfig, fc);
+            for (int i = 0; i < result.totalHits; ++i) {
+                int doc = result.scoreDocs[i].doc;
+                String[] fragments = fvh.getBestFragments
+                    (fq, reader, doc, FIELD_TEXT, 128, 10);
+                String id = searcher.doc(doc).get(FIELD_PMID);
+                if (fragments != null) {
+                    Logger.debug("## found "+fragments.length
+                                 +" fragment(s) in document "+id+"!");
+                    for (String f : fragments) {
+                        Logger.debug(">>> "+f);
+                    }
+                }
+                else {
+                    Logger.error("Can't extract fragments from document "
+                                 +id+"!");
+                }
+            }
+
+            Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
+            FacetResult fr = facets.getTopChildren(100, FIELD_MESH);
+            for (int i = 0; i < fr.labelValues.length; ++i) {
+                LabelAndValue lv = fr.labelValues[i];
+                Logger.debug(i+": "+lv.label+" ["+lv.value+"]");
+            }
+            Logger.debug(facets.getTopChildren(20, FIELD_CONCEPT).toString());
+            Logger.debug(facets.getTopChildren(20, FIELD_SEMTYPE).toString());
+            Logger.debug(facets.getTopChildren(20, FIELD_SOURCE).toString());
+
+            return result.totalHits;
+        }
+    }
+    
+    public void search (String text) throws Exception {
+        QueryParser parser = new QueryParser
+            (FIELD_TEXT, indexWriter.getAnalyzer());
+        int hits = search (parser.parse(text));
+        Logger.debug("## searching for \""+text+"\"..."+hits+" hit(s)!"); 
+    }
     
     public static void main (String[] argv) throws Exception {
         if (argv.length < 3) {
@@ -336,7 +391,9 @@ public class PubMedIndex implements AutoCloseable {
             }
 
             try (PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
-                index.debug();
+                for (int i = 1; i < argv.length; ++i) {
+                    index.search(argv[i]);
+                }
             }
         }
     }
