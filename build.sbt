@@ -34,6 +34,7 @@ lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .dependsOn(
+    ui,
     pharos,
     biothings,
     beacons,
@@ -45,6 +46,7 @@ lazy val root = (project in file("."))
     chembl
   )
   .aggregate(
+    ui,
     pharos,
     biothings,
     beacons,
@@ -80,6 +82,15 @@ lazy val core =  (project in file("modules/core"))
   .settings(commonSettings: _*)
   .settings(
     name := "core",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(buildinfo).aggregate(buildinfo)
+
+lazy val ui =  (project in file("modules/ui"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "ui",
     libraryDependencies ++= commonDependencies,
     libraryDependencies += "org.webjars" % "webjars-play_2.12" % "2.6.3",
     libraryDependencies += "org.webjars" % "jquery" % "3.3.1-1",
@@ -119,7 +130,7 @@ lazy val mesh = (project in file("modules/mesh"))
   name := "mesh",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
+).dependsOn(core, ui).aggregate(core, ui)
 
 lazy val pubmed = (project in file("modules/pubmed"))
   .enablePlugins(PlayJava)
@@ -129,7 +140,7 @@ lazy val pubmed = (project in file("modules/pubmed"))
     libraryDependencies ++= commonDependencies,
     libraryDependencies +=   "org.json" % "json" % "20090211",
     javacOptions ++= javaBuildOptions
-).dependsOn(mesh).aggregate(mesh)
+).dependsOn(mesh, ui).aggregate(mesh, ui)
 
 lazy val umls = (project in file("modules/umls"))
   .enablePlugins(PlayJava)

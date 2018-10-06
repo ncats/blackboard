@@ -3,7 +3,7 @@
 @import blackboard.umls.Concept
 @(concept: Concept, ks: UMLSKSource)
 
-@views.html.core.main(concept.name+" ("+concept.cui+")"){
+@views.html.ui.main(concept.name+" ("+concept.cui+")"){
 <div class="container-fluid" style="margin-top:10px;">
   @jumbotron(concept, ks)(HtmlFormat.empty)
   <div class="card">

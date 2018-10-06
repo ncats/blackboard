@@ -56,12 +56,12 @@ public class Controller extends play.mvc.Controller {
                     Concept concept = ks.getConcept(cui);
                     if (concept != null)
                         return ok (views.html.umls.cui.render(concept, ks));
-                    return ok (views.html.core.notfound.render
+                    return ok (views.html.ui.notfound.render
                                ("Unknown concept <code>"+cui+"</code>"));
                 }
                 catch (Exception ex) {
                     Logger.error("Can't retrieve concept for "+cui, ex);
-                    return ok (views.html.core.error.render
+                    return ok (views.html.ui.error.render
                                ("Can't retrieve concept for "+cui+": "
                                 +ex.getMessage(), 500));
                 }

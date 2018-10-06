@@ -202,7 +202,7 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 SemanticType st = ks.getSemanticType(semtype);
                 if (st == null)
-                    return ok (views.html.core.notfound.render
+                    return ok (views.html.ui.notfound.render
                                ("Unknown semantic type <code>"
                                 +semtype+"</code>!"));
                 Predication[] preds =

@@ -121,7 +121,7 @@ public class BlackboardApp extends Controller {
             Logger.error("Can't retrieve KGraph "+id, ex);
         }
         
-        return ok (views.html.core.error.render
+        return ok (views.html.ui.error.render
                    (routes.BlackboardApp.kgraph(id).url(), 404));
     }
 

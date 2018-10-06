@@ -1,4 +1,4 @@
-package controllers.core;
+package controllers.ui;
 
 import play.api.mvc.*;
 import play.api.http.HttpErrorHandler;
@@ -6,9 +6,9 @@ import javax.inject.Inject;
 import play.Logger;
 import static controllers.Assets.Asset;
 
-public class CustomAssets extends controllers.AssetsBuilder {
+public class LocalAssets extends controllers.AssetsBuilder {
     @Inject
-    CustomAssets (HttpErrorHandler eh, controllers.AssetsMetadata meta) {
+    LocalAssets (HttpErrorHandler eh, controllers.AssetsMetadata meta) {
         super (eh, meta);
     }
 

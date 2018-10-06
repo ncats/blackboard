@@ -4,7 +4,7 @@
 @import blackboard.pubmed.PubMedDoc
 @(ks: SemMedDbKSource, doc: PubMedDoc, preds: Array[Predication])
 
-@views.html.core.main("SemMedDb: "+doc.getPMID){
+@views.html.ui.main("SemMedDb: "+doc.getPMID){
 @navbar()
 <div class="container-fluid" style="margin-top:60px;">
   <div class="jumbotron">

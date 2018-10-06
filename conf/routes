@@ -5,7 +5,7 @@
 GET     /	controllers.BlackboardApp.index
 GET	/kg/:id		controllers.BlackboardApp.kgraph(id: String)
 
-->  /core  core.Routes
+->  /ui  ui.Routes
 ->	/ks ks.Routes
 ->	/api	api.Routes
 

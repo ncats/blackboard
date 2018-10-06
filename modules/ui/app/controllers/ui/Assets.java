@@ -1,4 +1,4 @@
-package controllers.core;
+package controllers.ui;
 
 import play.api.mvc.*;
 import play.api.http.HttpErrorHandler;

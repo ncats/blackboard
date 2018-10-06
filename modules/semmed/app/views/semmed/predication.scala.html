@@ -49,7 +49,7 @@
 </div>
 }
 
-@views.html.core.main("SemMedDb: "+cui){
+@views.html.ui.main("SemMedDb: "+cui){
 @navbar()
 <div class="container-fluid" style="margin-top:60px;">
    @defining(ks.umls.getConcept(cui)) { concept =>
