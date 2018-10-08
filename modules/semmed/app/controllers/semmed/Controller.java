@@ -223,7 +223,7 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> pubmed (final Long pmid) {
+    public CompletionStage<Result> pmid (final Long pmid) {
         return supplyAsync (() -> {
                 try {
                     PubMedDoc doc = ks.pubmed.getPubMedDoc(pmid.toString());
@@ -249,7 +249,7 @@ public class Controller extends play.mvc.Controller {
                     routes.javascript.Controller.predicate(),
                     routes.javascript.Controller.semtype(),
                     routes.javascript.Controller.concept(),                    
-                    routes.javascript.Controller.pubmed(),
+                    routes.javascript.Controller.pmid(),
                     routes.javascript.Controller.apiSemanticTypeLookup(),
                     routes.javascript.Controller.apiSearch()
                     )).as("text/javascript");

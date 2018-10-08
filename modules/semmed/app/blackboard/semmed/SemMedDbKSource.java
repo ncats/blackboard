@@ -1,6 +1,7 @@
 package blackboard.semmed;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.inject.Named;
 import java.util.regex.*;
 import java.util.*;
@@ -33,7 +34,6 @@ import blackboard.pubmed.PubMedKSource;
 
 import static blackboard.KEntity.*;
 
-
 public class SemMedDbKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
@@ -42,13 +42,14 @@ public class SemMedDbKSource implements KSource {
     public final List<SemanticType> semanticTypes;
     
     private final Database db;
-    private final CacheApi cache;
+    private final SyncCacheApi cache;
     private final Map<String, Set<String>> blacklist;
     private final Map<String, Set<String>> whitelist;
     private final Integer minPredCount;
     
     @Inject
-    public SemMedDbKSource (WSClient wsclient, CacheApi cache, Environment env,
+    public SemMedDbKSource (WSClient wsclient, SyncCacheApi cache,
+                            Environment env,
                             @Named("semmed") KSourceProvider ksp,
                             @NamedDatabase("semmed") Database db,
                             UMLSKSource umls, PubMedKSource pubmed,
@@ -300,7 +301,7 @@ public class SemMedDbKSource implements KSource {
 
     public List<Predication> getPredications (final String cui)
         throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("semmed/"+cui, new Callable<List<Predication>> () {
                     public List<Predication> call () throws Exception {
                         return _getPredications (cui);
@@ -399,7 +400,7 @@ public class SemMedDbKSource implements KSource {
 
     public List<Predication> getPredicationsByPMID (final String pmid)
         throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("semmed/"+pmid+"/pmid", new Callable<List<Predication>> () {
                     public List<Predication> call () throws Exception {
                         return _getPredicationsByPMID (pmid);
@@ -410,7 +411,7 @@ public class SemMedDbKSource implements KSource {
 
     public PredicateSummary getPredicateSummary (final String cui)
         throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("semmed/"+cui+"/summary", new Callable<PredicateSummary> () {
                     public PredicateSummary call () throws Exception {
                         return new PredicateSummary

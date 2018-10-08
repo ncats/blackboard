@@ -3,7 +3,7 @@ GET /:cui    controllers.semmed.Controller.cui(cui: String)
 GET /:cui/predicate/:pred   controllers.semmed.Controller.predicate(cui: String, pred: String)
 GET /:cui/semtype/:semtype   controllers.semmed.Controller.semtype(cui: String, semtype: String)
 GET /:sub/concept/:obj       controllers.semmed.Controller.concept(sub: String, obj: String)
-GET /:pmid/pubmed            controllers.semmed.Controller.pubmed(pmid: Long)
+GET /:pmid/pmid            controllers.semmed.Controller.pmid(pmid: Long)
 
 #
 # api
