@@ -39,22 +39,21 @@ public class Neo4j extends TransactionEventHandler.Adapter {
         META_LABEL = Label.label(getDbName());
 
         // initialize database..
-        try (Transaction tx = gdb.beginTx()) {
-            try (ResourceIterator<Node> it = gdb.findNodes(META_LABEL)) {
-                Node node;
-                if (it.hasNext()) {
-                    node = it.next();
-                    Logger.debug("## database "+dbdir+" initialized..."
-                                 +new Date ((Long)node.getProperty("created")));
-                }
-                else {
-                    node = gdb.createNode(META_LABEL);
-                    node.setProperty("created", System.currentTimeMillis());
-                    Logger.debug("## database for "+getDbName ()
-                                 +" initialized..."+dbdir);
-                }
-                metanode = node.getId();                
+        try (Transaction tx = gdb.beginTx();
+             ResourceIterator<Node> it = gdb.findNodes(META_LABEL)) {
+            Node node;
+            if (it.hasNext()) {
+                node = it.next();
+                Logger.debug("## database "+dbdir+" initialized..."
+                             +new Date ((Long)node.getProperty("created")));
             }
+            else {
+                node = gdb.createNode(META_LABEL);
+                node.setProperty("created", System.currentTimeMillis());
+                Logger.debug("## database for "+getDbName ()
+                             +" initialized..."+dbdir);
+            }
+            metanode = node.getId();                
             tx.success();
         }
         gdb.registerTransactionEventHandler(this);

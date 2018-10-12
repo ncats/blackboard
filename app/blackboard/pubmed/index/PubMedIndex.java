@@ -187,18 +187,12 @@ public class PubMedIndex implements AutoCloseable {
     }
 
     public boolean indexed (Long pmid) throws IOException {
-        IndexSearcher searcher = null;
-        try {
-            searcher = new IndexSearcher
-                (DirectoryReader.open(indexWriter, true));
+        try (IndexReader reader = DirectoryReader.open(indexWriter, true)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
             NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
                 (FIELD_PMID, pmid, pmid, true, true);
             TopDocs hits = searcher.search(query, 1);
             return hits.totalHits > 0;
-        }
-        finally {
-            if (searcher != null)
-                IOUtils.close(searcher.getIndexReader());
         }
     }
     
@@ -210,7 +204,33 @@ public class PubMedIndex implements AutoCloseable {
         return false;
     }
 
-    public void add (PubMedDoc d) throws IOException {
+    public PubMedIndex addIndexes (File... dbs) throws IOException {
+        DirectoryTaxonomyWriter.OrdinalMap map =
+            new DirectoryTaxonomyWriter.MemoryOrdinalMap();
+        for (File f : dbs) {
+            if (!f.exists()) {
+                Logger.error(f+": not exist!");
+            }
+            else {
+                File text = new File (f, "text");
+                if (text.exists()) {
+                    Directory index = new NIOFSDirectory (text.toPath());
+                    Directory taxon = new NIOFSDirectory
+                        (new File (f, "taxon").toPath());
+                    TaxonomyMergeUtils.merge
+                        (index, taxon, map, indexWriter,
+                         taxonWriter, facetConfig);
+                    IOUtils.close(index, taxon);
+                }
+                else {
+                    Logger.error(f+": not a valid pubmed index!");
+                }
+            }
+        }
+        return this;
+    }
+    
+    public PubMedIndex add (PubMedDoc d) throws IOException {
         Logger.debug(d.getPMID()+": "+d.getTitle());
         Document doc = new Document ();
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
@@ -230,6 +250,7 @@ public class PubMedIndex implements AutoCloseable {
                          new BytesRef (toCompressedBytes (json))));
             }
         }
+        
         doc.add(new LongField
                 (FIELD_YEAR, d.getDate().getYear(), Field.Store.YES));
         for (MeshHeading mh : d.getMeshHeadings()) {
@@ -241,8 +262,9 @@ public class PubMedIndex implements AutoCloseable {
             }
             doc.add(new FacetField (FIELD_MESH, desc.name));
         }
-
         indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
+        
+        return this;
     }
 
     public int size () {
@@ -322,6 +344,10 @@ public class PubMedIndex implements AutoCloseable {
             }
 
             Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
+            Logger.debug(facets.getTopChildren
+                         (20, "tr", "A11.251.860.180".split("\\."))
+                         .toString());
+            
             FacetResult fr = facets.getTopChildren(100, FIELD_MESH);
             for (int i = 0; i < fr.labelValues.length; ++i) {
                 LabelAndValue lv = fr.labelValues[i];
@@ -394,6 +420,21 @@ public class PubMedIndex implements AutoCloseable {
                 for (int i = 1; i < argv.length; ++i) {
                     index.search(argv[i]);
                 }
+            }
+        }
+    }
+
+    public static class Merge {
+        public static void main (String[] argv) throws Exception {
+            if (argv.length < 2) {
+                System.err.println("PubMedIndex$Merge INDEXDB INDEXES...");
+                System.exit(1);
+            }
+            try (PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
+                List<File> files = new ArrayList<>();
+                for (int i = 1; i < argv.length; ++i)
+                    files.add(new File (argv[i]));
+                index.addIndexes(files.toArray(new File[0]));
             }
         }
     }

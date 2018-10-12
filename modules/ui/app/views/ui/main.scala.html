@@ -3,13 +3,17 @@
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
   <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
     <title>@title</title>
     <link rel='stylesheet' href='@controllers.ui.routes.Assets.versioned("lib/font-awesome/css/font-awesome.min.css")'>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.19/css/dataTables.bootstrap4.min.css">
     <link rel="stylesheet" href='@controllers.ui.routes.LocalAssets.versioned("stylesheets/select.dataTables.min.css")'>
     <link rel="stylesheet" href="https://unpkg.com/bootstrap-material-design@@4.1.1/dist/css/bootstrap-material-design.min.css" integrity="sha384-wXznGJNEXNG1NFsbm0ugrLFMQPWswR3lds2VeinahP8N0zJw9VWSopbjv2x7WCvX" crossorigin="anonymous">
+    
     @head
   </head>
   <body>
@@ -17,7 +21,7 @@
   </body>
   
   <head>
-    <script type='text/javascript' src='@controllers.ui.routes.Assets.versioned("lib/jquery/jquery.min.js")'></script>    
+    <script type='text/javascript' src='@controllers.ui.routes.Assets.versioned("lib/jquery/jquery.min.js")'></script>
     <script type="text/javascript" src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
     <script type="text/javascript" src="https://cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.min.js"></script>
     <script async src="https://badge.dimensions.ai/badge.js" charset="utf-8"></script>     
@@ -30,7 +34,6 @@
 
 <script>
   @scripts
-  
   $(document).ready(function() {
      $('body').bootstrapMaterialDesign();
   });

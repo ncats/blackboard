@@ -305,6 +305,22 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return node;
     }
 
+    public void traverse (MeshVisitor visitor) {
+        try (Transaction tx = gdb.beginTx();
+             ResourceIterator<Node> nodes = gdb.findNodes(DESC_LABEL)) {
+            while (nodes.hasNext()) {
+                Node n = nodes.next();
+                Entry e = toEntry (n);
+                if (!visitor.visit
+                    (e.ui, e.name,
+                     ((Descriptor)e).treeNumbers.toArray(new String[0]))) {
+                    break;
+                }
+            }
+            tx.success();
+        }
+    }
+
     public Map<String, Integer> getSummary () { return files; }
     
     public Entry getEntry (String ui) {
@@ -328,6 +344,24 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
             tx.success();
         }
         return entry;
+    }
+
+    public List<Descriptor> getDescriptorsByTreeNumber (String trNo) {
+        List<Descriptor> descriptors = new ArrayList<>();
+        try (Transaction tx = gdb.beginTx();
+             Result result = gdb.execute
+             ("match(n) where any(x in n.treeNumbers where x =~ '"
+              +trNo+"*') return n")) {
+            while (result.hasNext()) {
+                Map<String, Object> row = result.next();
+                Node n = (Node)row.get("n");
+                // only Descriptor should have treeNumbers
+                Entry e = toEntry (n);
+                if (e instanceof Descriptor)
+                    descriptors.add((Descriptor)e);
+            }
+        }
+        return descriptors;
     }
 
     public List<Entry> getParents (String ui) {
@@ -483,5 +517,36 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         }
         
         return matches;
+    }
+
+    public static void main (String[] argv) throws Exception {
+        if (argv.length == 0) {
+            System.err.println("Usage: MeshDb MESHDB [TREENUMBERS...]");
+            System.exit(1);
+        }
+
+        try (MeshDb mesh = new MeshDb (null, new File (argv[0]))) {
+            if (argv.length == 1) {
+                mesh.traverse((ui, name, tr) -> {
+                        System.out.print(ui+"\t"+name);
+                        if (tr.length > 0) {
+                            System.out.print("\t"+tr[0]);
+                            for (int i = 1; i < tr.length; ++i)
+                                System.out.print(" "+tr[i]);
+                        }
+                        System.out.println();
+                        return true;
+                    });
+            }
+            else {
+                for (int i = 1; i < argv.length; ++i) {
+                    System.out.println("****** ["+argv[i]+"] ******");
+                    for (Descriptor d :
+                             mesh.getDescriptorsByTreeNumber(argv[i])) {
+                        System.out.println(d.ui+"\t"+d.name);
+                    }
+                }
+            }
+        }
     }
 }

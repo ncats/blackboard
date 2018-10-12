@@ -3,28 +3,28 @@
 
 @views.html.ui.main("SemMedDb Knowledge Source"){
 <div class="container-fluid" style="margin-top:10px;">
-  <div class="jumbotron">
+  <div class="jumbotron blue-grey lighten-5">
     <h1 class="display-4">SemMed DB</h1>
     <p class="lead">The <a href="https://skr3.nlm.nih.gov/SemMedDB/">Semantic
     MEDLINE Database</a> is a resource of the National Library of Medicine.
   </div>
   <div class="row">
-    <div class="col-3"></div>
+    <div class="col-2"></div>
     <div class="col">
-      <div class="input-group">
+      <div class="md-form input-group">
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search for concepts (e.g., als, statin, angiogenesis, mapk)...">
+        <span class="input-group-btn">
+          <button id="search-concept"
+                  class="btn btn-default" type="button">Search</button>
+        </span>
         <span class="input-group-btn">  
           <button id="search-clear"
                   class="btn btn-default" type="button">Clear</button>
         </span>
-        <input id="search-input" type="text" class="form-control"
-               placeholder="Search for concepts (e.g., als, statin, angiogenesis, mapk)...">
-        <span class="input-group-btn">
-        <button id="search-concept"
-                class="btn btn-default" type="button">Search</button>
-        </span>
       </div><!-- /input-group -->
     </div>
-    <div class="col-3"></div>
+    <div class="col-2"></div>
   </div> <!-- row -->
   <br>
   <div class="row">

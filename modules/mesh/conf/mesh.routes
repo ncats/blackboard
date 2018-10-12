@@ -1,7 +1,8 @@
 GET /index   controllers.mesh.Controller.index
-GET /search/*q  controllers.mesh.Controller.search(q: String, top: Integer ?= 10)
-GET /descriptor/*name  controllers.mesh.Controller.descriptor(name: String)
-GET /:ui/context  controllers.mesh.Controller.context(ui: String, skip: Integer ?= 0, top: Integer ?= 10)
-GET /:ui/parents  controllers.mesh.Controller.parents(ui: String)
-GET /:ui        controllers.mesh.Controller.mesh(ui: String)
+GET /api/search/*q  controllers.mesh.Controller.search(q: String, top: Integer ?= 10)
+GET /api/descriptor/*name  controllers.mesh.Controller.descriptor(name: String)
+GET /api/tree/:tr          controllers.mesh.Controller.treeNumber(tr: String)
+GET /api/:ui/context  controllers.mesh.Controller.context(ui: String, skip: Integer ?= 0, top: Integer ?= 10)
+GET /api/:ui/parents  controllers.mesh.Controller.parents(ui: String)
+GET /api/:ui        controllers.mesh.Controller.mesh(ui: String)
 POST  /build    controllers.mesh.Controller.buildMeshDb

@@ -34,6 +34,7 @@ import javax.xml.transform.dom.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Entry;
+import blackboard.mesh.Descriptor;
 import blackboard.mesh.CommonDescriptor;
 
 public class Controller extends play.mvc.Controller {
@@ -114,6 +115,17 @@ public class Controller extends play.mvc.Controller {
                 }
                 return notFound ("Can't resolve \""
                                  +name+"\" to a MeSH descriptor!");
+            }, ec.current());
+    }
+
+    public CompletionStage<Result> treeNumber (final String tr) {
+        Logger.debug(">> "+request().uri());
+        return supplyAsync (() -> {
+                List<Descriptor> desc = ks.getMeshDb()
+                    .getDescriptorsByTreeNumber(tr);
+                if (!desc.isEmpty())
+                    return ok (Json.prettyPrint(Json.toJson(desc)));
+                return notFound ("Unknown treeNumber \""+tr+"\"!");
             }, ec.current());
     }
 

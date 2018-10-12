@@ -2,7 +2,7 @@
 ->  /pharos  pharos.Routes
 ->  /umls    umls.Routes
 ->  /semmed  semmed.Routes
-->  /pubmed  pubmed.Routes
+->  /pubmed  ksPubmed.Routes
 ->  /mesh    mesh.Routes
 ->  /ct      ct.Routes
 

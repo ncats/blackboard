@@ -14,8 +14,7 @@ lazy val commonDependencies = Seq(
   "mysql" % "mysql-connector-java" % "5.1.31",
   "org.apache.lucene" % "lucene-facet" % "5.5.5",
   "org.apache.lucene" % "lucene-highlighter" % "5.5.5",
-  // can't seem to get beyond version 3.2.1; getting npe in netty!
-  "org.neo4j" % "neo4j" % "3.2.1"
+  "org.neo4j" % "neo4j" % "3.2.11"
 )
 
 lazy val javaBuildOptions = Seq(
@@ -26,7 +25,8 @@ lazy val javaBuildOptions = Seq(
 
 lazy val commonSettings = Seq(
   name := """blackboard""",
-  scalaVersion := "2.12.6",
+  // don't use 2.12! it doesn't load neo4j correctly.
+  scalaVersion := "2.11.12",
   version := appVersion
 )
 
@@ -78,7 +78,6 @@ public class BuildInfo {
 )
 
 lazy val core =  (project in file("modules/core"))
-  .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .settings(
     name := "core",
@@ -92,7 +91,7 @@ lazy val ui =  (project in file("modules/ui"))
   .settings(
     name := "ui",
     libraryDependencies ++= commonDependencies,
-    libraryDependencies += "org.webjars" % "webjars-play_2.12" % "2.6.3",
+    libraryDependencies += "org.webjars" % "webjars-play_2.11" % "2.6.3",
     libraryDependencies += "org.webjars" % "jquery" % "3.3.1-1",
     libraryDependencies += "org.webjars" % "font-awesome" % "4.7.0",
     javacOptions ++= javaBuildOptions

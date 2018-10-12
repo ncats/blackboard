@@ -1,0 +1,143 @@
+@import play.twirl.api.HtmlFormat
+
+@(curPage: Integer, numPages: Integer, rowsPerPage: Integer)
+
+@filteritem(id: String, count: Integer)(content: Html) = {
+<li class="list-group-item d-flex justify-content-between align-items-center">
+  <div class="form-check form-check-inline">
+    <input class="form-check-input position-static" type="checkbox"
+           id="@id" value="item1" aria-label="item1">
+    <label class="form-check-label" for="@id">@content</label>
+  </div>
+  <span class="badge badge-primary badge-pill">@count</span>
+</li>
+}
+
+@filtercard(name: String, top: Integer = 0, expanded: Boolean = true)(facets: Html) = {
+@defining(name.replaceAll("\\s","-")){ id =>
+<div class="card" style="margin-top:@{top}px;">
+  <div class="card-header">
+    <div class="alert alert-dark" role="alert">
+      <a href="#" class="alert-link"
+         data-toggle="collapse" data-target='#@id'>@name</a>
+    </div>
+  </div>
+  <div class="collapse @if(expanded){show}"
+       id="@id" aria-expanded="@expanded">
+    <ul class="list-group list-group-flush">
+      @facets
+    </ul> <!-- list-group -->
+    <a href="#" class="btn btn-primary">More</a>
+  </div>
+</div>
+}
+}
+
+@celllinecard(top: Integer = 10, expanded: Boolean = true) = {
+   @filtercard("Cell Line", top, expanded){
+      @filteritem("A11.251.210.190.400", 290){<a href="#">HeLa Cells</a>}
+      @filteritem("A11.251.210.190.475", 195){<a href="#">HT29 Cells</a>}
+      @filteritem("A11.251.210.190.495", 175){<a href="#">Jurkat Cells</a>}
+      @filteritem("A11.251.210.190.160", 132){<a href="#">Caco-2 Cells</a>}
+      @filteritem("A11.251.210.190.880", 93){<a href="#">U937 Cells</a>}
+      @filteritem("A11.251.210.200", 35){<a href="#">CHO Cells</a>}
+      @filteritem("A11.251.210.100", 20){<a href="#">3T3 Cells</a>}
+   }
+}
+
+@diseasecard(top: Integer = 0, expanded: Boolean = true) = {
+  @filtercard("Disease", top, expanded){
+     @filteritem("C04", 204){<a href="#">Neoplasms</a>}  
+     @filteritem("C10", 102){<a href="#">Nervous System Diseases</a>}
+     @filteritem("C14", 101){<a href="#">Cardiovascular Diseases</a>}
+     @filteritem("C20", 93){<a href="#">Immune System Disease</a>}
+     @filteritem("C01", 84){<a href="#">Bacterial Infections and Mycoses</a>}
+     @filteritem("C02", 73){<a href="#">Virus Diseases</a>}
+     @filteritem("C03", 67){<a href="#">Parasitic Diseases</a>}
+     @filteritem("C11", 45){<a href="#">Eye Diseases</a>}
+  }
+}
+
+@tissuecard(top: Integer = 10, expanded: Boolean = true) = {
+  @filtercard("Tissue", top, expanded){
+     @filteritem("A10.165", 53){<a href="#">Connective Tissue</a>}
+     @filteritem("A10.272", 47){<a href="#">Epithelium</a>}
+     @filteritem("A10.755", 41){<a href="#">Nerve Tissue</a>}
+     @filteritem("A10.549", 33){<a href="#">Lymphoid Tissue</a>}
+     @filteritem("A10.615", 29){<a href="#">Membranes</a>}
+     @filteritem("A10.336", 17){<a href="#">Exocrine Glands</a>}
+     @filteritem("A10.802", 9){<a href="#">Organoids</a>}
+  }
+}
+
+@geneticcard(top: Integer = 10, expanded: Boolean = true) = {
+  @filtercard("Genetic Phenomena", top, expanded){
+     @filteritem("G05.200", 32){<a href="#">DNA Damage</a>}
+     @filteritem("G05.219", 29){<a href="#">DNA Repair</a>}
+     @filteritem("G05.193", 25){<a href="#">DNA Cleavage</a>}
+     @filteritem("G05.226", 19){<a href="#">DNA Replication</a>}
+     @filteritem("G05.206", 14){<a href="#">DNA Methylation</a>}
+     @filteritem("G05.755", 11){<a href="#">RNA Cleavage</a>}
+     @filteritem("G05.558", 8){<a href="#">Mutagensis</a>}
+  }
+}
+
+@views.html.ui.main("PubMed Search Results"){
+<nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+  <a class="navbar-brand" href="#"><img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")' height="65%" width="65%"></a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo02" aria-controls="navbarTogglerDemo02" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  
+  <div class="collapse navbar-collapse" id="navbarTogglerDemo02">
+    <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+      <li class="nav-item active dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown"
+           role="button" data-toggle="dropdown"
+           aria-haspopup="true" aria-expanded="false">
+           Persona
+        </a>
+        <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+          <a class="dropdown-item" href="#">Clinician</a>
+          <a class="dropdown-item" href="#">Patient</a>
+          <a class="dropdown-item" href="#">Researcher</a>
+          <a class="dropdown-item" href="#">Administrator</a>
+        </div>
+      </li>
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="search"
+             placeholder="Search" style="width:200px">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
+    </form>
+  </div>
+</nav>  
+<div class="container-fluid" style="margin-top: 65px; margin-bottom:10px;">
+  <div class="row">
+    <div class="col-md-3">
+      @diseasecard()
+      @tissuecard()
+      @celllinecard()
+      @geneticcard()
+    </div>
+    <div class="col-md-9">
+      <div class="card-deck">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">This is the content!</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+}{
+<style>
+  .list-group-item :first-child {
+     margin-right: .5rem;
+  }
+  .list-group-item {
+     padding: 0.5rem;
+  }
+</style>
+}(HtmlFormat.empty)
