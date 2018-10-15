@@ -196,6 +196,7 @@ public class Controller extends play.mvc.Controller {
         return supplyAsync (() -> {
                 try {
                     String text = request().body().asText();
+                    //Logger.debug(request().uri()+"...\n"+text);
                     if (text != null)
                         return ok (ks.getMetaMap().annotateAsJson(text));
                     return badRequest ("Invalid POST payload!");

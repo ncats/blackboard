@@ -13,9 +13,9 @@
 </li>
 }
 
-@filtercard(name: String, top: Integer = 0, expanded: Boolean = true)(facets: Html) = {
+@filtercard(name: String, expanded: Boolean = true)(facets: Html) = {
 @defining(name.replaceAll("\\s","-")){ id =>
-<div class="card" style="margin-top:@{top}px;">
+<div class="card" style="margin-top:10px;">
   <div class="card-header">
     <div class="alert alert-dark" role="alert">
       <a href="#" class="alert-link"
@@ -33,21 +33,23 @@
 }
 }
 
-@celllinecard(top: Integer = 10, expanded: Boolean = true) = {
-   @filtercard("Cell Line", top, expanded){
+
+@celllinecard(expanded: Boolean = true) = {
+   @filtercard("Cell Line", expanded){
       @filteritem("A11.251.210.190.400", 290){<a href="#">HeLa Cells</a>}
       @filteritem("A11.251.210.190.475", 195){<a href="#">HT29 Cells</a>}
       @filteritem("A11.251.210.190.495", 175){<a href="#">Jurkat Cells</a>}
       @filteritem("A11.251.210.190.160", 132){<a href="#">Caco-2 Cells</a>}
       @filteritem("A11.251.210.190.880", 93){<a href="#">U937 Cells</a>}
+      @filteritem("A11.251.210.190.630", 52){<a href="#">MCF-7 Cells</a>}
       @filteritem("A11.251.210.200", 35){<a href="#">CHO Cells</a>}
       @filteritem("A11.251.210.100", 20){<a href="#">3T3 Cells</a>}
    }
 }
 
-@diseasecard(top: Integer = 0, expanded: Boolean = true) = {
-  @filtercard("Disease", top, expanded){
-     @filteritem("C04", 204){<a href="#">Neoplasms</a>}  
+@diseasecard(expanded: Boolean = true) = {
+  @filtercard("Disease", expanded){
+     @filteritem("C04", 217){<a href="#">Neoplasms</a>}  
      @filteritem("C10", 102){<a href="#">Nervous System Diseases</a>}
      @filteritem("C14", 101){<a href="#">Cardiovascular Diseases</a>}
      @filteritem("C20", 93){<a href="#">Immune System Disease</a>}
@@ -58,8 +60,8 @@
   }
 }
 
-@tissuecard(top: Integer = 10, expanded: Boolean = true) = {
-  @filtercard("Tissue", top, expanded){
+@tissuecard(expanded: Boolean = true) = {
+  @filtercard("Tissue", expanded){
      @filteritem("A10.165", 53){<a href="#">Connective Tissue</a>}
      @filteritem("A10.272", 47){<a href="#">Epithelium</a>}
      @filteritem("A10.755", 41){<a href="#">Nerve Tissue</a>}
@@ -70,8 +72,8 @@
   }
 }
 
-@geneticcard(top: Integer = 10, expanded: Boolean = true) = {
-  @filtercard("Genetic Phenomena", top, expanded){
+@geneticcard(expanded: Boolean = true) = {
+  @filtercard("Genetic Phenomena", expanded){
      @filteritem("G05.200", 32){<a href="#">DNA Damage</a>}
      @filteritem("G05.219", 29){<a href="#">DNA Repair</a>}
      @filteritem("G05.193", 25){<a href="#">DNA Cleavage</a>}
@@ -82,10 +84,59 @@
   }
 }
 
+@map4dsmallmolecule(expanded: Boolean = true) = {
+  @filtercard("4D Map", expanded){
+     <li class="list-group-item"><a href="#">Lead Identification</a>
+        <li class="list-group-item" style="margin-left:10px">
+           <a href="#">Assay Development</a></li>
+        <li class="list-group-item" style="margin-left:10px">
+           <a href="#">HTS Assay</a></li>
+        <li class="list-group-item" style="margin-left:10px">
+           <a href="#">Cheminformatics</a></li>
+     </li>
+     <li class="list-group-item"><a href="#">Lead Optimization</a>
+        <li class="list-group-item" style="margin-left:10px">
+            <a href="#">In silico Modeling</a></li>
+          <li class="list-group-item" style="margin-left:10px">
+              <a href="#">Medicinal Chemistry</a></li>
+          <li class="list-group-item" style="margin-left:10px">
+              <a href="#">ADME/Tox</a></li>
+     </li>
+  }
+}
+
+@translator(expanded: Boolean = true) = {
+  @filtercard("Biomedical Translator", expanded){
+     <li class="list-group-item"><a href="#">Knowledge Graph</a></li>
+     <li class="list-group-item"><a href="#">Knowledge Summarization</a></li>
+     <li class="list-group-item"><a href="#">Knowledge Source</a></li>
+  }
+}
+
+@preclinicaltools(expanded: Boolean = true) = {
+  @filtercard("Preclinical Tools", expanded){
+     <li class="list-group-item"><a href="#">R-group Analysis</a></li>
+     <li class="list-group-item"><a href="#">Target Predictor</a></li>
+     <li class="list-group-item"><a href="#">ADME/Tox Properties</a></li>
+  }
+}
+
+@clinicaltools(expanded: Boolean = true) = {
+  @filtercard("Clinical Tools", expanded){
+     <li class="list-group-item"><a href="#">Phenotype Analysis</a></li>
+  }
+}
+
 @views.html.ui.main("PubMed Search Results"){
 <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
-  <a class="navbar-brand" href="#"><img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")' height="65%" width="65%"></a>
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo02" aria-controls="navbarTogglerDemo02" aria-expanded="false" aria-label="Toggle navigation">
+  <a class="navbar-brand" href="https://ncats.nih.gov">
+     <img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")'
+          height="65%" width="65%">
+  </a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse"
+          data-target="#navbarTogglerDemo02"
+          aria-controls="navbarTogglerDemo02"
+          aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
   
@@ -112,7 +163,7 @@
     </form>
   </div>
 </nav>  
-<div class="container-fluid" style="margin-top: 65px; margin-bottom:10px;">
+<div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
   <div class="row">
     <div class="col-md-3">
       @diseasecard()
@@ -120,14 +171,22 @@
       @celllinecard()
       @geneticcard()
     </div>
-    <div class="col-md-9">
-      <div class="card-deck">
-        <div class="card">
-          <div class="card-body">
-            <h3 class="card-title">This is the content!</h3>
-          </div>
-        </div>
-      </div>
+    <div class="col-md-6">
+      <div class="alert alert-warning alert-dismissible fade show"
+           role="alert" style="margin-top:10px">
+        Search terms: <h5><span class="badge badge-pill badge-light"><strong>cancer inhibitors</strong></span></h5>
+        <button type="button" class="close"
+                data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    @searchcontent()
+    </div>
+    <div class="col-md-3">
+    @map4dsmallmolecule()
+    @translator()
+    @preclinicaltools()
+    @clinicaltools()
     </div>
   </div>
 </div>

@@ -12,6 +12,8 @@ import blackboard.ct.ClinicalTrialFactory;
 import blackboard.ct.ClinicalTrialDb;
 import blackboard.mesh.MeshFactory;
 import blackboard.mesh.MeshDb;
+import blackboard.pubmed.index.PubMedIndexFactory;
+import blackboard.pubmed.index.PubMedIndex;
 
 /**
  * This class is a Guice module that tells Guice how to bind several
@@ -36,5 +38,8 @@ public class Module extends AbstractModule {
              (ClinicalTrialFactory.class, ClinicalTrialDb.class));
         bind(MeshFactory.class).toProvider
             (FactoryProvider.newFactory(MeshFactory.class, MeshDb.class));
+        bind(PubMedIndexFactory.class).toProvider
+            (FactoryProvider.newFactory(PubMedIndexFactory.class,
+                                        PubMedIndex.class));
     }
 }

@@ -1,2 +1,3 @@
 
 GET /   blackboard.pubmed.controllers.Controller.index
+GET /api/search/:q blackboard.pubmed.controllers.Controller.search(q: String)

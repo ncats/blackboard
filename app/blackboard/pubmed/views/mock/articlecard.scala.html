@@ -1,0 +1,23 @@
+@(pmid: Long, title: String, year: Integer)(text: Html)(footer: Html)
+<div class="card" style="margin-top: 10px;">
+  <div class="card-header">
+    <table>
+      <th>
+        <td>
+          <h5><a href="#" data-target="#text-@pmid"
+                 data-toggle="collapse">@title</a></h5>
+        </td>
+        <td>
+          <span class="__dimensions_badge_embed__"
+                  data-pmid="@pmid" data-style="small_circle"></span>
+        </td>
+      </table>
+  </div>
+  <div class="card-body collapse" id="text-@pmid">
+    @text
+  </div>
+  <div class="card-footer">
+    <a href="@controllers.semmed.routes.Controller.pmid(pmid)">@pmid</a>
+    @footer
+  </div>
+</div>

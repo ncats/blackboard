@@ -1,14 +1,15 @@
 package blackboard.pubmed.index;
 
 import play.Logger;
+import play.libs.Json;
 import blackboard.pubmed.*;
 import blackboard.umls.MetaMap;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Descriptor;
 
+import javax.inject.Inject;
 import java.io.*;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,6 +50,8 @@ import gov.nih.nlm.nls.metamap.Position;
 import gov.nih.nlm.nls.metamap.Result;
 import gov.nih.nlm.nls.metamap.Utterance;
 
+import com.google.inject.assistedinject.Assisted;
+
 public class PubMedIndex implements AutoCloseable {
     public static final String FIELD_YEAR = "year";
     public static final String FIELD_CUI = "cui";
@@ -57,12 +60,104 @@ public class PubMedIndex implements AutoCloseable {
     public static final String FIELD_TEXT = "text";
     public static final String FIELD_TR = "tr"; // tree number";
     public static final String FIELD_MESH = "mesh";
+    public static final String FIELD_TITLE = "title";
     public static final String FIELD_CONCEPT = "concept";
     public static final String FIELD_SEMTYPE = "semtype";
     public static final String FIELD_SOURCE = "source";
     // MetaMap compressed json
     public static final String FIELD_MM_TITLE = "mm_title";
     public static final String FIELD_MM_ABSTRACT = "mm_abstract"; 
+
+    public static class MatchedDoc {
+        public final Long pmid;
+        public final String title;
+        public final Integer year;
+        public final List<String> fragments = new ArrayList<>();
+        public final List<String> mesh = new ArrayList<>();
+        public final Map<String, JsonNode> concepts = new TreeMap<>();
+
+        protected MatchedDoc (Long pmid, String title, Integer year) {
+            this.pmid = pmid;
+            this.title = title;
+            this.year = year;
+        }
+    }
+
+    public static class FV {
+        public FV parent;
+        public Integer total;        
+        public final String label;
+        public final Integer count;
+        public final List<FV> children = new ArrayList<>();
+
+        protected FV (String label, Integer count) {
+            this.label = label;
+            this.count = count;
+        }
+
+        public FV add (FV node) {
+            node.parent = this;
+            children.add(node);
+            return this;
+        }
+        
+        public String[] toPath () {
+            List<String> path = new ArrayList<>();
+            for (FV p = this; p != null; p = p.parent) {
+                path.add(0, p.label);
+            }
+            return path.toArray(new String[0]);
+        }
+
+        public String toPath (String sep) {
+            StringBuilder sb = new StringBuilder ();
+            for (FV p = this; p != null; ) {
+                FV parent = p.parent;
+                sb.insert(0, parent != null ? sep+p.label : p.label);
+                p = parent;
+            }
+            return sb.toString();
+        }
+
+        static void print (StringBuilder sb, FV fv) {
+            for (FV p = fv; p != null; p = p.parent)
+                sb.append(" ");
+            sb.append(fv.label+" ("+fv.count+")\n");
+            for (FV child : fv.children)
+                print (sb, child);
+        }
+        
+        public String toString () {
+            StringBuilder sb = new StringBuilder ();
+            print (sb, this);
+            return sb.toString();
+        }
+    }
+    
+    public static class Facet {
+        public final String name;
+        public final List<FV> values = new ArrayList<>();
+
+        protected Facet (String name) {
+            this.name = name;
+        }
+
+        public String toString () {
+            StringBuilder sb = new StringBuilder ();
+            sb.append("["+name+"]\n");
+            for (FV fv : values)
+                FV.print(sb, fv);
+            return sb.toString();
+        }
+    }
+
+    public static class SearchResult {
+        public final List<Facet> facets = new ArrayList<>();
+        public final List<MatchedDoc> docs = new ArrayList<>();
+
+        protected SearchResult () {
+        }
+    }
     
     final FieldType tvFieldType;
     final File root;
@@ -74,8 +169,9 @@ public class PubMedIndex implements AutoCloseable {
     final SearcherManager searcherManager;
     final ObjectMapper mapper = new ObjectMapper ();
     MetaMap metamap = new MetaMap ();
-    
-    public PubMedIndex (File dir) throws IOException {
+
+    @Inject
+    public PubMedIndex (@Assisted File dir) throws IOException {
         File text = new File (dir, "text");
         text.mkdirs();
         indexDir = new NIOFSDirectory (text.toPath());
@@ -113,6 +209,10 @@ public class PubMedIndex implements AutoCloseable {
 
     public void setMMPort (int port) {
         metamap = new MetaMap (port);
+    }
+
+    public String toString () {
+        return "###PubMedIndex: db="+root+" size="+size();
     }
 
     protected JsonNode metamap (Document doc, String text) {
@@ -234,8 +334,12 @@ public class PubMedIndex implements AutoCloseable {
         Logger.debug(d.getPMID()+": "+d.getTitle());
         Document doc = new Document ();
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
-        doc.add(new Field (FIELD_TEXT, d.getTitle(), tvFieldType));
-        JsonNode json = metamap (doc, d.getTitle());
+        
+        String title = d.getTitle();
+        doc.add(new Field (FIELD_TEXT, title, tvFieldType));
+        doc.add(new StoredField
+                (FIELD_TITLE, new BytesRef (title.getBytes("utf8"))));
+        JsonNode json = metamap (doc, title);
         if (json != null && json.size() > 0) {
             BytesRef ref = new BytesRef (toCompressedBytes (json));
             doc.add(new StoredField (FIELD_MM_TITLE, ref));
@@ -313,36 +417,115 @@ public class PubMedIndex implements AutoCloseable {
         }
     }
 
-    public int search (Query query) throws Exception {
+    MatchedDoc toDoc (Document doc) throws IOException {
+        MatchedDoc md = null;
+        IndexableField field = doc.getField(FIELD_PMID);
+        if (field != null) {
+            long id = field.numericValue().longValue();
+            BytesRef ref = doc.getField(FIELD_TITLE).binaryValue();
+            String title = new String (ref.bytes);
+            int year = doc.getField(FIELD_YEAR).numericValue().intValue();
+            md = new MatchedDoc (id, title, year);
+            String[] mesh = doc.getValues(FIELD_UI);
+            for (String ui : mesh)
+                md.mesh.add(ui);
+            /*
+            JsonNode[] json = toJson (doc, FIELD_MM_TITLE);
+            if (json != null && json.length > 0) {
+                // there should only be one!
+                md.concepts.put("title_mm", json[0]);
+            }
+            
+            json = toJson (doc, FIELD_MM_ABSTRACT);
+            if (json != null && json.length > 0) {
+                md.concepts.put("abstract_mm", json.length == 1
+                                ? json[0] : Json.toJson(json));
+            }
+            */
+        }
+        return md;
+    }
+
+    void getFacetHierarchy (FV fv, Facets facets, String dim, int topN)
+        throws IOException {
+        FacetResult fr = facets.getTopChildren(topN, dim, fv.toPath());
+        if (fr != null) {
+            for (int i = 0; i < fr.labelValues.length; ++i) {
+                LabelAndValue lv = fr.labelValues[i];
+                FV node = new FV (lv.label, lv.value.intValue());
+                fv.add(node);
+                getFacetHierarchy (node, facets, dim, topN);
+            }
+        }
+    }
+
+    List<Facet> toFacets (Facets facets, int topN) throws IOException {
+        List<Facet> lf = new ArrayList<>();
+        for (FacetResult fr : facets.getAllDims(topN)) {
+            FacetsConfig.DimConfig dimconf = facetConfig.getDimConfig(fr.dim);
+            Facet f = new Facet (fr.dim);
+            if (dimconf.hierarchical) {
+                for (int i = 0; i < fr.labelValues.length; ++i) {
+                    LabelAndValue lv = fr.labelValues[i];
+                    FV root = new FV (lv.label, lv.value.intValue());
+                    f.values.add(root);
+                    getFacetHierarchy (root, facets, fr.dim, topN);
+                }
+            }
+            else {
+                for (int i = 0; i < fr.labelValues.length; ++i) {
+                    LabelAndValue lv = fr.labelValues[i];
+                    FV fv = new FV (lv.label, lv.value.intValue());
+                    f.values.add(fv);
+                }
+            }
+            lf.add(f);
+        }
+        return lf;
+    }
+
+    public SearchResult search (Query query) throws Exception {
+        SearchResult result = null;
+        
         try (IndexReader reader = DirectoryReader.open(indexWriter);
              TaxonomyReader taxonReader =
              new DirectoryTaxonomyReader (taxonWriter)) {
+            result = new SearchResult ();
+            
             FastVectorHighlighter fvh = new FastVectorHighlighter ();
             FieldQuery fq = fvh.getFieldQuery(query, reader);
             IndexSearcher searcher = new IndexSearcher (reader);
             FacetsCollector fc = new FacetsCollector ();
-            TopDocs result = FacetsCollector.search
+            TopDocs docs = FacetsCollector.search
                 (searcher, query, reader.maxDoc(), fc);
             Facets facets = new FastTaxonomyFacetCounts
                 (taxonReader, facetConfig, fc);
-            for (int i = 0; i < result.totalHits; ++i) {
-                int doc = result.scoreDocs[i].doc;
-                String[] fragments = fvh.getBestFragments
-                    (fq, reader, doc, FIELD_TEXT, 128, 10);
-                String id = searcher.doc(doc).get(FIELD_PMID);
-                if (fragments != null) {
-                    Logger.debug("## found "+fragments.length
-                                 +" fragment(s) in document "+id+"!");
-                    for (String f : fragments) {
-                        Logger.debug(">>> "+f);
+            for (int i = 0; i < docs.totalHits; ++i) {
+                int docId = docs.scoreDocs[i].doc;
+                MatchedDoc doc = toDoc (searcher.doc(docId));
+                if (doc != null) {
+                    String[] fragments = fvh.getBestFragments
+                        (fq, reader, docId, FIELD_TEXT, 4000, 10);
+                    if (fragments != null) {
+                        Logger.debug("## found "+fragments.length
+                                     +" fragment(s) in document "+doc.pmid+"!");
+                        for (String f : fragments) {
+                            Logger.debug(">>> "+f);
+                            doc.fragments.add(f);
+                        }
                     }
-                }
-                else {
-                    Logger.error("Can't extract fragments from document "
-                                 +id+"!");
+                    else {
+                        Logger.error("Can't extract fragments from document "
+                                     +doc.pmid+"!");
+                    }
+                    result.docs.add(doc);
                 }
             }
 
+            result.facets.addAll(toFacets (facets, 100));
+            for (Facet f : result.facets)
+                Logger.debug(f.toString());
+            /*
             Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
             Logger.debug(facets.getTopChildren
                          (20, "tr", "A11.251.860.180".split("\\."))
@@ -356,16 +539,19 @@ public class PubMedIndex implements AutoCloseable {
             Logger.debug(facets.getTopChildren(20, FIELD_CONCEPT).toString());
             Logger.debug(facets.getTopChildren(20, FIELD_SEMTYPE).toString());
             Logger.debug(facets.getTopChildren(20, FIELD_SOURCE).toString());
-
-            return result.totalHits;
+            */
+                
+            return result;
         }
     }
     
-    public void search (String text) throws Exception {
+    public SearchResult search (String text) throws Exception {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
-        int hits = search (parser.parse(text));
-        Logger.debug("## searching for \""+text+"\"..."+hits+" hit(s)!"); 
+        SearchResult result = search (parser.parse(text));
+        Logger.debug("## searching for \""+text+"\"..."
+                     +result.docs.size()+" hit(s)!");
+        return result;
     }
     
     public static void main (String[] argv) throws Exception {
