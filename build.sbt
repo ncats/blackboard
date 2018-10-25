@@ -14,7 +14,9 @@ lazy val commonDependencies = Seq(
   "mysql" % "mysql-connector-java" % "5.1.31",
   "org.apache.lucene" % "lucene-facet" % "5.5.5",
   "org.apache.lucene" % "lucene-highlighter" % "5.5.5",
-  "org.neo4j" % "neo4j" % "3.2.11"
+  "org.neo4j" % "neo4j" % "3.2.11",
+  "junit"             % "junit"           % "4.12"  % "test",
+  "com.novocode"      % "junit-interface" % "0.11"  % "test"  
 )
 
 lazy val javaBuildOptions = Seq(
@@ -106,6 +108,13 @@ lazy val pharos = (project in file("modules/pharos"))
     javacOptions ++= javaBuildOptions
 ).dependsOn(pubmed).aggregate(pubmed)
 
+lazy val tripod = (project in file("modules/tripod"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "tripod",
+    javacOptions ++= javaBuildOptions
+  )
+
 lazy val biothings = (project in file("modules/biothings"))
   .settings(commonSettings: _*)
   .settings(
@@ -182,5 +191,16 @@ lazy val chembl = (project in file("modules/chembl"))
   .settings(
     name := "chembl",
     libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+  ).dependsOn(core).aggregate(core)
+
+lazy val gard = (project in file("modules/gard"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "gard",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "com.google.guava" % "guava" % "22.0",
+    libraryDependencies += "com.google.code.gson" % "gson" % "2.5",
+    libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1",
     javacOptions ++= javaBuildOptions
   ).dependsOn(core).aggregate(core)
