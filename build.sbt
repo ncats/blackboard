@@ -199,8 +199,35 @@ lazy val gard = (project in file("modules/gard"))
   .settings(
     name := "gard",
     libraryDependencies ++= commonDependencies,
-    libraryDependencies += "com.google.guava" % "guava" % "22.0",
-    libraryDependencies += "com.google.code.gson" % "gson" % "2.5",
-    libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1",
     javacOptions ++= javaBuildOptions
   ).dependsOn(core).aggregate(core)
+
+lazy val firebase = (project in file("modules/firebase"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "firebase",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "com.google.firebase" % "firebase-admin" % "6.5.0",
+    libraryDependencies += "com.google.cloud" % "google-cloud-firestore" % "0.68.0-beta",    
+    javacOptions ++= javaBuildOptions
+  )
+
+lazy val schemaorg = (project in file("modules/schemaorg"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "schemaorg",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "com.google.guava" % "guava" % "22.0",
+    libraryDependencies += "com.google.code.gson" % "gson" % "2.5",
+    libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1",    
+    javacOptions ++= javaBuildOptions
+  )
+
+lazy val graphql = (project in file("modules/graphql"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "graphql",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "com.graphql-java" % "graphql-java" % "11.0",
+    javacOptions ++= javaBuildOptions
+  )
