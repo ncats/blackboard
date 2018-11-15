@@ -1,5 +1,5 @@
 @import blackboard.umls.UMLSKSource
-@(ks: UMLSKSource)
+@(ks: UMLSKSource, q: String)
 
 @views.html.ui.main("UMLS Knowledge Source"){
 <div class="container-fluid" style="margin-top:10px;">
@@ -97,9 +97,9 @@
 
     function createOutputTable () {
         var term = $('#search-input').val();
-    if (term == '') {
-        term = '_';
-    }
+        if (term == '') {
+           term = '_';
+        }
         var route = umlsRoutes.controllers
             .umls.Controller.apiFindConcepts(term, 0, 20);
 
@@ -188,6 +188,11 @@
             }
         });
 
+        @if(q != null) {
+            $('#search-input').val('@q');
+            search ();
+        }
+
         $.ajax({
             url: '@controllers.umls.routes.Controller.apiDatasources',
             dataType: 'text',
@@ -195,7 +200,6 @@
                 $('#umls-sources').html(d);
             }
         });
-
         
         /*
          * after the table is rendered, we iterate through each row
@@ -225,8 +229,8 @@
         $('#umls-concept-modal').on('show.bs.modal', function () {
         });     
 
-    window.addEventListener("pageshow", function(e) {
+        window.addEventListener("pageshow", function(e) {
             search ();
-    });
-    });
+        });
+     });
 }

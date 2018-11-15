@@ -46,8 +46,8 @@ public class Controller extends play.mvc.Controller {
             });
     }
     
-    public Result index () {
-        return ok (views.html.umls.index.render(ks));
+    public Result index (String query) {
+        return ok (views.html.umls.index.render(ks, query));
     }
 
     public CompletionStage<Result> cui (String cui) {
@@ -56,8 +56,7 @@ public class Controller extends play.mvc.Controller {
                     Concept concept = ks.getConcept(cui);
                     if (concept != null)
                         return ok (views.html.umls.cui.render(concept, ks));
-                    return ok (views.html.ui.notfound.render
-                               ("Unknown concept <code>"+cui+"</code>"));
+                    return index (cui);
                 }
                 catch (Exception ex) {
                     Logger.error("Can't retrieve concept for "+cui, ex);

@@ -1,5 +1,6 @@
 package blackboard.graphql.test;
 
+import java.io.*;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
@@ -11,6 +12,7 @@ import static org.junit.Assert.assertTrue;
 
 import graphql.ExecutionResult;
 import graphql.GraphQL;
+import graphql.language.*;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.StaticDataFetcher;
 import graphql.schema.idl.RuntimeWiring;
@@ -30,15 +32,15 @@ public class TestGraphQL {
 
     @Test
     public void testSimple () throws Exception {
-       String schema = "type Query{hello: String}";
+        String schema = "type Query{hello: String}";
 
         SchemaParser schemaParser = new SchemaParser();
         TypeDefinitionRegistry typeDefinitionRegistry =
             schemaParser.parse(schema);
 
         RuntimeWiring runtimeWiring = newRuntimeWiring()
-                .type("Query", builder -> builder.dataFetcher
-                      ("hello", new StaticDataFetcher("world")))
+            .type("Query", builder -> builder.dataFetcher
+                  ("hello", new StaticDataFetcher("world")))
             .build();
         
         SchemaGenerator schemaGenerator = new SchemaGenerator();
@@ -51,5 +53,44 @@ public class TestGraphQL {
         String result = executionResult.getData().toString();
         logger.info("GraphQL => "+result);
         assertTrue ("GraphQL fails!", "{hello=world}".equals(result));
+    }
+
+    @Test
+    public void testSchema () throws Exception {
+        SchemaParser schemaParser = new SchemaParser ();
+        TypeDefinitionRegistry typeDefReg =
+            schemaParser.parse(new InputStreamReader
+                               (TestGraphQL.class.getResourceAsStream
+                                ("/schema.graphql")));
+        for (TypeDefinition t : typeDefReg.types().values()) {
+            logger.info("Type ["+t.getName()+"]");
+            for (Object n : t.getChildren()) {
+                if (n instanceof FieldDefinition) {
+                    FieldDefinition fd = (FieldDefinition)n;
+                    logger.info("  + "+fd.getName()+" ["+fd.getType()+"] "
+                                +fd.getDirectives().size()+" directive(s)!");
+                }
+            }
+        }
+
+        RuntimeWiring runtimeWiring = newRuntimeWiring()
+            .type("User", builder -> builder.dataFetcher
+                  ("name", new StaticDataFetcher("unicorn")))
+            .type("Query", builder -> builder.dataFetcher
+                  ("users", new StaticDataFetcher(new Object[]{
+                          "", "", ""
+                      })))
+            .build();
+        SchemaGenerator schemaGenerator = new SchemaGenerator();
+        GraphQLSchema graphQLSchema = schemaGenerator.makeExecutableSchema
+            (typeDefReg, runtimeWiring);
+
+        GraphQL build = GraphQL.newGraphQL(graphQLSchema).build();
+        ExecutionResult executionResult = build.execute("{users {name}}");
+        String result = executionResult.getData().toString();
+        logger.info("GraphQL => "+result);
+        assertTrue ("GraphQL fails!",
+                    "{users=[{name=unicorn}, {name=unicorn}, {name=unicorn}]}"
+                    .equals(result));
     }
 }

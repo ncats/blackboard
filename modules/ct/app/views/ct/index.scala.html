@@ -14,7 +14,7 @@
       <b>@ctdb.getInterventionCount</b> interventions. Conditions and
       interventions have been mapped
     to <b>@ctdb.getCount("mesh")</b> <a href="@controllers.mesh.routes.Controller.index">MeSH</a>
-        and <b>@ctdb.getCount("concept")</b> <a href="@controllers.umls.routes.Controller.index">UMLS</a>
+        and <b>@ctdb.getCount("concept")</b> <a href="@controllers.umls.routes.Controller.index(null)">UMLS</a>
         concepts. @if(ctdb.getLastUpdate == null){
          Your database <code>@ctdb.getDbFile.getName</code> has not been initialized; please initialize your database below.
         } else {
