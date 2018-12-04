@@ -231,3 +231,12 @@ lazy val graphql = (project in file("modules/graphql"))
     libraryDependencies += "com.graphql-java" % "graphql-java" % "11.0",
     javacOptions ++= javaBuildOptions
   )
+
+lazy val aws = (project in file("modules/aws"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "aws",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.11.461",
+    javacOptions ++= javaBuildOptions
+  )
