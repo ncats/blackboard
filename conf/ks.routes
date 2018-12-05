@@ -5,6 +5,7 @@
 ->  /pubmed  ksPubmed.Routes
 ->  /mesh    mesh.Routes
 ->  /ct      ct.Routes
+->  /aws     aws.Routes
 
 GET	/	controllers.ks.KnowledgeSource.index
 GET	/:ks	controllers.ks.KnowledgeSource.getKS(ks: String)

@@ -1,0 +1,3 @@
+GET /   controllers.aws.Controller.index
+GET /api/comprehendmedical/:text    controllers.aws.Controller.apiComprehendMedical(text)
+POST /api/comprehendmedical    controllers.aws.Controller.apiComprehendMedicalPost

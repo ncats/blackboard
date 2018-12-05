@@ -36,8 +36,18 @@ public class TestComprehend {
     @Rule public ExternalResource resource = new ExternalResource () {
             @Override
             protected void before () throws Throwable {
+                /*
+                final BasicAWSCredentials awsCreds =
+                    new BasicAWSCredentials("", "");
+                */
+
                 comprehendmedical =
                     AWSComprehendMedicalClient.builder().defaultClient();
+                /*
+                    AWSComprehendMedicalClient.builder().standard()
+                    .withCredentials(new AWSStaticCredentialsProvider(awsCreds))
+                    .withRegion("us-east-1")
+                    .build();*/
             }
             
             @Override

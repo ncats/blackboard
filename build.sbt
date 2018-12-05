@@ -45,6 +45,7 @@ lazy val root = (project in file("."))
     semmed,
     ct,
     hpo,
+    aws,
     chembl
   )
   .aggregate(
@@ -57,6 +58,7 @@ lazy val root = (project in file("."))
     semmed,
     ct,
     hpo,
+    aws,
     chembl
   )
 
@@ -233,10 +235,11 @@ lazy val graphql = (project in file("modules/graphql"))
   )
 
 lazy val aws = (project in file("modules/aws"))
+  .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .settings(
     name := "aws",
     libraryDependencies ++= commonDependencies,
     libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.11.461",
     javacOptions ++= javaBuildOptions
-  )
+  ).dependsOn(core).aggregate(core)
