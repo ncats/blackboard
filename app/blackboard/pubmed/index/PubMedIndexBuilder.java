@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
 import blackboard.pubmed.*;
+import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshDb;
 
 
@@ -20,19 +21,11 @@ public class PubMedIndexBuilder implements AutoCloseable {
     
     class Builder implements Callable<PubMedIndex> {
         PubMedIndex index;
-        Integer port;
         int count;
 
-        Builder (File db) throws IOException {
-            this (db, null);
-        }
-        
-        Builder (File db, Integer port) throws IOException {
+        Builder (File db, UMLSKSource umls) throws IOException {
             index = new PubMedIndex (db);
-            if (port != null && port > 1024) {
-                index.setMMPort(port);
-                this.port = port;
-            }
+            index.setMetaMap(umls.getMetaMap());
         }
 
         public PubMedIndex call () throws Exception {
@@ -58,7 +51,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 }
             }
             Logger.debug(Thread.currentThread().getName()+": "
-                         +index.getDbFile()+" port="+port+" "+index.size());
+                         +index.getDbFile()+" "+index.size());
             return index;
         }
     }
@@ -78,23 +71,18 @@ public class PubMedIndexBuilder implements AutoCloseable {
         this (base, 2);
     }
     
-    public PubMedIndexBuilder (String base, int threads, Integer... ports)
+    public PubMedIndexBuilder (String base, int threads)
         throws IOException {
         es = Executors.newFixedThreadPool(threads);
-        for (int i = 0; i < threads; ++i) {
-            File db = new File (base+"-"+String.format("%1$02d.db", i+1));
-            Integer port;
-            if (i >= ports.length)
-                port = ports.length > 0 ? ports[i % ports.length] : null;
-            else
-                port = ports[i];
-            this.threads.add(es.submit(new Builder (db, port)));
-        }
-        
         app = new GuiceApplicationBuilder()
             .in(new File("."))
             .build();
         pubmed = app.injector().instanceOf(PubMedKSource.class);
+        for (int i = 0; i < threads; ++i) {
+            File db = new File (base+"-"+String.format("%1$02d.db", i+1));
+            UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
+            this.threads.add(es.submit(new Builder (db, umls)));
+        }
     }
 
     public void setAddIfAbsent (boolean b) {
@@ -172,17 +160,18 @@ public class PubMedIndexBuilder implements AutoCloseable {
 
     static void usage () {
         System.err.println
-            ("Usage: PubMedIndexBuilder "
-             +"[BASE=pubmed|THREADS=2|METAMAP=8066[,8067,..]"
+            ("Usage: PubMedIndexBuilder [BASE=pubmed|THREADS=2"
              +"|INPUT=FILE|PMID=FILE] FILES...");
         System.exit(1);
     }
-    
+
+    /*
+     * sbt "runMain blackboard.pubmed.index.PubMedIndexBuilder pubmed18n0001.xml.gz"
+     */
     public static void main (String[] argv) throws Exception {
         if (argv.length < 1)
             usage ();
 
-        List<Integer> ports = new ArrayList<>();
         int threads = 2;
         String base = "pubmed";
         List<File> files = new ArrayList<>();
@@ -195,12 +184,6 @@ public class PubMedIndexBuilder implements AutoCloseable {
             else if (a.startsWith("THREADS=")) {
                 threads = Integer.parseInt(a.substring(8));
                 Logger.debug("THEADS: "+threads);
-            }
-            else if (a.startsWith("METAMAP=")) {
-                for (String p : a.substring(8).split(",")) {
-                    ports.add(Integer.parseInt(p));
-                }
-                Logger.debug("PORTS: "+ports);
             }
             else if (a.startsWith("INPUT=")) {
                 try (BufferedReader br = new BufferedReader
@@ -237,8 +220,8 @@ public class PubMedIndexBuilder implements AutoCloseable {
             usage ();
 
         Logger.debug("processing "+files.size()+" files!");
-        try (final PubMedIndexBuilder pmb = new PubMedIndexBuilder
-             (base, threads, ports.toArray(new Integer[0]))) {
+        try (final PubMedIndexBuilder pmb =
+             new PubMedIndexBuilder (base, threads)) {
             Runtime.getRuntime().addShutdownHook(new Thread () {
                     public void run () {
                         Logger.debug("##### SHUTTING DOWN! ######");

@@ -47,7 +47,9 @@ public class MetaMap {
         @JsonIgnore abstract String getMachineOutput ();
     }
     
-    final MetaMapApi api;
+    MetaMapApi api;
+    String host;
+    int port, timeout;
     
     public MetaMap () {
         this (MetaMapApi.DEFAULT_SERVER_HOST,
@@ -70,11 +72,32 @@ public class MetaMap {
     }
     
     public MetaMap (String host, int port, int timeout) {
+        this.host = host;
+        this.port = port;
+        this.timeout = timeout;
+        newInstance ();
+    }
+
+    protected void newInstance () {
         api = new MetaMapApiImpl (host, port, timeout);
     }
 
     public List<Result> annotate (String text) throws Exception {
-        return api.processCitationsFromString(toAscii (text));
+        int tries = 1;
+        do {
+            try {
+                return api.processCitationsFromString(toAscii (text));
+            }
+            catch (Exception ex) {
+                newInstance ();
+                Logger.warn(ex.getMessage()+"; retrying..."+tries);
+            }
+        }
+        while (++tries <= 5);
+        
+        throw new RuntimeException
+            ("Unable to communicate with metamap server after "
+             +tries+" tries!");
     }
 
     public JsonNode annotateAsJson (String text) throws Exception {
