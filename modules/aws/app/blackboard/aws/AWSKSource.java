@@ -35,13 +35,28 @@ public class AWSKSource implements KSource {
     @Inject
     public AWSKSource (@Named("aws") KSourceProvider ksp,
                        ApplicationLifecycle lifecycle) {
+        AWSComprehendMedical acm = null;
+        try {
+            acm = init (ksp, lifecycle);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't initialize AWS resource!", ex);
+        }
+        comprehendmedical = acm;
+    }
+
+    static AWSComprehendMedical init (KSourceProvider ksp,
+                                      ApplicationLifecycle lifecycle)
+        throws Exception {
+        AWSComprehendMedical comprehendmedical;
+        
         AWSComprehendMedicalClientBuilder builder =
             AWSComprehendMedicalClient.builder();
-        
+            
         Map<String, String> props = ksp.getProperties();
         String id = props.get("access-key-id");
         String secret = props.get("secret-access-key");
-        
+            
         if (id == null || "".equals(id)
             || secret == null || "".equals(secret)) {
             Logger.debug("## Using AWS default client!");
@@ -65,15 +80,21 @@ public class AWSKSource implements KSource {
         
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());
-    }
+        return comprehendmedical;
+    }        
 
     public JsonNode comprehendMedical (String text) {
-        DetectEntitiesRequest request =
-            new DetectEntitiesRequest().withText(text);
-        DetectEntitiesResult result = comprehendmedical.detectEntities(request);
-        ObjectNode obj = (ObjectNode) Json.toJson(result);
-        obj.put("text", text);
-        return obj;
+        if (comprehendmedical != null) {
+            DetectEntitiesRequest request =
+                new DetectEntitiesRequest().withText(text);
+            DetectEntitiesResult result =
+                comprehendmedical.detectEntities(request);
+            ObjectNode obj = (ObjectNode) Json.toJson(result);
+            obj.put("text", text);
+            return obj;
+        }
+        Logger.error("AWS knowledge source has not been properly initialized!");
+        return null;
     }
 
     /*

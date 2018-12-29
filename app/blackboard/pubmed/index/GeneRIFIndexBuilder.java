@@ -170,10 +170,10 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
     }
 
     public void build () throws Exception {
-        build (2);
+        build (0, 2);
     }
     
-    public void build (int threads) throws Exception {
+    public void build (int max, int threads) throws Exception {
         Logger.debug("############### building generif index with "
                      +threads+" threads ####################");
         ExecutorService threadPool = Executors.newFixedThreadPool(threads);
@@ -183,7 +183,7 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
             UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
             futures.add(threadPool.submit(new Builder (db, umls)));
         }
-        generif.generate();
+        generif.generate(max);
         
         for (Future<GeneRIFIndex> f : futures)
             queue.put(POISON);
@@ -198,7 +198,7 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
 
     public static void main (String[] argv) throws Exception {
         String base = "generif";
-        int threads = 2;
+        int threads = 2, max = 0;
 
         for (String a : argv) {
             if (a.startsWith("BASE=")) {
@@ -208,6 +208,10 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
             else if (a.startsWith("THREADS=")) {
                 threads = Integer.parseInt(a.substring(8));
                 Logger.debug("THEADS: "+threads);
+            }
+            else if (a.startsWith("MAX=")) {
+                max = Integer.parseInt(a.substring(4));
+                Logger.debug("MAX: "+max);
             }
         }
         
@@ -225,7 +229,7 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
                     }
                 });
             
-            builder.build(threads);
+            builder.build(max, threads);
         }
     }
 }

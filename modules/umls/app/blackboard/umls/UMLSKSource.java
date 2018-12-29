@@ -186,12 +186,14 @@ public class UMLSKSource implements KSource {
             });
 
         TGT _tgt = null;
+        /*
         try {
             _tgt = new TGT ();
         }
         catch (Exception ex) {
             Logger.warn("Can't initialize UMLS ticket granting ticket!");
         }
+        */
         tgt = _tgt;
 
         try (Connection con = db.getConnection()) {
