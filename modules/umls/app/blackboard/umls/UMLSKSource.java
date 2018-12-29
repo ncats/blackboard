@@ -33,7 +33,7 @@ public class UMLSKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     
-    private final CacheApi cache;
+    private final SyncCacheApi cache;
     private final Database db;
     private final TGT tgt;
     private final MetaMap metamap;
@@ -122,9 +122,8 @@ public class UMLSKSource implements KSource {
         return url;
     }            
     
-    
     @Inject
-    public UMLSKSource (WSClient wsclient, CacheApi cache,
+    public UMLSKSource (WSClient wsclient, SyncCacheApi cache,
                         @Named("umls") KSourceProvider ksp,
                         @NamedDatabase("umls") Database db,
                         ApplicationLifecycle lifecycle) {
@@ -164,6 +163,7 @@ public class UMLSKSource implements KSource {
             else {
                 metamap = new MetaMap (host);
             }
+            metamap.setCache(cache);
         }
         else {
             metamap = null;
@@ -441,7 +441,7 @@ public class UMLSKSource implements KSource {
     }
 
     public JsonNode getCui (final String cui) throws Exception {
-        return cache.getOrElse("umls/"+cui, new Callable<JsonNode> () {
+        return cache.getOrElseUpdate("umls/"+cui, new Callable<JsonNode> () {
                 public JsonNode call () throws Exception {
                     WSResponse res =
                         cui(cui).get().toCompletableFuture().get();
@@ -463,7 +463,7 @@ public class UMLSKSource implements KSource {
     public JsonNode getSource (final String src, final String id,
                                final String context)
         throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("umls/"+src+"/"+id+(context!=null?context:""),
              new Callable<JsonNode> () {
                  public JsonNode call () throws Exception {
@@ -477,7 +477,7 @@ public class UMLSKSource implements KSource {
 
     public JsonNode getContent (final String cui, final String context)
         throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("umls/"+context+"/"+cui, new Callable<JsonNode>() {
                     public JsonNode call () throws Exception {
                         WSResponse res = content(cui, context)
@@ -490,7 +490,7 @@ public class UMLSKSource implements KSource {
 
     public JsonNode getSearch (final String query,
                                final int skip, final int top) throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("umls/search/"+query+"/"+top+"/"+skip, new Callable<JsonNode>() {
                     public JsonNode call () throws Exception {
                         WSResponse res = search(query)
@@ -598,7 +598,7 @@ public class UMLSKSource implements KSource {
     }
 
     public Concept getConcept (final String cui) throws Exception {
-        return cache.getOrElse("umls/"+cui, new Callable<Concept> () {
+        return cache.getOrElseUpdate("umls/"+cui, new Callable<Concept> () {
                 public Concept call () throws Exception {
                     return _getConcept (cui);
                 }
@@ -694,7 +694,8 @@ public class UMLSKSource implements KSource {
 
     public Concept getConcept (final String src, final String id)
         throws Exception {
-        return cache.getOrElse("umls/"+src+"/"+id, new Callable<Concept> () {
+        return cache.getOrElseUpdate
+            ("umls/"+src+"/"+id, new Callable<Concept> () {
                 public Concept call () throws Exception {
                     return _getConcept (src, id);
                 }
@@ -737,7 +738,7 @@ public class UMLSKSource implements KSource {
     }
 
     public List<DataSource> getDataSources () throws Exception {
-        return cache.getOrElse
+        return cache.getOrElseUpdate
             ("umls/datasources", new Callable<List<DataSource>> () {
                     public List<DataSource> call () throws Exception {
                         return _getDataSources ();

@@ -1,8 +1,10 @@
 package blackboard.umls;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
+import java.security.MessageDigest;
 
 import gov.nih.nlm.nls.metamap.AcronymsAbbrevs;
 import gov.nih.nlm.nls.metamap.ConceptPair;
@@ -28,6 +30,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import se.sics.prologbeans.PBTerm;
 import play.libs.Json;
 import play.Logger;
+import play.cache.SyncCacheApi;
+
 
 public class MetaMap {
     // Jackson can't serialize PBTerm, so we need to mask these and other
@@ -50,7 +54,8 @@ public class MetaMap {
     MetaMapApi api;
     String host;
     int port, timeout;
-    
+    SyncCacheApi cache;
+
     public MetaMap () {
         this (MetaMapApi.DEFAULT_SERVER_HOST,
               MetaMapApi.DEFAULT_SERVER_PORT,
@@ -72,17 +77,83 @@ public class MetaMap {
     }
     
     public MetaMap (String host, int port, int timeout) {
+        config (host, port, timeout);
+    }
+
+    public void setPort (int port) {
+        this.port = port;
+        newInstance ();
+    }
+    public int getPort () { return port; }
+
+    // in miliseconds
+    public void setTimeout (int timeout) {
+        this.timeout = timeout;
+        newInstance ();
+    }
+    public int getTimeout () { return timeout; }
+    
+    public void config (String host, int port) {
+        config (host, port, MetaMapApi.DEFAULT_TIMEOUT);
+    }
+
+    public void config (String host, int port, int timeout) {
         this.host = host;
         this.port = port;
         this.timeout = timeout;
         newInstance ();
     }
 
+    public void setCache (SyncCacheApi cache) {
+        this.cache = cache;
+    }
+
     protected void newInstance () {
         api = new MetaMapApiImpl (host, port, timeout);
     }
 
-    public List<Result> annotate (String text) throws Exception {
+    static String getKey (String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("sha1");
+            byte[] digest = md.digest(text.getBytes("utf8"));
+            StringBuilder sb = new StringBuilder ();
+            for (int i = 0; i < digest.length; ++i)
+                sb.append(String.format("%1$02x", digest[i] & 0xff));
+            return sb.toString();
+        }
+        catch (Exception ex) {
+            Logger.error("Can't generate message digest!", ex);
+        }
+        return "";
+    }
+
+    public List<Result> annotate (final String text) throws Exception {
+        if (cache != null) {
+            final String key = getKey (text);
+            List<Result> result =
+                cache.getOrElseUpdate(key, new Callable<List<Result>>() {
+                    public List<Result> call () {
+                        try {
+                            Logger.debug("** new cache key: "
+                                         +key.substring(0,10)+"..."+text);
+                            return _annotate (text);
+                        }
+                        catch (Exception ex) {
+                            Logger.error("Can't annotate text:\n"+text, ex);
+                        }
+                        return null;
+                    }
+                }, 3600);
+            
+            if (result != null) {
+                return result;
+            }
+            cache.remove(key);
+        }
+        return _annotate (text);
+    }
+    
+    public List<Result> _annotate (String text) throws Exception {
         int tries = 1;
         do {
             try {

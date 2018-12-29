@@ -81,7 +81,7 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
                     ("select a.fam,b.uniprot,b.sym,d.text,d.pubmed_ids "
                      +"from target a, protein b, t2tc c, generif d "
                      +"where a.id=c.target_id and b.id = c.protein_id "
-                     +"and d.protein_id = b.id ");
+                     +"and d.protein_id = b.id order by d.protein_id");
                 while (rset.next() && (max == 0 || count < max)) {
                     String gene = rset.getString("sym");
                     String text = rset.getString("text");
