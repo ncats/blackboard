@@ -144,7 +144,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 try {
                     if (true || count < 1000) {
                         Long pmid = Long.parseLong(line);
-                        queue.put(pubmed.getPubMedDoc(pmid));
+                        add (pmid);
                         ++count;
                     }
                 }
@@ -155,7 +155,22 @@ public class PubMedIndexBuilder implements AutoCloseable {
                     Logger.error("Can't queue pmid "+line, ex);
                 }
             }
+            Logger.debug(count+" document(s) queued!");
         }
+    }
+
+    public PubMedDoc doc (long pmid) throws Exception {
+        return pubmed.getPubMedDoc(pmid);
+    }
+    
+    public void add (PubMedDoc doc) throws Exception {
+        queue.put(doc);
+    }
+
+    public PubMedDoc add (long pmid) throws Exception {
+        PubMedDoc doc = doc (pmid);
+        queue.put(doc);
+        return doc;
     }
 
     static void usage () {
@@ -252,7 +267,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
             for (File f : pmids) {
                 Logger.debug("########## "+f+" #########");
                 try (FileInputStream fis = new FileInputStream (f)) {
-                pmb.build(fis);
+                    pmb.build(fis);
                 }
                 Logger.debug("### "+new java.util.Date()+": "+f);
             }

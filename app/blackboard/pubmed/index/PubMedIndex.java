@@ -4,10 +4,9 @@ import play.Logger;
 import play.libs.Json;
 
 import blackboard.pubmed.*;
-import blackboard.umls.MetaMap;
-import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Descriptor;
+import blackboard.index.MetaMapIndex;
 
 import javax.inject.Inject;
 import java.io.*;
@@ -34,46 +33,26 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
 
-import gov.nih.nlm.nls.metamap.AcronymsAbbrevs;
-import gov.nih.nlm.nls.metamap.ConceptPair;
-import gov.nih.nlm.nls.metamap.Ev;
-import gov.nih.nlm.nls.metamap.MatchMap;
-import gov.nih.nlm.nls.metamap.Mapping;
-import gov.nih.nlm.nls.metamap.MetaMapApi;
-import gov.nih.nlm.nls.metamap.MetaMapApiImpl;
-import gov.nih.nlm.nls.metamap.Negation;
-import gov.nih.nlm.nls.metamap.PCM;
-import gov.nih.nlm.nls.metamap.Phrase;
-import gov.nih.nlm.nls.metamap.Position;
-import gov.nih.nlm.nls.metamap.Result;
-import gov.nih.nlm.nls.metamap.Utterance;
-
 import com.google.inject.assistedinject.Assisted;
 
-public class PubMedIndex extends blackboard.index.Index {
-    public static final String FIELD_YEAR = "year";
-    public static final String FIELD_CUI = "cui";
-    public static final String FIELD_PMID = "pmid";
-    public static final String FIELD_UI = "ui";
-    public static final String FIELD_TEXT = "text";
-    public static final String FIELD_TR = "tr"; // tree number";
-    public static final String FIELD_MESH = "mesh";
-    public static final String FIELD_TITLE = "title";
-    public static final String FIELD_CONCEPT = "concept";
-    public static final String FIELD_SEMTYPE = "semtype";
-    public static final String FIELD_SOURCE = "source";
+public class PubMedIndex extends MetaMapIndex {
     // MetaMap compressed json
     public static final String FIELD_MM_TITLE = "mm_title";
     public static final String FIELD_MM_ABSTRACT = "mm_abstract"; 
 
     public static class MatchedDoc {
-        public final Long pmid;
-        public final String title;
-        public final Integer year;
-        public final List<String> fragments = new ArrayList<>();
-        public final List<String> mesh = new ArrayList<>();
-        public final Map<String, JsonNode> concepts = new TreeMap<>();
+        public Long pmid;
+        public String title;
+        public Integer year;
+        public List<String> fragments = new ArrayList<>();
+        public List<String> mesh = new ArrayList<>();
+        
+        public JsonNode mm_title;
+        public JsonNode mm_abstract;
 
+        protected MatchedDoc () {
+        }
+        
         protected MatchedDoc (Long pmid, String title, Integer year) {
             this.pmid = pmid;
             this.title = title;
@@ -81,9 +60,9 @@ public class PubMedIndex extends blackboard.index.Index {
         }
     }
 
-    public static class SearchResult
-        extends blackboard.index.Index.SearchResult {
+    public class SearchResult extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
+        
         protected SearchResult () {
         }
 
@@ -104,18 +83,10 @@ public class PubMedIndex extends blackboard.index.Index {
         }
     }
     
-    final ObjectMapper mapper = new ObjectMapper ();
-    MetaMap metamap;
-
     @Inject
     public PubMedIndex (@Assisted File dir) throws IOException {
         super (dir);
     }
-
-    public void setMetaMap (MetaMap metamap) {
-        this.metamap = metamap;
-    }
-    public MetaMap getMetaMap () { return metamap; }
 
     @Override
     protected FacetsConfig configFacets () {
@@ -129,76 +100,6 @@ public class PubMedIndex extends blackboard.index.Index {
         return fc;
     }        
 
-    protected JsonNode metamap (Document doc, String text) {
-        JsonNode json = null;
-        try {
-            ArrayNode nodes = mapper.createArrayNode();
-            for (Result r : metamap.annotate(text)) {
-                for (AcronymsAbbrevs abrv : r.getAcronymsAbbrevsList()) {
-                    for (String cui : abrv.getCUIList())
-                        doc.add(new StringField
-                                (FIELD_CUI, cui, Field.Store.NO));
-                }
-                
-                for (Utterance utter : r.getUtteranceList()) {
-                    for (PCM pcm : utter.getPCMList()) {
-                        for (Mapping map : pcm.getMappingList())
-                            for (Ev ev : map.getEvList()) {
-                                doc.add(new StringField
-                                        (FIELD_CUI, ev.getConceptId(),
-                                         Field.Store.NO));
-                                doc.add(new FacetField
-                                        (FIELD_CONCEPT, ev.getConceptId()));
-                                for (String t : ev.getSemanticTypes())
-                                    doc.add(new FacetField (FIELD_SEMTYPE, t));
-                                for (String s : ev.getSources())
-                                    doc.add(new FacetField (FIELD_SOURCE, s));
-                            }
-                    }
-                }
-                json = MetaMap.toJson(r);
-                //Logger.debug(">>> "+json);
-                nodes.add(json);
-            }
-            
-            json = nodes;
-        }
-        catch (Exception ex) {
-            Logger.error("Can't annotate doc "
-                         +doc.get(FIELD_PMID)+" with MetaMap", ex);
-        }
-        return json;
-    }
-
-    protected byte[] toCompressedBytes (JsonNode json) throws IOException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
-             GZIPOutputStream gzip = new GZIPOutputStream (bos);) {
-            byte[] data = mapper.writeValueAsBytes(json);
-            gzip.write(data, 0, data.length);
-            gzip.close();
-            return bos.toByteArray();
-        }
-    }
-
-    protected JsonNode[] toJson (Document doc, String field)
-        throws IOException {
-        BytesRef[] brefs = doc.getBinaryValues(field);
-        List<JsonNode> json = new ArrayList<>();
-        for (BytesRef ref : brefs) {
-            try (ByteArrayInputStream bis = new ByteArrayInputStream
-                 (ref.bytes, ref.offset, ref.length);
-                 ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
-                 GZIPInputStream gzip = new GZIPInputStream (bis)) {
-                byte[] buf = new byte[1024];
-                for (int nb; (nb = gzip.read(buf, 0, buf.length)) != -1; ) {
-                    bos.write(buf, 0, nb);
-                }
-                JsonNode n = mapper.readTree(bos.toByteArray());
-                json.add(n);
-            }
-        }
-        return json.toArray(new JsonNode[0]);
-    }
 
     public boolean indexed (Long pmid) throws IOException {
         try (IndexReader reader = DirectoryReader.open(indexWriter, true)) {
@@ -217,32 +118,29 @@ public class PubMedIndex extends blackboard.index.Index {
         }
         return false;
     }
-    
-    public PubMedIndex add (PubMedDoc d) throws IOException {
-        Logger.debug(d.getPMID()+": "+d.getTitle());
-        Document doc = new Document ();
+
+    protected void instrument (Document doc, PubMedDoc d) throws IOException {
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
         
         String title = d.getTitle();
-        doc.add(new Field (FIELD_TEXT, title, tvFieldType));
-        doc.add(new StoredField
-                (FIELD_TITLE, new BytesRef (title.getBytes("utf8"))));
+        if (title != null && !"".equals(title)) {
+            doc.add(new Field (FIELD_TEXT, title, tvFieldType));
+            doc.add(new Field (FIELD_TITLE, title, tvFieldType));
+        }
         
-        if (metamap != null) {
-            JsonNode json = metamap (doc, title);
+        JsonNode json = metamap (doc, title);
+        if (json != null && json.size() > 0) {
+            BytesRef ref = new BytesRef (toCompressedBytes (json));
+            doc.add(new StoredField (FIELD_MM_TITLE, ref));
+        }
+        
+        for (String abs : d.getAbstract()) {
+            doc.add(new Field (FIELD_TEXT, abs, tvFieldType));
+            json = metamap (doc, abs);
             if (json != null && json.size() > 0) {
-                BytesRef ref = new BytesRef (toCompressedBytes (json));
-                doc.add(new StoredField (FIELD_MM_TITLE, ref));
-            }
-            
-            for (String abs : d.getAbstract()) {
-                doc.add(new Field (FIELD_TEXT, abs, tvFieldType));
-                json = metamap (doc, abs);
-                if (json != null && json.size() > 0) {
-                    doc.add(new StoredField
-                            (FIELD_MM_ABSTRACT,
-                             new BytesRef (toCompressedBytes (json))));
-                }
+                doc.add(new StoredField
+                        (FIELD_MM_ABSTRACT,
+                         new BytesRef (toCompressedBytes (json))));
             }
         }
         
@@ -258,7 +156,19 @@ public class PubMedIndex extends blackboard.index.Index {
             doc.add(new FacetField (FIELD_MESH, desc.name));
         }
         indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
-        
+    }
+
+    protected Document newDocument () {
+        Document doc = new Document ();
+        doc.add(new StringField
+                (FIELD_INDEXER, getClass().getName(), Field.Store.YES));
+        return doc;
+    }
+    
+    public PubMedIndex add (PubMedDoc d) throws IOException {
+        Logger.debug(d.getPMID()+": "+d.getTitle());
+        Document doc = newDocument ();
+        instrument (doc, d);
         return this;
     }
 
@@ -304,31 +214,32 @@ public class PubMedIndex extends blackboard.index.Index {
         }
     }
 
-    static MatchedDoc toDoc (Document doc) throws IOException {
-        MatchedDoc md = null;
+    MatchedDoc toDoc (Document doc) throws IOException {
+        return toDoc (new MatchedDoc (), doc);
+    }
+    
+    MatchedDoc toDoc (MatchedDoc md, Document doc) throws IOException {
         IndexableField field = doc.getField(FIELD_PMID);
         if (field != null) {
-            long id = field.numericValue().longValue();
-            BytesRef ref = doc.getField(FIELD_TITLE).binaryValue();
-            String title = new String (ref.bytes);
-            int year = doc.getField(FIELD_YEAR).numericValue().intValue();
-            md = new MatchedDoc (id, title, year);
+            md.pmid = field.numericValue().longValue();
+            md.title = doc.get(FIELD_TITLE);
+            md.year = doc.getField(FIELD_YEAR).numericValue().intValue();
             String[] mesh = doc.getValues(FIELD_UI);
             for (String ui : mesh)
                 md.mesh.add(ui);
-            /*
             JsonNode[] json = toJson (doc, FIELD_MM_TITLE);
             if (json != null && json.length > 0) {
-                // there should only be one!
-                md.concepts.put("title_mm", json[0]);
+                md.mm_title = json[0]; // there should only be one!
             }
             
             json = toJson (doc, FIELD_MM_ABSTRACT);
             if (json != null && json.length > 0) {
-                md.concepts.put("abstract_mm", json.length == 1
-                                ? json[0] : Json.toJson(json));
+                md.mm_abstract = json.length == 1
+                    ? json[0] : Json.toJson(json);
             }
-            */
+        }
+        else {
+            md = null;
         }
         return md;
     }
@@ -336,9 +247,10 @@ public class PubMedIndex extends blackboard.index.Index {
     public SearchResult search (Query query) throws Exception {
         SearchResult results = new SearchResult ();
         search (query, results);
+        /*
         for (Facet f : results.facets)
             Logger.debug(f.toString());
-        /*
+
           Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
           Logger.debug(facets.getTopChildren
           (20, "tr", "A11.251.860.180".split("\\."))
@@ -361,6 +273,13 @@ public class PubMedIndex extends blackboard.index.Index {
             (FIELD_TEXT, indexWriter.getAnalyzer());
         SearchResult result = search (parser.parse(text));
         Logger.debug("## searching for \""+text+"\"..."
+                     +result.docs.size()+" hit(s)!");
+        return result;
+    }
+
+    public SearchResult search (String field, String term) throws Exception {
+        SearchResult result = search (new TermQuery (new Term (field, term)));
+        Logger.debug("## searching for "+field+":"+term+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
     }
@@ -420,6 +339,7 @@ public class PubMedIndex extends blackboard.index.Index {
                         System.out.println(d.pmid+": "+d.title);
                         for (String f : d.fragments)
                             System.out.println("..."+f);
+                        //System.out.println("title_mm: "+d.mm_title);
                         System.out.println();
                     }
                 }

@@ -188,7 +188,9 @@ public class MetaMap {
             case 'β': ascii.append("[beta]"); break;
             case 'Δ': ascii.append("[DELTA]"); break;
             case 'δ': ascii.append("[delta]"); break;
-            case 'ε': ascii.append("[epsilon]"); break;
+            case 'η': ascii.append("[eta]"); break;
+            case 'ϵ': ascii.append("[epsilon]"); break;
+            case 'ε': ascii.append("e"); break;
             case 'γ': ascii.append("[gamma]"); break;
             case 'Κ': ascii.append("[KAPPA]"); break;
             case 'κ': ascii.append("[kappa]"); break;
@@ -209,7 +211,9 @@ public class MetaMap {
                 ascii.append("[SIGMA]");
                 break;
             case 'σ': ascii.append("[sigma]"); break;
+            case 'θ': ascii.append("[theta]"); break;
             case 'τ': ascii.append("[tau]"); break;
+            case 'ζ': ascii.append("[zeta]"); break;
             case '×': ascii.append('x'); break;
             case '±': ascii.append("+/-"); break;
             case '≧':
