@@ -45,6 +45,32 @@ public class MetaMapIndex extends Index {
     }
     public MetaMap getMetaMap () { return metamap; }
 
+    protected void addTextField (Document doc, String field,
+                                 Object value) throws IOException {
+        addTextField (doc, field, "", value);
+    }
+    
+    protected void addTextField (Document doc, String field,
+                                 String context, Object value)
+        throws IOException {
+        doc.add(new Field (FIELD_TEXT,
+                           "<fld fn=\""+field+"\""+context
+                           +">"+value+"</fld>", tvFieldType));
+    }
+
+    protected void instrument (Ev ev, Document doc) throws Exception {
+        doc.add(new StringField (FIELD_CUI,
+                                 ev.getConceptId(), Field.Store.NO));
+        addTextField (doc, FIELD_CUI, ev.getConceptId());
+        addTextField (doc, FIELD_CONCEPT, " cui=\""+ev.getConceptId()+"\"",
+                      ev.getConceptName());
+        doc.add(new FacetField (FIELD_CONCEPT, ev.getConceptId()));
+        for (String t : ev.getSemanticTypes())
+            doc.add(new FacetField (FIELD_SEMTYPE, t));
+        for (String s : ev.getSources())
+            doc.add(new FacetField (FIELD_SOURCE, s));
+    }
+    
     protected JsonNode metamap (Document doc, String text) {
         JsonNode json = null;
         if (metamap != null) {
@@ -55,6 +81,7 @@ public class MetaMapIndex extends Index {
                         for (String cui : abrv.getCUIList()) {
                             doc.add(new StringField
                                     (FIELD_CUI, cui, Field.Store.NO));
+                            addTextField (doc, FIELD_CUI, cui);
                         }
                     }
                     
@@ -62,17 +89,7 @@ public class MetaMapIndex extends Index {
                         for (PCM pcm : utter.getPCMList()) {
                             for (Mapping map : pcm.getMappingList())
                                 for (Ev ev : map.getEvList()) {
-                                    doc.add(new StringField
-                                            (FIELD_CUI, ev.getConceptId(),
-                                             Field.Store.NO));
-                                    doc.add(new FacetField
-                                            (FIELD_CONCEPT, ev.getConceptId()));
-                                    for (String t : ev.getSemanticTypes())
-                                        doc.add(new FacetField
-                                                (FIELD_SEMTYPE, t));
-                                    for (String s : ev.getSources())
-                                        doc.add(new FacetField
-                                                (FIELD_SOURCE, s));
+                                    instrument (ev, doc);
                                 }
                         }
                     }

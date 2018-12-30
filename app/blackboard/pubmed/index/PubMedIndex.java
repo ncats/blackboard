@@ -121,10 +121,11 @@ public class PubMedIndex extends MetaMapIndex {
 
     protected void instrument (Document doc, PubMedDoc d) throws IOException {
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
+        addTextField (doc, FIELD_PMID, d.getPMID());
         
         String title = d.getTitle();
         if (title != null && !"".equals(title)) {
-            doc.add(new Field (FIELD_TEXT, title, tvFieldType));
+            addTextField (doc, FIELD_TITLE, title);
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
         }
         
@@ -135,7 +136,7 @@ public class PubMedIndex extends MetaMapIndex {
         }
         
         for (String abs : d.getAbstract()) {
-            doc.add(new Field (FIELD_TEXT, abs, tvFieldType));
+            addTextField (doc, "abstract", abs);
             json = metamap (doc, abs);
             if (json != null && json.size() > 0) {
                 doc.add(new StoredField

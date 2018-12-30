@@ -143,7 +143,7 @@ public class MetaMap {
                         }
                         return null;
                     }
-                }, 3600);
+                }, 1800);
             
             if (result != null) {
                 return result;
