@@ -119,7 +119,8 @@ public class PubMedIndex extends MetaMapIndex {
         return false;
     }
 
-    protected void instrument (Document doc, PubMedDoc d) throws IOException {
+    protected Document instrument (Document doc, PubMedDoc d)
+        throws IOException {
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
         addTextField (doc, FIELD_PMID, d.getPMID());
         
@@ -129,6 +130,26 @@ public class PubMedIndex extends MetaMapIndex {
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
         }
         
+        for (String abs : d.getAbstract())
+            addTextField (doc, "abstract", abs);
+
+        doc.add(new LongField
+                (FIELD_YEAR, d.getDate().getYear(), Field.Store.YES));
+        for (MeshHeading mh : d.getMeshHeadings()) {
+            Descriptor desc = (Descriptor)mh.descriptor;
+            doc.add(new StringField (FIELD_UI, desc.ui, Field.Store.YES));
+            addTextField (doc, FIELD_UI, desc.ui);
+            for (String tr : desc.treeNumbers) {
+                Logger.debug("..."+tr);
+                doc.add(new FacetField (FIELD_TR, tr.split("\\.")));
+            }
+            doc.add(new FacetField (FIELD_MESH, desc.name));
+            addTextField (doc, FIELD_MESH, desc.name);
+        }
+        
+        /*
+         * now do metamap
+         */
         JsonNode json = metamap (doc, title);
         if (json != null && json.size() > 0) {
             BytesRef ref = new BytesRef (toCompressedBytes (json));
@@ -136,7 +157,6 @@ public class PubMedIndex extends MetaMapIndex {
         }
         
         for (String abs : d.getAbstract()) {
-            addTextField (doc, "abstract", abs);
             json = metamap (doc, abs);
             if (json != null && json.size() > 0) {
                 doc.add(new StoredField
@@ -145,17 +165,10 @@ public class PubMedIndex extends MetaMapIndex {
             }
         }
         
-        doc.add(new LongField
-                (FIELD_YEAR, d.getDate().getYear(), Field.Store.YES));
-        for (MeshHeading mh : d.getMeshHeadings()) {
-            Descriptor desc = (Descriptor)mh.descriptor;
-            doc.add(new StringField (FIELD_UI, desc.ui, Field.Store.YES));
-            for (String tr : desc.treeNumbers) {
-                Logger.debug("..."+tr);
-                doc.add(new FacetField (FIELD_TR, tr.split("\\.")));
-            }
-            doc.add(new FacetField (FIELD_MESH, desc.name));
-        }
+        return doc;
+    }
+
+    protected void add (Document doc) throws IOException {
         indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
     }
 
@@ -168,8 +181,7 @@ public class PubMedIndex extends MetaMapIndex {
     
     public PubMedIndex add (PubMedDoc d) throws IOException {
         Logger.debug(d.getPMID()+": "+d.getTitle());
-        Document doc = newDocument ();
-        instrument (doc, d);
+        add (instrument (newDocument (), d));
         return this;
     }
 

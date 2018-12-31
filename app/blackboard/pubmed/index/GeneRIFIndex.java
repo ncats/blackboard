@@ -81,20 +81,28 @@ public class GeneRIFIndex extends PubMedIndex {
         super (dir);
     }
 
-    public GeneRIFIndex add (PubMedDoc d, String gene, String text)
-        throws IOException {
-        Logger.debug(d.getPMID()+" "+gene+": "+text);
-        Document doc = newDocument ();
+    protected Document instrument (Document doc, PubMedDoc d, String gene,
+                                   String text) throws IOException {
         doc.add(new StringField (FIELD_GENE, gene, Field.Store.YES));
         addTextField (doc, FIELD_GENE, gene);
+        
         doc.add(new Field (FIELD_GENERIF, text, tvFieldType));
         addTextField (doc, FIELD_GENERIF, text);
+        
+        instrument (doc, d);
+        
         JsonNode json = metamap (doc, text);
         if (json != null && json.size() > 0) {
             BytesRef ref = new BytesRef (toCompressedBytes (json));
             doc.add(new StoredField (FIELD_MM_GENERIF, ref));
         }
-        instrument (doc, d);
+        return doc;
+    }
+
+    public GeneRIFIndex add (PubMedDoc d, String gene, String text)
+        throws IOException {
+        Logger.debug(d.getPMID()+" "+gene+": "+text);
+        add (instrument (newDocument (), d, gene, text));
         return this;
     }
     
