@@ -5,59 +5,59 @@
 @(ks: SemMedDbKSource, doc: PubMedDoc, preds: Array[Predication])
 
 @views.html.ui.main("SemMedDb: "+doc.getPMID){
-@navbar()
-<div class="container-fluid" style="margin-top:60px;">
-  <div class="jumbotron">
-    <div class="row">
-      <div class="col-11">
-        <h1 class="display-4">@doc.getTitle</h1>
+  @navbar()
+  <div class="container-fluid" style="margin-top:60px;">
+    <div class="jumbotron">
+      <div class="row">
+        <div class="col-11">
+          <h1 class="display-4">@doc.getTitle</h1>
+        </div>
+        <div class="col-1">
+          <span class="__dimensions_badge_embed__ pull-right"
+                data-pmid="@doc.getPMID" data-style="small_circle"></span>
+        </div>
       </div>
-      <div class="col-1">
-        <span class="__dimensions_badge_embed__ pull-right"
-              data-pmid="@doc.getPMID" data-style="small_circle"></span>
-      </div>
-    </div>
-    <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>
-    <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> @if(doc.getDOI != null) {DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>} <a href='@controllers.pubmed.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a> <a href='@controllers.pubmed.routes.Controller.pmid(doc.getPMID,"json")'>JSON</a></p>
-    <p class="lead">
-      <a class="btn btn-primary" data-toggle="collapse"
-         href="#abstract-card" role="button"
-         aria-expanded="false" aria-controls="abstract-card">
-        Abstract</a>
-    </p>
-    <div class="collapse" id="abstract-card">
-      <div class="card card-body">
-        @for(t <- doc.getAbstract) {
-          @HtmlFormat.raw(t)
-          <br>
-        }
-      </div>
-    </div>
-  </div>
-  @for(p <- preds) {
-     @defining(ks.umls.getConcept(p.subject)){ sub =>
-        @if(sub != null) {
-          @defining(ks.umls.getConcept(p.`object`)){ obj =>
-            @if(obj != null) {
-            <div class="card">
-              <div class="card-body">
-              @for(e <- p.evidence) {
-                @e.context<br>
-              }
-              </div>
-              <div class="card-footer">
-                  @vote(p)
-                  <a href="@controllers.semmed.routes.Controller.cui(sub.cui)">@sub.name</a>
-                  <b>@p.predicate</b>
-            
-                  <a href="@controllers.semmed.routes.Controller.cui(obj.cui)">@obj.name</a>
-              </div>              
-            </div>
+      <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>
+      <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> @if(doc.getDOI != null) {DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>} <a href='@controllers.pubmed.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a> <a href='@controllers.pubmed.routes.Controller.pmid(doc.getPMID,"json")'>JSON</a></p>
+      <p class="lead">
+        <a class="btn btn-primary" data-toggle="collapse"
+           href="#abstract-card" role="button"
+           aria-expanded="false" aria-controls="abstract-card">
+          Abstract</a>
+      </p>
+      <div class="collapse" id="abstract-card">
+        <div class="card card-body">
+          @for(t <- doc.getAbstract) {
+            @HtmlFormat.raw(t)
             <br>
             }
+        </div>
+      </div>
+  </div>
+  @for(p <- preds) {
+    @defining(ks.umls.getConcept(p.subject)){ sub =>
+      @if(sub != null) {
+        @defining(ks.umls.getConcept(p.`object`)){ obj =>
+          @if(obj != null) {
+            <div class="card">
+            <div class="card-body">
+            @for(e <- p.evidence) {
+              @e.context<br>
+            }
+            </div>
+            <div class="card-footer">
+            @vote(p)
+            <a href="@controllers.semmed.routes.Controller.cui(sub.cui)">@sub.name</a>
+            <b>@p.predicate</b>
+            
+            <a href="@controllers.semmed.routes.Controller.cui(obj.cui)">@obj.name</a>
+            </div>              
+            </div>
+            <br>
           }
         }
-     }
+      }
+    }
   }
 </div>
 }(HtmlFormat.empty){

@@ -1,39 +1,40 @@
+@* -*- engine:razor -*- *@
 @import play.twirl.api.HtmlFormat
 @import blackboard.umls.UMLSKSource
 @import blackboard.umls.Concept
 @(concept: Concept, ks: UMLSKSource)(html: Html)
 <div class="jumbotron">
-    <h1 class="display-4">@displayconcept(concept, ks)</h1>
-    @if(!concept.definitions.isEmpty) {
-      @defining(concept.definitions(0)) { d =>
+  <h1 class="display-4">@displayconcept(concept, ks)</h1>
+  @if(!concept.definitions.isEmpty) {
+    @defining(concept.definitions(0)) { d =>
       <p class="lead">@HtmlFormat.raw(d.description)
       <span data-toggle="tooltip" title="@ks.getDataSources(d.source)(0).description">[@d.source]</span></p>
-      }
-      @if(concept.definitions.size > 1) {
-    <p class="lead">
-      <a class="btn btn-primary" data-toggle="collapse"
-         href="#definition-card" role="button"
-         aria-expanded="false" aria-controls="definition-card">
-        Additional definitions</a>
-    </p>
-    <div class="collapse" id="definition-card">
-      <div class="card card-body">
-        @for(i <- 1 until concept.definitions.size) {
-          @defining(concept.definitions(i)) { d =>
-            <p>@HtmlFormat.raw(d.description) <span data-toggle="tooltip" title="@ks.getDataSources(d.source)(0).description">[@d.source]</span></p>
-          }
-        }
-      </div>
-    </div>
-    <br>
-      }
     }
-    @if(!concept.semanticTypes.isEmpty) {
+    @if(concept.definitions.size > 1) {
       <p class="lead">
-      @for(st <- concept.semanticTypes) {
-        <span class="badge badge-pill badge-primary">@st.name</span>
-      }
+        <a class="btn btn-primary" data-toggle="collapse"
+           href="#definition-card" role="button"
+           aria-expanded="false" aria-controls="definition-card">
+          Additional definitions</a>
       </p>
-    }
-    @html  
+      <div class="collapse" id="definition-card">
+        <div class="card card-body">
+          @for(i <- 1 until concept.definitions.size) {
+            @defining(concept.definitions(i)) { d =>
+              <p>@HtmlFormat.raw(d.description) <span data-toggle="tooltip" title="@ks.getDataSources(d.source)(0).description">[@d.source]</span></p>
+            }
+            }
+        </div>
+      </div>
+      <br>
+      }
+      }
+      @if(!concept.semanticTypes.isEmpty) {
+        <p class="lead">
+          @for(st <- concept.semanticTypes) {
+            <span class="badge badge-pill badge-primary">@st.name</span>
+            }
+        </p>
+        }
+        @html  
 </div>
