@@ -174,6 +174,15 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> apiConcept (final String sub,
+                                               final String obj) {
+        return supplyAsync (() -> {
+                Predication[] preds = filter
+                    (sub, p->obj.equalsIgnoreCase(p.object));
+                return ok (Json.toJson(preds));
+            }, ec.current());
+    }
+    
     public CompletionStage<Result> apiPMID (final Long pmid) {
         return supplyAsync (() -> {
                 try {

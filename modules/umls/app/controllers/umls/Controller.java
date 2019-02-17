@@ -95,6 +95,30 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
+    
+    @BodyParser.Of(value = BodyParser.AnyContent.class)
+    public CompletionStage<Result> apiFindConceptsPost
+        (final Integer skip, final Integer top) {
+        return supplyAsync (() -> {
+                try {
+                    String term = request().body().asText();
+                    if (term != null) {
+                        Logger.debug(getClass().getName()+".apiFindConcepts: "
+                                     +"term=\""+term+"\" skip="+skip
+                                     +" top="+top);
+                        List<MatchedConcept> results =
+                            ks.findConcepts(term, skip, top);
+                        return ok (Json.toJson(results));
+                    }
+                    return badRequest ("Invalid POST payload!");
+                }
+                catch (Exception ex) {
+                    Logger.error("findConcepts: "+ex.getMessage(), ex);
+                    return internalServerError (ex.getMessage());
+                }
+            }, ec.current());
+    }
+    
 
     /*
      * src can be one of

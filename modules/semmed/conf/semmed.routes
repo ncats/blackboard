@@ -15,5 +15,6 @@ GET /api/:cui       controllers.semmed.Controller.apiPredicateSummary(cui: Strin
 GET /api/:pmid/pmid controllers.semmed.Controller.apiPMID(pmid: Long)
 GET /api/:cui/predicate/:pred  controllers.semmed.Controller.apiPredicate(cui: String, pred: String)
 GET /api/:cui/semtype/:semtype    controllers.semmed.Controller.apiSemtype(cui: String, semtype: String)
+GET /api/:sub/concept/:obj    controllers.semmed.Controller.apiConcept(sub: String, obj: String)
 
 GET           /assets/js/routes             controllers.semmed.Controller.jsRoutes
