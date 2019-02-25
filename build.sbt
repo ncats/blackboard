@@ -189,12 +189,13 @@ lazy val hpo = (project in file("modules/hpo"))
   ).dependsOn(core).aggregate(core)
 
 lazy val chembl = (project in file("modules/chembl"))
+  .enablePlugins(PlayJava)
   .settings(commonSettings: _*)
   .settings(
     name := "chembl",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-  ).dependsOn(core).aggregate(core)
+  ).dependsOn(pubmed).aggregate(pubmed)
 
 lazy val gard = (project in file("modules/gard"))
   .settings(commonSettings: _*)

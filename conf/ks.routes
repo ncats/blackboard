@@ -1,4 +1,4 @@
-
+->  /chembl  chembl.Routes
 ->  /pharos  pharos.Routes
 ->  /umls    umls.Routes
 ->  /semmed  semmed.Routes
