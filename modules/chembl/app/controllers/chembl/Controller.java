@@ -46,7 +46,7 @@ public class Controller extends play.mvc.Controller {
             return ok (ks.dbver);
         }
         catch (Exception ex) {
-            return internalServerError (ex.getMessage());
+            return internalServerError (""+ex.getMessage());
         }
     }
 

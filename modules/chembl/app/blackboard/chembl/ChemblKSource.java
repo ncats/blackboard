@@ -85,31 +85,77 @@ public class ChemblKSource implements KSource {
                      +"; dbver = "+dbver);
     }
 
+    void fetchDocs (PrintStream ps) throws Exception {
+        fetchDocs (ps, new HashSet<>());
+    }
+
+    void fetchDocs (PrintStream ps, Set<Long> pmids) throws Exception {
+        try (Connection con = db.getConnection()) {
+           Statement stm = con.createStatement();
+           ResultSet rset = stm.executeQuery
+               ("select pubmed_id from docs where pubmed_id is not null");
+           while (rset.next()) {
+               long pmid = rset.getLong(1);
+               if (pmids.isEmpty() || !pmids.contains(pmid)) {
+                   try {
+                       PubMedDoc doc = pubmed.getPubMedDoc(pmid);
+                       if (doc != null) {
+                           for (MeshHeading mh : doc.getMeshHeadings()) {
+                               Descriptor desc = (Descriptor)mh.descriptor;
+                               for (String tr : desc.treeNumbers) {
+                                   ps.println(pmid+"\t"+desc.ui+"\t"+tr);
+                               }
+                           }
+                       }
+                       else {
+                           Logger.warn(pmid+": can't retrieve pubmed doc!");
+                       }
+                   }
+                   catch (Exception ex) {
+                       Logger.error(pmid+": can't retrieve pubmed doc!", ex);
+                   }
+               }
+           }
+           rset.close();
+        }
+    }
+
     public void fetchDocs () throws Exception {
         File file = new File ("chembl_mesh.txt");
         if (!file.exists()) {
             PrintStream ps = new PrintStream (new FileOutputStream (file));
-            try (Connection con = db.getConnection()) {
-                Statement stm = con.createStatement();
-                ResultSet rset = stm.executeQuery
-                    ("select pubmed_id from docs where pubmed_id is not null");
-                while (rset.next()) {
-                    long pmid = rset.getLong(1);
-                    PubMedDoc doc = pubmed.getPubMedDoc(pmid);
-                    if (doc != null) {
-                        for (MeshHeading mh : doc.getMeshHeadings()) {
-                            Descriptor desc = (Descriptor)mh.descriptor;
-                            for (String tr : desc.treeNumbers) {
-                                ps.println(pmid+"\t"+desc.ui+"\t"+tr);
-                            }
-                        }
-                    }
-                    else {
-                        Logger.warn(pmid+": can't retrieve pubmed doc!");
-                    }
+            fetchDocs (ps);
+            ps.close();
+        }
+        else {
+            Set<Long> pmids = new HashSet<>();
+            BufferedReader br = new BufferedReader (new FileReader (file));
+            for (String line; (line = br.readLine()) != null;) {
+                String[] toks = line.split("\\s");
+                try {
+                    long pmid = Long.parseLong(toks[0]);
+                    pmids.add(pmid);
                 }
-                rset.close();
+                catch (NumberFormatException ex) {
+                    Logger.warn("Not a PMID: "+toks[0]);
+                }
             }
+            Logger.debug(pmids.size()+" pmids loaded!");
+
+            do {
+                int pos = file.getName().indexOf('-');
+                if (pos < 0) {
+                    file = new File (file.getName()+"-1");
+                }
+                else {
+                    int n = Integer.parseInt(file.getName().substring(pos+1));
+                    file = new File (file.getName()+"-"+(n+1));
+                }
+            }
+            while (file.exists());
+
+            PrintStream ps = new PrintStream (new FileOutputStream (file));
+            fetchDocs (ps, pmids);
             ps.close();
         }
     }
