@@ -1,5 +1,5 @@
 GET /   controllers.pubmed.Controller.index
 ##GET /mesh/search/*q controllers.pubmed.Controller.searchMeSH(q: String)
 ##GET /mesh/:id       controllers.pubmed.Controller.mesh(id: String)
-GET /search/*q      controllers.pubmed.Controller.search(q: String)
-GET /$id<[0-9]+>.$format<(xml|json)>          controllers.pubmed.Controller.pmid(id: Long, format: String)
+GET /api/search/*q      controllers.pubmed.Controller.search(q: String)
+GET /api/$id<[0-9]+>.$format<(xml|json)>          controllers.pubmed.Controller.pmid(id: Long, format: String)
