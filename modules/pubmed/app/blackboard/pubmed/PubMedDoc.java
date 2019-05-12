@@ -1,5 +1,6 @@
 package blackboard.pubmed;
 
+import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Date;
@@ -22,17 +23,113 @@ import blackboard.mesh.Entry;
 public class PubMedDoc implements java.io.Serializable {
     static private final Long serialVerionUID = 0x010101l;
     public static final PubMedDoc EMPTY = new PubMedDoc ();
-        
-    Long pmid;
-    String doi;
-    String pmc;
-    String title;
-    List<String> abs = new ArrayList<>();
-    String journal;
-    Date date;
-    List<MeshHeading> headings = new ArrayList<>();
-    List<Entry> chemicals = new ArrayList<>();
 
+    public static class Author {
+        public final String lastname;
+        public final String forename;
+        public final String initials;
+        public final String collectiveName;
+        public final String[] affiliations;
+
+        Author (Element elm) {
+            NodeList nodes = elm.getElementsByTagName("LastName");
+            if (nodes.getLength() == 0) {
+                nodes = elm.getElementsByTagName("CollectiveName");
+                if (nodes.getLength() == 0)
+                    throw new IllegalArgumentException
+                        ("Author has no valid name!");
+                else
+                    collectiveName = getText (nodes.item(0));
+            }
+            else
+                collectiveName = null;
+            lastname = getText (nodes.item(0));
+            nodes = elm.getElementsByTagName("Forename");
+            forename = nodes == null || nodes.getLength() == 0
+                ? null : getText (nodes.item(0));
+            nodes = elm.getElementsByTagName("Initials");
+            initials = nodes == null || nodes.getLength() == 0
+                ? null : getText (nodes.item(0));
+            
+            nodes = elm.getElementsByTagName("Affiliation");
+            affiliations = new String[nodes.getLength()];
+            for (int i = 0; i < nodes.getLength(); ++i) {
+                affiliations[i] = getText (nodes.item(i));
+            }
+        }
+
+        Author (Map<String, Object> auth) {
+            lastname = (String) auth.get("LastName");
+            collectiveName = (String) auth.get("CollectiveName");
+            if (lastname == null && collectiveName == null)
+                throw new IllegalArgumentException
+                    ("Author element doesn't have LastName!");
+            forename = (String) auth.get("ForeName");
+            initials = (String) auth.get("Initials");
+            affiliations = (String[]) auth.get("Affiliation");
+        }
+
+        public String getName () {
+            if (collectiveName != null)
+                return collectiveName;
+            if (forename == null && initials == null)
+                return lastname;
+            if (forename == null && initials != null)
+                return lastname+", "+initials;
+            return lastname+", "+forename;
+        }
+    }
+
+    public static class Reference {
+        public final String citation;
+        public final Long[] pmids;
+
+        Reference (Element elm) {
+            NodeList nodes = elm.getElementsByTagName("Citation");
+            if (nodes == null || nodes.getLength() == 0)
+                throw new IllegalArgumentException
+                    ("Reference elmenent has not citation!");
+            citation = getText (nodes.item(0));
+            nodes = elm.getElementsByTagName("ArticleId");
+            List<Long> refs = new ArrayList<>();
+            for (int i = 0; i < nodes.getLength(); ++i) {
+                Element e = (Element)nodes.item(i);
+                if ("pubmed".equals(e.getAttribute("IdType"))) {
+                    try {
+                        refs.add(Long.parseLong(getText(e)));
+                    }
+                    catch (NumberFormatException ex) {
+                    }
+                }
+            }
+            pmids = refs.toArray(new Long[0]);
+        }
+        Reference (Map<String, Object> ref) {
+            citation = (String)ref.get("Citation");
+            pmids = (Long[])ref.get("pubmed");
+        }
+    }
+        
+    public Long pmid;
+    public String doi;
+    public String pmc;
+    public String title;
+    public List<String> abs = new ArrayList<>();
+    public List<Author> authors = new ArrayList<>();
+    public List<String> keywords = new ArrayList<>();
+    public String journal;
+    public Date date;
+    public List<Entry> pubtypes = new ArrayList<>();
+    public List<MeshHeading> headings = new ArrayList<>();
+    public List<Entry> chemicals = new ArrayList<>();
+    public List<Reference> references = new ArrayList<>();
+
+    static String getText (Node node) {
+        if (node instanceof Element)
+            return ((Element)node).getTextContent();
+        return null;
+    }
+    
     protected PubMedDoc () {
     }
     
@@ -62,8 +159,11 @@ public class PubMedDoc implements java.io.Serializable {
                 abs.add(elm.getTextContent());
             }
         }
+
+        /*
+         * journal 
+         */
         nodes = doc.getElementsByTagName("Journal");
-        
         if (nodes.getLength() > 0) {
             Element elm = (Element)nodes.item(0);
             nodes = elm.getElementsByTagName("Title");
@@ -100,6 +200,49 @@ public class PubMedDoc implements java.io.Serializable {
             }
         }
 
+        /*
+         * author
+         */
+        nodes = doc.getElementsByTagName("Author");
+        for (int i = 0; i < nodes.getLength(); ++i) {
+            try {
+                Author auth = new Author ((Element)nodes.item(i));
+                authors.add(auth);
+            }
+            catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        /*
+         * publication type
+         */
+        nodes = doc.getElementsByTagName("PublicationType");
+        for (int i = 0; i < nodes.getLength(); ++i) {
+            Element elm = (Element)nodes.item(i);
+            String ui = elm.getAttribute("UI");
+            Entry desc = mesh.getEntry(ui);
+            if (desc != null)
+                pubtypes.add(desc);
+        }
+
+        /*
+         * references
+         */
+        nodes = doc.getElementsByTagName("Reference");
+        for (int i = 0; i < nodes.getLength(); ++i) {
+            try {
+                Reference ref = new Reference ((Element)nodes.item(i));
+                references.add(ref);
+            }
+            catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        /*
+         * other identifiers
+         */
         nodes = doc.getElementsByTagName("ArticleId");
         for (int i = 0; i < nodes.getLength(); ++i) {
             Element elm = (Element)nodes.item(i);
@@ -159,6 +302,13 @@ public class PubMedDoc implements java.io.Serializable {
     public String getJournal () { return journal; }
     public List<MeshHeading> getMeshHeadings () { return headings; }
     public List<Entry> getChemicals () { return chemicals; }
+
+    public void addAuthor (Map<String, Object> author) {
+        authors.add(new Author (author));
+    }
+    public void addReference (Map<String, Object> reference) {
+        references.add(new Reference (reference));
+    }
 
     public static int parseMonth (String mon) {
         int month = 0;

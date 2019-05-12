@@ -48,6 +48,14 @@ public class Index implements AutoCloseable {
     public static final String FIELD_GENE = "gene";
     public static final String FIELD_UNIPROT = "uniprot";
     public static final String FIELD_NAME = "name";
+    public static final String FIELD_AUTHOR = "author";
+    public static final String FIELD_AFFILIATION = "affiliation";
+    public static final String FIELD_PUBTYPE = "pubtype";
+    public static final String FIELD_JOURNAL = "journal";
+    public static final String FIELD_PMC = "pmc";
+    public static final String FIELD_DOI = "doi";
+    public static final String FIELD_KEYWORD = "keyword";
+    public static final String FIELD_REFERENCE = "reference";
     
     public static class FV {
         public FV parent;

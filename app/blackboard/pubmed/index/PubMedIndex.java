@@ -97,6 +97,12 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FIELD_SEMTYPE, true); // umls semantic types
         fc.setMultiValued(FIELD_SOURCE, true); // umls sources
         fc.setMultiValued(FIELD_CONCEPT, true);
+        fc.setMultiValued(FIELD_AUTHOR, true);
+        fc.setMultiValued(FIELD_AFFILIATION, true);
+        fc.setMultiValued(FIELD_PUBTYPE, true);
+        fc.setMultiValued(FIELD_JOURNAL, true);
+        fc.setMultiValued(FIELD_KEYWORD, true);
+        fc.setMultiValued(FIELD_REFERENCE, true);
         return fc;
     }        
 
@@ -129,6 +135,21 @@ public class PubMedIndex extends MetaMapIndex {
             addTextField (doc, FIELD_TITLE, title);
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
         }
+
+        for (PubMedDoc.Author auth : d.authors) {
+            if (auth.affiliations != null) {
+                for (String affi : auth.affiliations)
+                    doc.add(new FacetField (FIELD_AFFILIATION, affi));
+            }
+            doc.add(new FacetField (FIELD_AUTHOR, auth.getName()));
+        }
+        doc.add(new FacetField (FIELD_JOURNAL, d.journal));
+        
+        for (blackboard.mesh.Entry e : d.pubtypes)
+            doc.add(new FacetField (FIELD_PUBTYPE, e.ui));
+        
+        for (String k : d.keywords)
+            doc.add(new FacetField (FIELD_KEYWORD, k));
         
         for (String abs : d.getAbstract())
             addTextField (doc, "abstract", abs);
@@ -143,8 +164,23 @@ public class PubMedIndex extends MetaMapIndex {
                 Logger.debug("..."+tr);
                 doc.add(new FacetField (FIELD_TR, tr.split("\\.")));
             }
-            doc.add(new FacetField (FIELD_MESH, desc.name));
+            doc.add(new FacetField (FIELD_MESH, desc.ui));
             addTextField (doc, FIELD_MESH, desc.name);
+        }
+
+        if (d.pmc != null) {
+            doc.add(new StringField (FIELD_PMC, d.pmc, Field.Store.YES));
+            addTextField (doc, FIELD_PMC, d.pmc);
+        }
+        if (d.doi != null) {
+            doc.add(new StringField (FIELD_DOI, d.doi, Field.Store.YES));
+        }
+
+        for (PubMedDoc.Reference ref : d.references) {
+            if (ref.pmids != null)
+                for (Long id : ref.pmids)
+                    doc.add(new FacetField
+                            (FIELD_REFERENCE, String.valueOf(id)));
         }
         
         /*
@@ -201,10 +237,30 @@ public class PubMedIndex extends MetaMapIndex {
                          (20, "tr", "D02.455.426.559.847.638".split("\\."))
                          .toString());
             */
-            Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
-            Logger.debug(facets.getTopChildren(20, FIELD_CONCEPT).toString());
-            Logger.debug(facets.getTopChildren(20, FIELD_SEMTYPE).toString());
-            Logger.debug(facets.getTopChildren(20, FIELD_SOURCE).toString());
+            FacetResult fr = facets.getTopChildren(20, FIELD_MESH);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_CONCEPT);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_SEMTYPE);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_SOURCE);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_AUTHOR);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_AFFILIATION);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_REFERENCE);
+            if (fr != null)
+                Logger.debug(fr.toString());
+            fr = facets.getTopChildren(20, FIELD_KEYWORD);
+            if (fr != null)
+                Logger.debug(fr.toString());
 
             /*
             IndexReader reader = searcher.getIndexReader();
@@ -355,6 +411,9 @@ public class PubMedIndex extends MetaMapIndex {
                         //System.out.println("title_mm: "+d.mm_title);
                         System.out.println();
                     }
+
+                    for (Facet f : result.facets)
+                        Logger.debug(f.toString());
                 }
             }
         }

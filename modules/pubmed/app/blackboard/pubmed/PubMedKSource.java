@@ -616,6 +616,48 @@ public class PubMedKSource implements KSource, KType {
                 });
     }
 
+    public PubMedDoc[] search (final String query, int skip, int top)
+        throws Exception {
+        Logger.debug("+++ search: q="+query+" skip="+skip+" top="+top);
+        WSRequest req = eutils("esearch.fcgi")
+            .setQueryParameter("rettype", "xml")
+            .setQueryParameter("retmax", String.valueOf(top))
+            .setQueryParameter("retstart", String.valueOf(skip))
+            .setQueryParameter("term", query);
+        WSResponse res;
+        int ntries = 0;
+        do {
+            res = req.get().toCompletableFuture().get();
+            if (429 == res.getStatus()) {
+                Logger.debug(ntries+" "+res.getStatus()+": "+res.getBody());
+                Thread.sleep(500);
+            }
+            else 
+                break;
+        }
+        while (++ntries < 10);
+        
+        Document xml = fromInputSource
+            (new InputSource (new ByteArrayInputStream
+                              (res.asByteArray())));
+        
+        NodeList nodes = xml.getElementsByTagName("Count");
+        int count = Integer.parseInt
+            (((Element)nodes.item(0)).getTextContent());
+        Logger.debug("+++ searching...\""+query+"\" "
+                     +count+"..."+req.getUrl());
+        
+        nodes = xml.getElementsByTagName("Id");
+        PubMedDoc[] docs = new PubMedDoc[nodes.getLength()];
+        for (int i = 0; i < docs.length; ++i) {
+            long pmid = Long.parseLong
+                (((Element)nodes.item(i)).getTextContent());
+            docs[i] = getPubMedDoc (pmid);
+        }
+
+        return docs;
+    }
+
     public PubMedDoc getPubMedDoc (final Long pmid) throws Exception {
         return pmid != null ? getPubMedDoc (pmid.toString()) : null;
     }

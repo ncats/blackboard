@@ -27,6 +27,8 @@ public class PubMedSax extends DefaultHandler {
     MeshHeading mh;
     final MeshDb mesh;
     Consumer<PubMedDoc> consumer;
+    Map<String, Object> author = new LinkedHashMap<>();
+    Map<String, Object> reference = new LinkedHashMap<>();
     
     public PubMedSax (Consumer<PubMedDoc> consumer) {
         this (null, consumer);
@@ -66,11 +68,20 @@ public class PubMedSax extends DefaultHandler {
             
         case "NameOfSubstance":
         case "QualifierName":
+        case "PublicationType":
             ui = attrs.getValue("UI");
-        break;
+            break;
         
         case "MeshHeading":
             mh = null;
+            break;
+
+        case "Author":
+            author.clear();
+            break;
+
+        case "Reference":
+            reference.clear();
             break;
         }
         stack.push(qName);
@@ -123,9 +134,63 @@ public class PubMedSax extends DefaultHandler {
         case "ArticleTitle":
             doc.title = value;
             break;
+
+        case "LastName":
+        case "ForeName":
+        case "Initials":
+        case "CollectiveName":
+            author.put(qName, value);
+            break;
+
+        case "Affiliation":
+            { Object affia = author.get(qName);
+                if (affia != null) {
+                    String[] vals = (String[])affia;
+                    String[] newvals = new String[vals.length+1];
+                    for (int i = 0; i < vals.length; ++i)
+                        newvals[i] = vals[i];
+                    newvals[vals.length] = value;
+                    author.put(qName, newvals);
+                }
+                else 
+                    author.put(qName, new String[]{value});
+            }
+            break;
+            
+        case "Author":
+            doc.addAuthor(author);
+            break;
+
+        case "PublicationType":
+            if (ui != null && mesh != null) {
+                Entry ptype = mesh.getEntry(ui);
+                if (ptype != null)
+                    doc.pubtypes.add(ptype);
+            }
+            break;
+
+        case "Keyword":
+            doc.keywords.add(value);
+            break;
             
         case "ArticleId":
-            if ("doi".equals(idtype))
+            if (stack.contains("Reference")) {
+                if ("pubmed".equals(idtype)) {
+                    long id = Long.parseLong(value);
+                    Object old = reference.get("pubmed");
+                    if (old != null) {
+                        Long[] pmids = (Long[])old;
+                        Long[] newpmids = new Long[pmids.length+1];
+                        for (int i = 0; i < pmids.length; ++i)
+                            newpmids[i] = pmids[i];
+                        newpmids[pmids.length] = id;
+                        reference.put("pubmed", newpmids);
+                    }
+                    else
+                        reference.put("pubmed", new Long[]{id});
+                }
+            }
+            else if ("doi".equals(idtype))
                 doc.doi = value;
             else if ("pmc".equals(idtype))
                 doc.pmc = value;
@@ -161,6 +226,14 @@ public class PubMedSax extends DefaultHandler {
         case "PubmedArticle":
             if (consumer != null)
                 consumer.accept(doc);
+            break;
+
+        case "Citation":
+            reference.put(qName, value);
+            break;
+
+        case "Reference":
+            doc.addReference(reference);
             break;
         }
     }

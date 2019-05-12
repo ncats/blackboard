@@ -76,8 +76,15 @@ public class Controller extends play.mvc.Controller {
         }
     }
 
-    public Result search (String q) {
-        return ok (q);
+    public Result search (String q, int skip, int top) {
+        try {
+            PubMedDoc[] docs = ks.search(q, skip, top);
+            return ok (Json.toJson(docs));
+        }
+        catch (Exception ex) {
+            return internalServerError
+                ("Can't search PubMed: "+ex.getMessage());
+        }
     }
 
     public Result pmid (final Long pmid, final String format) {
