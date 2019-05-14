@@ -305,7 +305,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return node;
     }
 
-    public void traverse (MeshVisitor visitor) {
+    public synchronized void traverse (MeshVisitor visitor) {
         try (Transaction tx = gdb.beginTx();
              ResourceIterator<Node> nodes = gdb.findNodes(DESC_LABEL)) {
             while (nodes.hasNext()) {
@@ -323,7 +323,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
 
     public Map<String, Integer> getSummary () { return files; }
     
-    public Entry getEntry (String ui) {
+    public synchronized Entry getEntry (String ui) {
         Entry entry = null;
         try (Transaction tx = gdb.beginTx()) {
             Node node = getNode (ui);
@@ -334,7 +334,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return entry;
     }
 
-    public Entry getEntryByName (String name) {
+    public synchronized Entry getEntryByName (String name) {
         Entry entry = null;
         try (Transaction tx = gdb.beginTx();
              IndexHits<Node> hits = nodeIndex().get("name", name)) {
@@ -346,7 +346,8 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return entry;
     }
 
-    public List<Descriptor> getDescriptorsByTreeNumber (String trNo) {
+    public synchronized List<Descriptor>
+        getDescriptorsByTreeNumber (String trNo) {
         List<Descriptor> descriptors = new ArrayList<>();
         try (Transaction tx = gdb.beginTx();
              Result result = gdb.execute
@@ -364,7 +365,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return descriptors;
     }
 
-    public List<Entry> getParents (String ui) {
+    public synchronized List<Entry> getParents (String ui) {
         Node node = getNode (ui);
         if (node != null) {
             List<Entry> parents = new ArrayList<>();
@@ -388,7 +389,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
     /*
      * can either be Descriptor or SupplementalDescriptor
      */
-    public CommonDescriptor getDescriptor (Entry e) {
+    public synchronized CommonDescriptor getDescriptor (Entry e) {
         start: do {
             if (e instanceof Descriptor
                 || e instanceof SupplementalDescriptor) {
@@ -410,7 +411,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         while (true);
     }
 
-    public List<Entry> getContext (String ui, int skip, int top) {
+    public synchronized List<Entry> getContext (String ui, int skip, int top) {
         List<Entry> entries = new ArrayList<>();
         Node node = getNode (ui);
         if (node != null) {
@@ -458,7 +459,8 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return entries;
     }
 
-    public List<Entry> search (String q, int top, String... label) {
+    public synchronized List<Entry> search
+        (String q, int top, String... label) {
         if (q.charAt(0) == '"') {
         }
         else {

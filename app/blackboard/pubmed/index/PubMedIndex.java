@@ -7,6 +7,8 @@ import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Descriptor;
 import blackboard.index.MetaMapIndex;
+import blackboard.semmed.SemMedDbKSource;
+import blackboard.semmed.Predication;
 
 import javax.inject.Inject;
 import java.io.*;
@@ -82,10 +84,14 @@ public class PubMedIndex extends MetaMapIndex {
             return true;
         }
     }
+
+    public final SemMedDbKSource semmed;
     
     @Inject
-    public PubMedIndex (@Assisted File dir) throws IOException {
+    public PubMedIndex (@Assisted File dir, SemMedDbKSource semmed)
+        throws IOException {
         super (dir);
+        this.semmed = semmed;
     }
 
     @Override
@@ -97,14 +103,21 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FIELD_SEMTYPE, true); // umls semantic types
         fc.setMultiValued(FIELD_SOURCE, true); // umls sources
         fc.setMultiValued(FIELD_CONCEPT, true);
+        fc.setMultiValued(FIELD_CUI, true);
+        fc.setMultiValued(FIELD_PREDICATE, true);
         fc.setMultiValued(FIELD_AUTHOR, true);
         fc.setMultiValued(FIELD_AFFILIATION, true);
         fc.setMultiValued(FIELD_PUBTYPE, true);
         fc.setMultiValued(FIELD_JOURNAL, true);
         fc.setMultiValued(FIELD_KEYWORD, true);
         fc.setMultiValued(FIELD_REFERENCE, true);
+        fc.setMultiValued(FIELD_GRANTTYPE, true);
+        fc.setMultiValued(FIELD_GRANTID, true);
+        fc.setHierarchical(FIELD_GRANTAGENCY, true);
+        fc.setMultiValued(FIELD_GRANTAGENCY, true);
+        fc.setMultiValued(FIELD_GRANTCOUNTRY, true);
         return fc;
-    }        
+    }
 
 
     public boolean indexed (Long pmid) throws IOException {
@@ -136,6 +149,7 @@ public class PubMedIndex extends MetaMapIndex {
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
         }
 
+        // author
         for (PubMedDoc.Author auth : d.authors) {
             if (auth.affiliations != null) {
                 for (String affi : auth.affiliations)
@@ -143,19 +157,68 @@ public class PubMedIndex extends MetaMapIndex {
             }
             doc.add(new FacetField (FIELD_AUTHOR, auth.getName()));
         }
+
+        // journal
         doc.add(new FacetField (FIELD_JOURNAL, d.journal));
-        
+
+        // grants
+        for (PubMedDoc.Grant grant : d.grants) {
+            if (grant.type != null && grant.type.length() > 0)
+                doc.add(new FacetField (FIELD_GRANTTYPE, grant.type));
+
+            if (grant.id != null) {
+                String[] toks = grant.id.split(",");
+                for (String t : toks) {
+                    String id = t.trim();
+                    if (id.length() > 0) {
+                        doc.add(new FacetField (FIELD_GRANTID, id));
+                        addTextField (doc, FIELD_GRANTID, id);
+                    }
+                }
+            }
+            
+            if (grant.agency != null) {
+                if (grant.agency.indexOf('|') > 0) {
+                    String[] toks = grant.agency.split("\\|");
+                    for (int i = 0; i < toks.length; ++i)
+                        toks[i] = toks[i].trim();
+                    doc.add(new FacetField (FIELD_GRANTAGENCY, toks));
+                }
+                else if (grant.agency.endsWith("HHS")) {
+                    String[] toks = grant.agency.split("[\\s]+");
+                    for (int i = 0, j = toks.length-1; i < j; ++i, --j) {
+                        String t = toks[i];
+                        toks[i] = toks[j];
+                        toks[j] = t;
+                    }
+                    if (toks.length > 0)
+                        doc.add(new FacetField (FIELD_GRANTAGENCY, toks));
+                }
+                else
+                    doc.add(new FacetField (FIELD_GRANTAGENCY, grant.agency));
+            }
+            
+            if (grant.country != null && grant.country.length() > 0)
+                doc.add(new FacetField (FIELD_GRANTCOUNTRY, grant.country));
+        }
+
+        // publication types
         for (blackboard.mesh.Entry e : d.pubtypes)
             doc.add(new FacetField (FIELD_PUBTYPE, e.ui));
-        
+
+        // keywords
         for (String k : d.keywords)
             doc.add(new FacetField (FIELD_KEYWORD, k));
-        
+
+        // abstract texts
         for (String abs : d.getAbstract())
             addTextField (doc, "abstract", abs);
 
+        // publication year
         doc.add(new LongField
                 (FIELD_YEAR, d.getDate().getYear(), Field.Store.YES));
+
+        // mesh headings
         for (MeshHeading mh : d.getMeshHeadings()) {
             Descriptor desc = (Descriptor)mh.descriptor;
             doc.add(new StringField (FIELD_UI, desc.ui, Field.Store.YES));
@@ -168,6 +231,7 @@ public class PubMedIndex extends MetaMapIndex {
             addTextField (doc, FIELD_MESH, desc.name);
         }
 
+        // identifiers
         if (d.pmc != null) {
             doc.add(new StringField (FIELD_PMC, d.pmc, Field.Store.YES));
             addTextField (doc, FIELD_PMC, d.pmc);
@@ -176,6 +240,7 @@ public class PubMedIndex extends MetaMapIndex {
             doc.add(new StringField (FIELD_DOI, d.doi, Field.Store.YES));
         }
 
+        // references
         for (PubMedDoc.Reference ref : d.references) {
             if (ref.pmids != null)
                 for (Long id : ref.pmids)
@@ -186,6 +251,7 @@ public class PubMedIndex extends MetaMapIndex {
         /*
          * now do metamap
          */
+        /*
         JsonNode json = metamap (doc, title);
         if (json != null && json.size() > 0) {
             BytesRef ref = new BytesRef (toCompressedBytes (json));
@@ -198,6 +264,34 @@ public class PubMedIndex extends MetaMapIndex {
                 doc.add(new StoredField
                         (FIELD_MM_ABSTRACT,
                          new BytesRef (toCompressedBytes (json))));
+            }
+        }
+        */
+
+        /*
+         * SemMedDb
+         */
+        if (semmed != null) {
+            try {
+                List<Predication> preds = semmed.getPredicationsByPMID
+                    (String.valueOf(d.getPMID()));
+                for (Predication p : preds) {
+                    addTextField (doc, FIELD_CUI, p.subcui);
+                    addTextField (doc, FIELD_CONCEPT, " cui=\""+p.subcui+"\"",
+                                  p.subject);
+                    doc.add(new FacetField (FIELD_CUI, p.subcui));
+                    doc.add(new FacetField (FIELD_SEMTYPE, p.subtype));
+                    addTextField (doc, FIELD_CUI, p.objcui);
+                    addTextField (doc, FIELD_CONCEPT, " cui=\""+p.objcui+"\"",
+                                  p.object);
+                    doc.add(new FacetField (FIELD_CUI, p.objcui));
+                    doc.add(new FacetField (FIELD_SEMTYPE, p.objtype));
+                    doc.add(new FacetField (FIELD_PREDICATE, p.predicate));
+                }
+            }
+            catch (Exception ex) {
+                Logger.error("Can't retrieve Predications for "
+                             +d.getPMID(), ex);
             }
         }
         
@@ -216,7 +310,8 @@ public class PubMedIndex extends MetaMapIndex {
     }
     
     public PubMedIndex add (PubMedDoc d) throws IOException {
-        Logger.debug(d.getPMID()+": "+d.getTitle());
+        Logger.debug(Thread.currentThread().getName()+": "
+                     +d.getPMID()+": "+d.getTitle());
         add (instrument (newDocument (), d));
         return this;
     }
@@ -240,7 +335,7 @@ public class PubMedIndex extends MetaMapIndex {
             FacetResult fr = facets.getTopChildren(20, FIELD_MESH);
             if (fr != null)
                 Logger.debug(fr.toString());
-            fr = facets.getTopChildren(20, FIELD_CONCEPT);
+            fr = facets.getTopChildren(20, FIELD_CUI);
             if (fr != null)
                 Logger.debug(fr.toString());
             fr = facets.getTopChildren(20, FIELD_SEMTYPE);
@@ -363,7 +458,7 @@ public class PubMedIndex extends MetaMapIndex {
         Logger.debug("##  MeshDb: "+argv[1]);
 
         try (MeshDb mesh = new MeshDb (new File (argv[1]));
-             PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
+             PubMedIndex index = new PubMedIndex (new File (argv[0]), null)) {
 
             AtomicInteger count = new AtomicInteger ();
             PubMedSax pms = new PubMedSax (mesh, d -> {
@@ -401,7 +496,8 @@ public class PubMedIndex extends MetaMapIndex {
                 System.exit(1);
             }
 
-            try (PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
+            try (PubMedIndex index =
+                 new PubMedIndex (new File (argv[0]), null)) {
                 for (int i = 1; i < argv.length; ++i) {
                     SearchResult result = index.search(argv[i]);
                     for (MatchedDoc d : result.docs) {

@@ -59,7 +59,7 @@
     }
   }
   @for(i <- 0 until preds.length) {
-    @defining(ks.umls.getConcept(preds(i).getOther(cui))) { concept =>
+    @defining(ks.umls.getConcept(preds(i).getOtherCUI(cui))) { concept =>
       @predcard(i, concept, preds(i))
       <br>
     }
@@ -69,7 +69,7 @@
 <script src="@controllers.semmed.routes.Controller.jsRoutes" type="text/javascript"></script>    
 }{ 
     @for(i <- 0 until preds.length) {
-        @defining(ks.umls.getConcept(preds(i).getOther(cui))) { concept =>
+        @defining(ks.umls.getConcept(preds(i).getOtherCUI(cui))) { concept =>
            @if(concept != null) { @tabdata(i, concept.cui, preds(i)) }
         }
     }

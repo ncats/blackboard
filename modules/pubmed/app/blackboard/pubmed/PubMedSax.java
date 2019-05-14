@@ -28,6 +28,7 @@ public class PubMedSax extends DefaultHandler {
     final MeshDb mesh;
     Consumer<PubMedDoc> consumer;
     Map<String, Object> author = new LinkedHashMap<>();
+    Map<String, Object> grant = new LinkedHashMap<>();
     Map<String, Object> reference = new LinkedHashMap<>();
     
     public PubMedSax (Consumer<PubMedDoc> consumer) {
@@ -80,6 +81,10 @@ public class PubMedSax extends DefaultHandler {
             author.clear();
             break;
 
+        case "Grant":
+            grant.clear();
+            break;
+            
         case "Reference":
             reference.clear();
             break;
@@ -91,7 +96,7 @@ public class PubMedSax extends DefaultHandler {
     public void endElement (String uri, String localName, String qName) {
         stack.pop();
         String parent = stack.peek();
-        String value = content.toString();
+        String value = content.toString().trim();
         switch (qName) {
         case "PMID":
             if ("MedlineCitation".equals(parent)) {
@@ -161,6 +166,17 @@ public class PubMedSax extends DefaultHandler {
             doc.addAuthor(author);
             break;
 
+        case "GrantID":
+        case "Acronym":
+        case "Agency":
+        case "Country":
+            grant.put(qName, value);
+            break;
+
+        case "Grant":
+            doc.addGrant(grant);
+            break;
+            
         case "PublicationType":
             if (ui != null && mesh != null) {
                 Entry ptype = mesh.getEntry(ui);
@@ -170,7 +186,8 @@ public class PubMedSax extends DefaultHandler {
             break;
 
         case "Keyword":
-            doc.keywords.add(value);
+            if (!"".equals(value))
+                doc.keywords.add(value);
             break;
             
         case "ArticleId":

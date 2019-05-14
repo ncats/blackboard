@@ -15,7 +15,7 @@ import javax.inject.Inject;
 import blackboard.pubmed.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshDb;
-
+import blackboard.semmed.SemMedDbKSource;
 
 public class PubMedIndexBuilder implements AutoCloseable {
     
@@ -23,8 +23,9 @@ public class PubMedIndexBuilder implements AutoCloseable {
         PubMedIndex index;
         int count;
 
-        Builder (File db, UMLSKSource umls) throws IOException {
-            index = new PubMedIndex (db);
+        Builder (File db, UMLSKSource umls, SemMedDbKSource semmed)
+            throws IOException {
+            index = new PubMedIndex (db, semmed);
             index.setMetaMap(umls.getMetaMap());
         }
 
@@ -81,7 +82,9 @@ public class PubMedIndexBuilder implements AutoCloseable {
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
             UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
-            this.threads.add(es.submit(new Builder (db, umls)));
+            SemMedDbKSource semmed =
+                app.injector().instanceOf(SemMedDbKSource.class);
+            this.threads.add(es.submit(new Builder (db, umls, semmed)));
         }
     }
 
@@ -98,12 +101,16 @@ public class PubMedIndexBuilder implements AutoCloseable {
         
         for (Future<PubMedIndex> f : threads)
             queue.put(PubMedDoc.EMPTY);
-        
+
+        int total = 0;
         for (Future<PubMedIndex> f : threads) {
             PubMedIndex pmi = f.get();
+            total += pmi.size();
             pmi.debug();
             pmi.close();
         }
+        Logger.debug("####### "+total+" document(s) indexed!");
+        
         es.shutdownNow();
         play.api.Play.stop(app.getWrappedApplication());
     }
@@ -130,6 +137,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
             pms.parse(is);
         }
         catch (RuntimeException ex) {
+            Logger.debug("###### DONE!");
         }
     }
 

@@ -20,6 +20,7 @@ import javax.inject.Named;
 import blackboard.pubmed.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshDb;
+import blackboard.semmed.SemMedDbKSource;
 
 public class GeneRIFIndexBuilder implements AutoCloseable {
     static final GeneRIF POISON = new GeneRIF ();
@@ -118,8 +119,9 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
         GeneRIFIndex index;
         int count;
 
-        Builder (File db, UMLSKSource umls) throws IOException {
-            index = new GeneRIFIndex (db);
+        Builder (File db, UMLSKSource umls, SemMedDbKSource semmed)
+            throws IOException {
+            index = new GeneRIFIndex (db, semmed);
             index.setMetaMap(umls.getMetaMap());
         }
 
@@ -143,7 +145,7 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
             return index;
         }
     }
-    
+
     final PubMedKSource pubmed;
     final Application app;
     final GeneRIFSource generif;
@@ -181,7 +183,9 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
             UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
-            futures.add(threadPool.submit(new Builder (db, umls)));
+            SemMedDbKSource semmed =
+                app.injector().instanceOf(SemMedDbKSource.class);
+            futures.add(threadPool.submit(new Builder (db, umls, semmed)));
         }
         generif.generate(max);
         

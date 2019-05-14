@@ -95,13 +95,13 @@ public class SemMedDbKSource implements KSource {
                 Logger.error("Can't parse semanticTypes: "+semtype, ex);
             }
         }
-        
+
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
                 return CompletableFuture.completedFuture(null);
             });
-        
+
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());        
     }
@@ -207,34 +207,37 @@ public class SemMedDbKSource implements KSource {
             pstm.setInt(2, minPredCount);
             ResultSet rset = pstm.executeQuery();
             while (rset.next()) {
-                String subject = rset.getString("subject_cui");
+                String subcui = rset.getString("subject_cui");
+                String subject = rset.getString("subject_name");
                 String subtype = rset.getString("subject_semtype");
                 String pred = rset.getString("predicate");
-                String object = rset.getString("object_cui");
+                String objcui = rset.getString("object_cui");
+                String object = rset.getString("object_name");
                 String objtype = rset.getString("object_semtype");
 
                 int pos = subject.indexOf('|');
                 if (pos > 0)
-                    subject = subject.substring(0, pos);
-                pos = object.indexOf('|');
+                    subcui = subcui.substring(0, pos);
+                pos = objcui.indexOf('|');
                 if (pos > 0)
-                    object = object.substring(0, pos);
+                    objcui = objcui.substring(0, pos);
 
                 if (isBlacklist ("semtype", subtype)
                     || isBlacklist ("semtype", objtype)
-                    || isBlacklist ("subject_cui", subject)
-                    || isBlacklist ("object_cui", object)) {
+                    || isBlacklist ("subject_cui", subcui)
+                    || isBlacklist ("object_cui", objcui)) {
                 }
                 else {
                     int count = rset.getInt("cnt");
                     Predication t = new Predication
-                        (subject, subtype, pred, object, objtype);
-                    Logger.debug(subject+" ["+subtype+"] =="
-                                 +pred+"=> "+object+" ["+objtype+"] "
+                        (subcui, subject, subtype, pred,
+                         objcui, object, objtype);
+                    Logger.debug(subcui+" ["+subtype+"] =="
+                                 +pred+"=> "+objcui+" ["+objtype+"] "
                                  +count);
-                    pstm2.setString(1, subject);
+                    pstm2.setString(1, subcui);
                     pstm2.setString(2, pred);
-                    pstm2.setString(3, object);
+                    pstm2.setString(3, objcui);
                     ResultSet rs = pstm2.executeQuery();
                     while (rs.next()) {
                         Long id = rs.getLong("a.sentence_id");
@@ -252,8 +255,8 @@ public class SemMedDbKSource implements KSource {
 
     public void resolvePubmed (String pmid, KNode kn, KGraph kg)
         throws Exception {
-        try (Connection con = db.getConnection();
-             PreparedStatement pstm = con.prepareStatement
+        try (Connection conn = db.getConnection();
+             PreparedStatement pstm = conn.prepareStatement
              ("select a.*,b.sentence from PREDICATION a, SENTENCE b where "
               +"a.PMID = ? AND a.SENTENCE_ID = b.SENTENCE_ID");
              ) {
@@ -314,14 +317,14 @@ public class SemMedDbKSource implements KSource {
         List<Predication> preds = new ArrayList<>();
         Logger.debug("++ resolving "+cui+"...");
         long start = System.currentTimeMillis();        
-        try (Connection con = db.getConnection();
-             PreparedStatement pstm1 = con.prepareStatement
+        try (Connection conn = db.getConnection();
+             PreparedStatement pstm1 = conn.prepareStatement
              ("select subject_cui,subject_semtype,predicate,"
               +"object_cui,object_semtype,count(*) as cnt "
               +"from PREDICATION where SUBJECT_CUI = ? "
               +"group by subject_cui,predicate,object_cui "
               +"having cnt > ? order by cnt desc");
-             PreparedStatement pstm2 = con.prepareStatement
+             PreparedStatement pstm2 = conn.prepareStatement
              ("select subject_cui,subject_semtype,predicate,"
               +"object_cui,object_semtype,count(*) as cnt "
               +"from PREDICATION where OBJECT_CUI = ? "
@@ -342,8 +345,8 @@ public class SemMedDbKSource implements KSource {
         throws Exception {
         List<Predication> preds = new ArrayList<>();
         long start = System.currentTimeMillis();
-        try (Connection con = db.getConnection();
-             PreparedStatement pstm = con.prepareStatement
+        try (Connection conn = db.getConnection();
+             PreparedStatement pstm = conn.prepareStatement
              ("select a.*,b.sentence from PREDICATION a, SENTENCE b "
               +"where a.pmid = ? and a.sentence_id = b.sentence_id "
               +"order by b.number")) {
@@ -355,25 +358,28 @@ public class SemMedDbKSource implements KSource {
                 long predId = rset.getLong("PREDICATION_ID");
                 Predication p = predmap.get(predId);
                 if (p == null) {
+                    String subject = rset.getString("SUBJECT_NAME");
                     String subtype = rset.getString("SUBJECT_SEMTYPE");
                     String objtype = rset.getString("OBJECT_SEMTYPE");
                     String pred = rset.getString("PREDICATE");
-                    String sub = rset.getString("SUBJECT_CUI");
-                    int pos = sub.indexOf('|');
+                    String subcui = rset.getString("SUBJECT_CUI");
+                    int pos = subcui.indexOf('|');
                     if (pos > 0)
-                        sub = sub.substring(0, pos);
-                    String obj = rset.getString("OBJECT_CUI");
-                    pos = obj.indexOf('|');
+                        subcui = subcui.substring(0, pos);
+                    String object = rset.getString("OBJECT_NAME");
+                    String objcui = rset.getString("OBJECT_CUI");
+                    pos = objcui.indexOf('|');
                     if (pos > 0)
-                        obj = obj.substring(0, pos);
+                        objcui = objcui.substring(0, pos);
                     
                     if (isBlacklist ("semtype", subtype)
                         || isBlacklist ("semtype", objtype)
-                        || isBlacklist ("subject_cui", sub)
-                        || isBlacklist ("object_cui", obj)) {
+                        || isBlacklist ("subject_cui", subcui)
+                        || isBlacklist ("object_cui", objcui)) {
                     }
                     else {
-                        p = new Predication (sub, subtype, pred, obj, objtype);
+                        p = new Predication (subcui, subject, subtype, pred,
+                                             objcui, object, objtype);
                         predmap.put(predId, p);
                     }
                 }
@@ -391,9 +397,10 @@ public class SemMedDbKSource implements KSource {
                 }
             }
             rset.close();
+            
+            preds.addAll(predmap.values());            
             Logger.debug("++ fetch predications for PMID "
                          +pmid+"..."+preds.size());
-            preds.addAll(predmap.values());
         }
         return preds;
     }

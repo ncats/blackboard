@@ -7,6 +7,7 @@ import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Descriptor;
 import blackboard.index.MetaMapIndex;
+import blackboard.semmed.SemMedDbKSource;
 
 import javax.inject.Inject;
 import java.io.*;
@@ -77,8 +78,9 @@ public class GeneRIFIndex extends PubMedIndex {
     }
 
     @Inject
-    public GeneRIFIndex (@Assisted File dir) throws IOException {
-        super (dir);
+    public GeneRIFIndex (@Assisted File dir, SemMedDbKSource semmed)
+        throws IOException {
+        super (dir, semmed);
     }
 
     protected Document instrument (Document doc, PubMedDoc d, String gene,
@@ -159,7 +161,7 @@ public class GeneRIFIndex extends PubMedIndex {
                 System.exit(1);
         }
         
-        try (GeneRIFIndex index = new GeneRIFIndex (new File (argv[0]))) {
+        try (GeneRIFIndex index = new GeneRIFIndex (new File (argv[0]), null)) {
             for (int i = 1; i < argv.length; ++i) {
                 SearchResult result = index.search(argv[i]);
                 for (Facet f : result.facets)
