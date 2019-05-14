@@ -177,7 +177,7 @@ public class PubMedIndex extends MetaMapIndex {
                 }
             }
             
-            if (grant.agency != null) {
+            if (grant.agency != null && grant.agency.length() > 0) {
                 if (grant.agency.indexOf('|') > 0) {
                     String[] toks = grant.agency.split("\\|");
                     for (int i = 0; i < toks.length; ++i)
