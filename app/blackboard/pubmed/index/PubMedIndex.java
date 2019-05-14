@@ -40,7 +40,8 @@ import com.google.inject.assistedinject.Assisted;
 public class PubMedIndex extends MetaMapIndex {
     // MetaMap compressed json
     public static final String FIELD_MM_TITLE = "mm_title";
-    public static final String FIELD_MM_ABSTRACT = "mm_abstract"; 
+    public static final String FIELD_MM_ABSTRACT = "mm_abstract";
+    public static final int MAX_FACET_FIELD_LENGTH = 1024;
 
     public static class MatchedDoc {
         public Long pmid;
@@ -152,14 +153,23 @@ public class PubMedIndex extends MetaMapIndex {
         // author
         for (PubMedDoc.Author auth : d.authors) {
             if (auth.affiliations != null) {
-                for (String affi : auth.affiliations)
-                    doc.add(new FacetField (FIELD_AFFILIATION, affi));
+                for (String affi : auth.affiliations) {
+                    if (affi.length() > MAX_FACET_FIELD_LENGTH) {
+                        Logger.warn(d.getPMID()+": Affiliation is too long (>"
+                                    +MAX_FACET_FIELD_LENGTH+"); "
+                                    +"truncating...\n"+affi);
+                    }
+                    
+                    if (affi.length() > 0)
+                        doc.add(new FacetField (FIELD_AFFILIATION, affi));
+                }
             }
             doc.add(new FacetField (FIELD_AUTHOR, auth.getName()));
         }
 
         // journal
-        doc.add(new FacetField (FIELD_JOURNAL, d.journal));
+        if (d.journal != null && d.journal.length() > 0)
+            doc.add(new FacetField (FIELD_JOURNAL, d.journal));
 
         // grants
         for (PubMedDoc.Grant grant : d.grants) {
