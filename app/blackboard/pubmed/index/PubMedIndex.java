@@ -158,6 +158,7 @@ public class PubMedIndex extends MetaMapIndex {
                         Logger.warn(d.getPMID()+": Affiliation is too long (>"
                                     +MAX_FACET_FIELD_LENGTH+"); "
                                     +"truncating...\n"+affi);
+                        affi = affi.substring(0, MAX_FACET_FIELD_LENGTH);
                     }
                     
                     if (affi.length() > 0)
