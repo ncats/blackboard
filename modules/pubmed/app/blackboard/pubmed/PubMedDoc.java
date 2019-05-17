@@ -206,6 +206,7 @@ public class PubMedDoc implements java.io.Serializable {
     public List<MeshHeading> headings = new ArrayList<>();
     public List<Entry> chemicals = new ArrayList<>();
     public List<Reference> references = new ArrayList<>();
+    public byte[] xml; // raw xml
 
     static String getText (Node node) {
         if (node instanceof Element)

@@ -24,9 +24,9 @@ public class PredicateSummary {
             c = predicates.get(p.predicate);
             predicates.put(p.predicate, c == null ? 1 : c+1);
 
-            if (p.object.charAt(0) == 'C') {
-                c = concepts.get(p.object);
-                concepts.put(p.object, c == null ? 1 : c+1);
+            if (p.objcui.charAt(0) == 'C') {
+                c = concepts.get(p.objcui);
+                concepts.put(p.objcui, c == null ? 1 : c+1);
             }
             
             for (Evidence ev : p.evidence) {

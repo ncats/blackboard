@@ -38,7 +38,7 @@
     <div class="card-footer">
       @vote(p)   
       @defining(ks.umls.getConcept(cui)){ sub =>
-         @if(cui.equals(p.subject)){
+         @if(cui.equals(p.subcui)){
           <i>@sub.name</i> <b>@p.predicate</b> <a href="@controllers.semmed.routes.Controller.cui(concept.cui)">@concept.name</a>
           }else{
          <a href="@controllers.semmed.routes.Controller.cui(concept.cui)">@concept.name</a> <b>@p.predicate</b> <i>@sub.name</i>

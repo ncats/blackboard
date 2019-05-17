@@ -14,6 +14,9 @@ import org.xml.sax.*;
 
 import java.util.*;
 import java.io.InputStream;
+import java.io.FilterInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import play.Logger;
@@ -30,6 +33,33 @@ public class PubMedSax extends DefaultHandler {
     Map<String, Object> author = new LinkedHashMap<>();
     Map<String, Object> grant = new LinkedHashMap<>();
     Map<String, Object> reference = new LinkedHashMap<>();
+
+    CaptureInputStream cis;
+
+    static class CaptureInputStream extends FilterInputStream {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream (1024);
+        int start = 0, stop = 0;
+        static byte[] S = "<PubmedArticle>".getBytes();
+        static byte[] E = "</PubmedArticle>".getBytes();
+        
+        CaptureInputStream (InputStream is) {
+            super (is);
+        }
+
+        public int read () throws IOException {
+            int ch = super.read();
+            return ch;
+        }
+        public int read (byte[] b) throws IOException {
+            int nb = super.read(b);
+            return nb;
+        }
+        public int read (byte[] b, int off, int len) throws IOException {
+            int nb = super.read(b, off, len);
+            return nb;
+        }
+        public byte[] data () { return buf.toByteArray(); }
+    }
     
     public PubMedSax (Consumer<PubMedDoc> consumer) {
         this (null, consumer);
@@ -41,7 +71,17 @@ public class PubMedSax extends DefaultHandler {
     }
     
     public void parse (InputStream is) throws Exception {
-        SAXParserFactory.newInstance().newSAXParser().parse(is, this);
+        SAXParserFactory spf = SAXParserFactory.newInstance();
+        spf.setFeature
+            ("http://apache.org/xml/features/nonvalidating/load-external-dtd",
+             false);
+        spf.setFeature("http://xml.org/sax/features/namespaces", false);
+        spf.setFeature("http://xml.org/sax/features/validation", false);
+        spf.setFeature
+            ("http://apache.org/xml/features/nonvalidating/load-dtd-grammar",
+            false);
+        cis = new CaptureInputStream (is);
+        spf.newSAXParser().parse(cis, this);
     }
     
     public void startDocument () {
@@ -241,8 +281,9 @@ public class PubMedSax extends DefaultHandler {
             break;
             
         case "PubmedArticle":
-            if (consumer != null)
+            if (consumer != null) {
                 consumer.accept(doc);
+            }
             break;
 
         case "Citation":

@@ -35,9 +35,9 @@
       </div>
   </div>
   @for(p <- preds) {
-    @defining(ks.umls.getConcept(p.subject)){ sub =>
+    @defining(ks.umls.getConcept(p.subcui)){ sub =>
       @if(sub != null) {
-        @defining(ks.umls.getConcept(p.`object`)){ obj =>
+        @defining(ks.umls.getConcept(p.`objcui`)){ obj =>
           @if(obj != null) {
             <div class="card">
             <div class="card-body">

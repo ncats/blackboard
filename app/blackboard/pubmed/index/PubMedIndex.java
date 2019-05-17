@@ -34,6 +34,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.commons.lang3.text.WordUtils;
 
 import com.google.inject.assistedinject.Assisted;
 
@@ -107,7 +108,6 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FIELD_CUI, true);
         fc.setMultiValued(FIELD_PREDICATE, true);
         fc.setMultiValued(FIELD_AUTHOR, true);
-        fc.setMultiValued(FIELD_AFFILIATION, true);
         fc.setMultiValued(FIELD_PUBTYPE, true);
         fc.setMultiValued(FIELD_JOURNAL, true);
         fc.setMultiValued(FIELD_KEYWORD, true);
@@ -154,6 +154,7 @@ public class PubMedIndex extends MetaMapIndex {
         for (PubMedDoc.Author auth : d.authors) {
             if (auth.affiliations != null) {
                 for (String affi : auth.affiliations) {
+                    /*
                     if (affi.length() > MAX_FACET_FIELD_LENGTH) {
                         Logger.warn(d.getPMID()+": Affiliation is too long (>"
                                     +MAX_FACET_FIELD_LENGTH+"); "
@@ -161,8 +162,11 @@ public class PubMedIndex extends MetaMapIndex {
                         affi = affi.substring(0, MAX_FACET_FIELD_LENGTH);
                     }
                     
-                    if (affi.length() > 0)
+                    if (affi.length() > 2)
                         doc.add(new FacetField (FIELD_AFFILIATION, affi));
+                    */
+                    addTextField (doc, FIELD_AFFILIATION, affi);
+                    doc.add(new Field (FIELD_AFFILIATION, title, tvFieldType));
                 }
             }
             doc.add(new FacetField (FIELD_AUTHOR, auth.getName()));
@@ -219,11 +223,11 @@ public class PubMedIndex extends MetaMapIndex {
 
         // keywords
         for (String k : d.keywords)
-            doc.add(new FacetField (FIELD_KEYWORD, k));
+            doc.add(new FacetField (FIELD_KEYWORD, WordUtils.capitalize(k)));
 
         // abstract texts
         for (String abs : d.getAbstract())
-            addTextField (doc, "abstract", abs);
+            addTextField (doc, FIELD_ABSTRACT, abs);
 
         // publication year
         doc.add(new LongField

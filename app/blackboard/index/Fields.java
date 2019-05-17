@@ -23,6 +23,7 @@ public interface Fields {
     public static final String FIELD_AFFILIATION = "affiliation";
     public static final String FIELD_PUBTYPE = "pubtype";
     public static final String FIELD_JOURNAL = "journal";
+    public static final String FIELD_ABSTRACT = "abstract";
     public static final String FIELD_PMC = "pmc";
     public static final String FIELD_DOI = "doi";
     public static final String FIELD_KEYWORD = "keyword";

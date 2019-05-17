@@ -319,14 +319,14 @@ public class SemMedDbKSource implements KSource {
         long start = System.currentTimeMillis();        
         try (Connection conn = db.getConnection();
              PreparedStatement pstm1 = conn.prepareStatement
-             ("select subject_cui,subject_semtype,predicate,"
-              +"object_cui,object_semtype,count(*) as cnt "
+             ("select subject_name,subject_cui,subject_semtype,predicate,"
+              +"object_name,object_cui,object_semtype,count(*) as cnt "
               +"from PREDICATION where SUBJECT_CUI = ? "
               +"group by subject_cui,predicate,object_cui "
               +"having cnt > ? order by cnt desc");
              PreparedStatement pstm2 = conn.prepareStatement
-             ("select subject_cui,subject_semtype,predicate,"
-              +"object_cui,object_semtype,count(*) as cnt "
+             ("select subject_name,subject_cui,subject_semtype,predicate,"
+              +"object_name,object_cui,object_semtype,count(*) as cnt "
               +"from PREDICATION where OBJECT_CUI = ? "
               +"group by subject_cui,predicate,object_cui "
               +"having cnt > ? order by cnt desc");

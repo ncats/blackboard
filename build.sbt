@@ -14,7 +14,8 @@ lazy val commonDependencies = Seq(
   "mysql" % "mysql-connector-java" % "5.1.31",
   "org.apache.lucene" % "lucene-facet" % "5.5.5",
   "org.apache.lucene" % "lucene-highlighter" % "5.5.5",
-  "org.neo4j" % "neo4j" % "3.2.11",
+  "org.neo4j" % "neo4j" % "3.2.14",
+  "org.apache.commons" % "commons-lang3" % "3.9",
   "junit"             % "junit"           % "4.12"  % "test",
   "com.novocode"      % "junit-interface" % "0.11"  % "test"  
 )

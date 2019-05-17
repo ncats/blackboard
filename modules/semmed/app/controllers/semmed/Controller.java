@@ -178,7 +178,7 @@ public class Controller extends play.mvc.Controller {
                                                final String obj) {
         return supplyAsync (() -> {
                 Predication[] preds = filter
-                    (sub, p->obj.equalsIgnoreCase(p.object));
+                    (sub, p->obj.equalsIgnoreCase(p.objcui));
                 return ok (Json.toJson(preds));
             }, ec.current());
     }
@@ -226,7 +226,7 @@ public class Controller extends play.mvc.Controller {
                                             final String obj) {
         return supplyAsync (() -> {
                 Predication[] preds = filter
-                    (sub, p->obj.equalsIgnoreCase(p.object));
+                    (sub, p->obj.equalsIgnoreCase(p.objcui));
                 return ok (views.html.semmed.predication.render
                            (ks, sub, preds));
             }, ec.current());
