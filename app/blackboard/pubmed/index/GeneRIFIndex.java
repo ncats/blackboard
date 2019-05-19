@@ -65,7 +65,7 @@ public class GeneRIFIndex extends PubMedIndex {
                         doc.fragments.add(f);
                 }
                 
-                JsonNode[] json = toJson (rdoc.doc, FIELD_MM_GENERIF);
+                JsonNode[] json = getJson (rdoc.doc, FIELD_MM_GENERIF);
                 if (json != null && json.length > 0)
                     doc.mm_text = json[0];
                 docs.add(doc);
@@ -130,30 +130,33 @@ public class GeneRIFIndex extends PubMedIndex {
     }
 
     @Override
-    public SearchResult search (Query query) throws Exception {
+    public SearchResult search (Query query, Map<String, Object> facets)
+        throws Exception {
         SearchResult results = new SearchResult ();
-        search (query, results);
+        search (query, facets, results);
         return results;
     }
 
     @Override
-    public SearchResult search (String text) throws Exception {
+    public SearchResult search (String text, Map<String, Object> facets)
+        throws Exception {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
-        SearchResult result = search (parser.parse(text));
+        SearchResult result = search (parser.parse(text), facets);
         Logger.debug("## searching for \""+text+"\"..."
                      +result.docs.size()+" hit(s)!");
         return result;
     }
 
     @Override
-    public SearchResult search (String field, String term) throws Exception {
-        SearchResult result = search (new TermQuery (new Term (field, term)));
+    public SearchResult search (String field, String term,
+                                Map<String, Object> facets) throws Exception {
+        SearchResult result = search
+            (new TermQuery (new Term (field, term)), facets);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
     }
-    
 
     public static void main (String[] argv) throws Exception {
         if (argv.length < 2) {
@@ -163,7 +166,7 @@ public class GeneRIFIndex extends PubMedIndex {
         
         try (GeneRIFIndex index = new GeneRIFIndex (new File (argv[0]), null)) {
             for (int i = 1; i < argv.length; ++i) {
-                SearchResult result = index.search(argv[i]);
+                SearchResult result = index.search(argv[i], null);
                 for (Facet f : result.facets)
                     Logger.debug(f.toString());
                 

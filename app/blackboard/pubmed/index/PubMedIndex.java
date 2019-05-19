@@ -36,6 +36,11 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.commons.lang3.text.WordUtils;
 
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
 import com.google.inject.assistedinject.Assisted;
 
 public class PubMedIndex extends MetaMapIndex {
@@ -44,6 +49,8 @@ public class PubMedIndex extends MetaMapIndex {
     public static final String FIELD_MM_ABSTRACT = "mm_abstract";
     public static final int MAX_FACET_FIELD_LENGTH = 1024;
 
+    static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
+
     public static class MatchedDoc {
         public Long pmid;
         public String title;
@@ -51,8 +58,7 @@ public class PubMedIndex extends MetaMapIndex {
         public List<String> fragments = new ArrayList<>();
         public List<String> mesh = new ArrayList<>();
         
-        public JsonNode mm_title;
-        public JsonNode mm_abstract;
+        public org.w3c.dom.Document doc;
 
         protected MatchedDoc () {
         }
@@ -61,6 +67,21 @@ public class PubMedIndex extends MetaMapIndex {
             this.pmid = pmid;
             this.title = title;
             this.year = year;
+        }
+
+        public String toXmlString () {
+            if (doc != null) {
+                try {
+                    StringWriter buf = new StringWriter (1024);
+                    TransformerFactory.newInstance().newTransformer()
+                        .transform(new DOMSource (doc), new StreamResult (buf));
+                    return buf.toString();
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't write xml string", ex);
+                }
+            }
+            return null;
         }
     }
 
@@ -230,8 +251,8 @@ public class PubMedIndex extends MetaMapIndex {
             addTextField (doc, FIELD_ABSTRACT, abs);
 
         // publication year
-        doc.add(new LongField
-                (FIELD_YEAR, d.getDate().getYear(), Field.Store.YES));
+        doc.add(new IntField (FIELD_YEAR,
+                              d.getDate().getYear(), Field.Store.YES));
 
         // mesh headings
         for (MeshHeading mh : d.getMeshHeadings()) {
@@ -243,7 +264,7 @@ public class PubMedIndex extends MetaMapIndex {
                 doc.add(new FacetField (FIELD_TR, tr.split("\\.")));
             }
             doc.add(new FacetField (FIELD_MESH, desc.ui));
-            addTextField (doc, FIELD_MESH, desc.name);
+            addTextField (doc, FIELD_MESH, " cui=\""+desc.ui+"\"", desc.name);
         }
 
         // identifiers
@@ -290,24 +311,36 @@ public class PubMedIndex extends MetaMapIndex {
             try {
                 List<Predication> preds = semmed.getPredicationsByPMID
                     (String.valueOf(d.getPMID()));
+                Map<String, String> cuis = new LinkedHashMap<>();
+                Set<String> types = new LinkedHashSet<>();
+                Set<String> predicates = new LinkedHashSet<>();
                 for (Predication p : preds) {
-                    addTextField (doc, FIELD_CUI, p.subcui);
-                    addTextField (doc, FIELD_CONCEPT, " cui=\""+p.subcui+"\"",
-                                  p.subject);
-                    doc.add(new FacetField (FIELD_CUI, p.subcui));
-                    doc.add(new FacetField (FIELD_SEMTYPE, p.subtype));
-                    addTextField (doc, FIELD_CUI, p.objcui);
-                    addTextField (doc, FIELD_CONCEPT, " cui=\""+p.objcui+"\"",
-                                  p.object);
-                    doc.add(new FacetField (FIELD_CUI, p.objcui));
-                    doc.add(new FacetField (FIELD_SEMTYPE, p.objtype));
-                    doc.add(new FacetField (FIELD_PREDICATE, p.predicate));
+                    cuis.put(p.subcui, p.subject);
+                    cuis.put(p.objcui, p.object);
+                    types.add(p.subtype);
+                    types.add(p.objtype);
+                    predicates.add(p.predicate);
                 }
+
+                for (Map.Entry<String, String> me : cuis.entrySet()) {
+                    addTextField (doc, FIELD_CUI, me.getKey());
+                    addTextField (doc, FIELD_CONCEPT, " cui=\""
+                                  +me.getKey()+"\"", me.getValue());
+                }
+                for (String type : types)
+                    doc.add(new FacetField (FIELD_SEMTYPE, type));
+                for (String pred : predicates)
+                    doc.add(new FacetField (FIELD_PREDICATE, pred));
             }
             catch (Exception ex) {
                 Logger.error("Can't retrieve Predications for "
                              +d.getPMID(), ex);
             }
+        }
+
+        if (d.xml != null) {
+            BytesRef ref = new BytesRef (toCompressedBytes (d.xml));
+            doc.add(new StoredField (FIELD_XML, ref));
         }
         
         return doc;
@@ -372,19 +405,6 @@ public class PubMedIndex extends MetaMapIndex {
             if (fr != null)
                 Logger.debug(fr.toString());
 
-            /*
-            IndexReader reader = searcher.getIndexReader();
-            Document doc = reader.document(reader.maxDoc() - 1);
-            JsonNode[] json = toJson (doc, FIELD_MM_TITLE);
-            if (json.length > 0) {
-                Logger.debug(">>> MetaMap Title Json:\n"+json[0]);
-            }
-            json = toJson (doc, FIELD_MM_ABSTRACT);
-            for (JsonNode n : json) {
-                Logger.debug(">>>> MetaMap Abstract Json:\n"+n);
-            }
-            */
-            
             IOUtils.close(taxonReader);
         }
         finally {
@@ -406,16 +426,8 @@ public class PubMedIndex extends MetaMapIndex {
             String[] mesh = doc.getValues(FIELD_UI);
             for (String ui : mesh)
                 md.mesh.add(ui);
-            JsonNode[] json = toJson (doc, FIELD_MM_TITLE);
-            if (json != null && json.length > 0) {
-                md.mm_title = json[0]; // there should only be one!
-            }
-            
-            json = toJson (doc, FIELD_MM_ABSTRACT);
-            if (json != null && json.length > 0) {
-                md.mm_abstract = json.length == 1
-                    ? json[0] : Json.toJson(json);
-            }
+
+            md.doc = getXmlDoc (doc, FIELD_XML);
         }
         else {
             md = null;
@@ -423,9 +435,23 @@ public class PubMedIndex extends MetaMapIndex {
         return md;
     }
 
-    public SearchResult search (Query query) throws Exception {
+    public MatchedDoc getDoc (long pmid) throws Exception {
+        NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
+            (FIELD_PMID, pmid, pmid, true, true);
+        SearchResult result = search (query, EMPTY_FACETS);
+        if (result.docs.isEmpty())
+            return null;
+        
+        int size = result.docs.size();
+        if (size > 1)
+            Logger.warn("PMID "+pmid+" has "+size+" documents!");
+        return result.docs.get(size-1);
+    }
+
+    public SearchResult search (Query query, Map<String, Object> facets)
+        throws Exception {
         SearchResult results = new SearchResult ();
-        search (query, results);
+        search (query, facets, results);
         /*
         for (Facet f : results.facets)
             Logger.debug(f.toString());
@@ -447,17 +473,20 @@ public class PubMedIndex extends MetaMapIndex {
         return results;
     }
     
-    public SearchResult search (String text) throws Exception {
+    public SearchResult search (String text, Map<String, Object> facets)
+        throws Exception {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
-        SearchResult result = search (parser.parse(text));
-        Logger.debug("## searching for \""+text+"\"..."
+        SearchResult result = search (parser.parse(text), facets);
+        Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
     }
 
-    public SearchResult search (String field, String term) throws Exception {
-        SearchResult result = search (new TermQuery (new Term (field, term)));
+    public SearchResult search (String field, String term,
+                                Map<String, Object> facets) throws Exception {
+        SearchResult result = search
+            (new TermQuery (new Term (field, term)), facets);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
@@ -481,12 +510,13 @@ public class PubMedIndex extends MetaMapIndex {
                         index.add(d);
                         Logger.debug(d.getPMID()+": "+d.getTitle());
                         if (count.incrementAndGet() > 100) {
-                            throw new RuntimeException ("done!");
+                            return false;
                         }
                     }
                     catch (IOException ex) {
                         Logger.error("Can't index document "+d.getPMID(), ex);
                     }
+                    return true;
                 });
             
             for (int i = 2; i < argv.length; ++i) {
@@ -507,24 +537,65 @@ public class PubMedIndex extends MetaMapIndex {
     public static class Search {
         public static void main (String[] argv) throws Exception {
             if (argv.length < 2) {
-                System.err.println("PubMedIndex$Search INDEXDB TERMS...");
+                System.err.println
+                    ("PubMedIndex$Search INDEXDB QUERY [FACETS]...");
+                System.exit(1);
+            }
+
+            try (PubMedIndex index =
+                 new PubMedIndex (new File (argv[0]), null)) {
+                Map<String, Object> facets = new LinkedHashMap<>();
+                if (argv.length > 2) {
+                    // format: FIELD:L0/L1/L2...
+                    for (int i = 2; i < argv.length; ++i) {
+                        int pos = argv[i].indexOf(':');
+                        if (pos <= 0) {
+                            Logger.error("Not a valid facet: "+argv[i]);
+                        }
+                        else {
+                            String name = argv[i].substring(0, pos);
+                            String vals = argv[i].substring(pos+1);
+                            facets.put(name, vals.split("/"));
+                            Logger.debug("facet: "+name+"="+vals);
+                        }
+                    }
+                }
+                
+                SearchResult result = index.search(argv[1], facets);
+                for (MatchedDoc d : result.docs) {
+                    System.out.println(d.pmid+": "+d.title);
+                    for (String f : d.fragments)
+                        System.out.println("..."+f);
+                    System.out.println("=== XML ===\n"+d.toXmlString());
+                }
+
+                for (Facet f : result.facets)
+                    Logger.debug(f.toString());
+            }
+        }
+    }
+
+    public static class Doc {
+        public static void main (String[] argv) throws Exception {
+            if (argv.length < 2) {
+                System.err.println
+                    ("PubMedIndex$Doc INDEXDB PMIDS...");
                 System.exit(1);
             }
 
             try (PubMedIndex index =
                  new PubMedIndex (new File (argv[0]), null)) {
                 for (int i = 1; i < argv.length; ++i) {
-                    SearchResult result = index.search(argv[i]);
-                    for (MatchedDoc d : result.docs) {
-                        System.out.println(d.pmid+": "+d.title);
-                        for (String f : d.fragments)
-                            System.out.println("..."+f);
-                        //System.out.println("title_mm: "+d.mm_title);
-                        System.out.println();
+                    try {
+                        long pmid = Long.parseLong(argv[i]);
+                        MatchedDoc doc = index.getDoc(pmid);
+                        Logger.debug("======== "+pmid+" ========");
+                        if (doc != null)
+                            Logger.debug(doc.toXmlString());
                     }
-
-                    for (Facet f : result.facets)
-                        Logger.debug(f.toString());
+                    catch (Exception ex) {
+                        Logger.error("Can't retrieve doc for "+argv[i], ex);
+                    }
                 }
             }
         }

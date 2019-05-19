@@ -27,10 +27,11 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import javax.xml.parsers.DocumentBuilderFactory;
 import com.google.inject.assistedinject.Assisted;
 
 public class Index implements AutoCloseable, Fields {
-    
     public static class FV {
         public FV parent;
         public Integer total;        
@@ -143,8 +144,13 @@ public class Index implements AutoCloseable, Fields {
     final protected DirectoryTaxonomyWriter taxonWriter;
     final protected FacetsConfig facetConfig;
     final protected SearcherManager searcherManager;
+    final protected int maxHits;
 
     protected Index (File dir) throws IOException {
+        this (dir, 10000);
+    }
+    
+    protected Index (File dir, int maxHits) throws IOException {
         File text = new File (dir, "text");
         text.mkdirs();
         indexDir = new NIOFSDirectory (text.toPath());
@@ -166,6 +172,7 @@ public class Index implements AutoCloseable, Fields {
         searcherManager = new SearcherManager
             (indexWriter, new SearcherFactory ());
         this.root = dir;
+        this.maxHits = maxHits;
     }
 
     /*
@@ -253,8 +260,15 @@ public class Index implements AutoCloseable, Fields {
         return lf;
     }
 
-    protected int search (Query query, SearchResult results)
-        throws Exception {
+    protected int search (Query query, SearchResult results) throws Exception {
+        return search (query, null, results);
+    }
+    
+    protected int search (Query query, Map<String, Object> fmap,
+                          SearchResult results) throws Exception {
+        long start = System.currentTimeMillis();
+        Logger.debug("### Query: "+query+" Facets: "+fmap);
+        
         try (IndexReader reader = DirectoryReader.open(indexWriter);
              TaxonomyReader taxonReader =
              new DirectoryTaxonomyReader (taxonWriter)) {
@@ -263,22 +277,123 @@ public class Index implements AutoCloseable, Fields {
             FieldQuery fq = fvh.getFieldQuery(query, reader);
             IndexSearcher searcher = new IndexSearcher (reader);
             FacetsCollector fc = new FacetsCollector ();
-            TopDocs docs = FacetsCollector.search
-                (searcher, query, reader.maxDoc(), fc);
-            Facets facets = new FastTaxonomyFacetCounts
-                (taxonReader, facetConfig, fc);
-            int nd = 0;
-            for (; nd < docs.totalHits; ++nd) {
-                int docId = docs.scoreDocs[nd].doc;
-                ResultDoc rdoc = new ResultDoc
-                    (searcher.doc(docId), docId, reader, fq, fvh);
-                if (!results.process(rdoc))
-                    break;
+
+            int max = Math.min(maxHits, reader.maxDoc());
+            Facets facets;
+            TopDocs docs;
+            if (fmap == null || fmap.isEmpty()) {
+                docs = FacetsCollector.search(searcher, query, max, fc);
+                facets = new FastTaxonomyFacetCounts
+                    (taxonReader, facetConfig, fc);
             }
-            results.facets.addAll(toFacets (facets, results.fdim));
+            else {
+                DrillDownQuery ddq = new DrillDownQuery (facetConfig, query);
+                for (Map.Entry<String, Object> me : fmap.entrySet()) {
+                    Object value = me.getValue();
+                    if (value instanceof String[]) {
+                        ddq.add(me.getKey(), (String[]) value);
+                    }
+                    else {
+                        ddq.add(me.getKey(), (String) value);
+                    }
+                }
+                
+                DrillSideways sideway = new DrillSideways 
+                    (searcher, facetConfig, taxonReader);
+                DrillSideways.DrillSidewaysResult swresults = 
+                    sideway.search(ddq, max);
+
+                // collector
+                FacetsCollector.search(searcher, ddq, max, fc);
+                facets = swresults.facets;
+                docs = swresults.hits;
+            }
+            
+            int nd = 0;
+            if (docs != null) {
+                for (; nd < docs.totalHits; ++nd) {
+                    int docId = docs.scoreDocs[nd].doc;
+                    ResultDoc rdoc = new ResultDoc
+                        (searcher.doc(docId), docId, reader, fq, fvh);
+                    if (!results.process(rdoc))
+                        break;
+                }
+                results.facets.addAll(toFacets (facets, results.fdim));
+            }
+
+            Logger.debug("## Query executes in "
+                         +String.format
+                         ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
+                         +"..."+nd+" hit(s) found!");
             
             return nd;
         }
+    }
+
+    public static byte[] toCompressedBytes (JsonNode json) throws IOException {
+        return toCompressedBytes (Json.mapper().writeValueAsBytes(json));
+    }
+
+    public static byte[] toCompressedBytes (byte[] data) throws IOException {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
+             GZIPOutputStream gzip = new GZIPOutputStream (bos);) {
+            gzip.write(data, 0, data.length);
+            gzip.close();
+            return bos.toByteArray();
+        }
+    }
+
+    public static byte[] getByteArray (Document doc, String field)
+        throws IOException {
+        BytesRef ref = doc.getBinaryValue(field);
+        if (ref != null) {
+            try (ByteArrayInputStream bis = new ByteArrayInputStream
+                 (ref.bytes, ref.offset, ref.length);
+                 ByteArrayOutputStream bos = new ByteArrayOutputStream (1024);
+                 GZIPInputStream gzip = new GZIPInputStream (bis)) {
+                byte[] buf = new byte[1024];
+                for (int nb; (nb = gzip.read(buf, 0, buf.length)) != -1; ) {
+                    bos.write(buf, 0, nb);
+                }
+                return bos.toByteArray();
+            }
+        }
+        return null;
+    }
+
+    public static org.w3c.dom.Document getXmlDoc (Document doc, String field)
+        throws IOException {
+        byte[] xml = getByteArray (doc, field);
+        if (xml != null) {
+            try {
+                return DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    .parse(new ByteArrayInputStream (xml));
+            }
+            catch (Exception ex) {
+                Logger.error("Can't parse xml:\n"+new String (xml), ex);
+            }
+        }
+        return null;
+    }
+    
+    public static JsonNode[] getJson (Document doc, String field)
+        throws IOException {
+        BytesRef[] brefs = doc.getBinaryValues(field);
+        List<JsonNode> json = new ArrayList<>();
+        for (BytesRef ref : brefs) {
+            try (ByteArrayInputStream bis = new ByteArrayInputStream
+                 (ref.bytes, ref.offset, ref.length);
+                 ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
+                 GZIPInputStream gzip = new GZIPInputStream (bis)) {
+                byte[] buf = new byte[1024];
+                for (int nb; (nb = gzip.read(buf, 0, buf.length)) != -1; ) {
+                    bos.write(buf, 0, nb);
+                }
+                JsonNode n = Json.mapper().readTree(bos.toByteArray());
+                json.add(n);
+            }
+        }
+        return json.toArray(new JsonNode[0]);
     }
     
     public static void main (String[] argv) throws Exception {

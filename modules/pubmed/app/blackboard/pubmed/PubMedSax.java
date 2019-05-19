@@ -16,12 +16,18 @@ import java.util.*;
 import java.io.InputStream;
 import java.io.FilterInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import play.Logger;
 
 public class PubMedSax extends DefaultHandler {
+    static final byte[] TAG_START = "<PubmedArticle>".getBytes();
+    static final byte[] TAG_STOP = "</PubmedArticle>".getBytes();
+    static final byte[] TAG_XML = "<?xml version=\"1.0\"?>\n".getBytes();
+    
     StringBuilder content = new StringBuilder ();
     LinkedList<String> stack = new LinkedList<>();
     PubMedDoc doc;
@@ -29,43 +35,110 @@ public class PubMedSax extends DefaultHandler {
     String idtype, ui, majorTopic;
     MeshHeading mh;
     final MeshDb mesh;
-    Consumer<PubMedDoc> consumer;
+    Predicate<PubMedDoc> consumer;
     Map<String, Object> author = new LinkedHashMap<>();
     Map<String, Object> grant = new LinkedHashMap<>();
     Map<String, Object> reference = new LinkedHashMap<>();
-
     CaptureInputStream cis;
-
+    
     static class CaptureInputStream extends FilterInputStream {
         ByteArrayOutputStream buf = new ByteArrayOutputStream (1024);
-        int start = 0, stop = 0;
-        static byte[] S = "<PubmedArticle>".getBytes();
-        static byte[] E = "</PubmedArticle>".getBytes();
-        
+        int start, stop;
+        Consumer<byte[]> consumer;
+        boolean done;
+
         CaptureInputStream (InputStream is) {
+            this (is, null);
+        }
+        
+        CaptureInputStream (InputStream is, Consumer<byte[]> consumer) {
             super (is);
+            this.consumer = consumer;
+            clear ();
+        }
+
+        void clear () {
+            start = 0;
+            stop = 0;
+            buf.reset();
+            try {
+                buf.write(TAG_XML);
+            }
+            catch (IOException ex) {
+                Logger.error("Can't write xml", ex);
+            }
+        }
+
+        void publish () {
+            if (buf.size() > TAG_XML.length) {
+                byte[] xml = buf.toByteArray();
+                if (consumer != null)
+                    consumer.accept(xml);
+            }
+        }
+        
+        void add (byte b) {
+            if (start == TAG_START.length) {
+                buf.write(b);
+                if (stop < TAG_STOP.length && b == TAG_STOP[stop]) {
+                    if (++stop == TAG_STOP.length) {
+                        publish ();
+                        clear ();
+                    }
+                }
+                else stop = 0;
+            }
+            else if (start < TAG_START.length && b == TAG_START[start]) {
+                buf.write(b);
+                ++start;
+            }
+            else {
+                clear ();
+            }
         }
 
         public int read () throws IOException {
+            if (done) return -1;
             int ch = super.read();
+            if (ch != -1) {
+                byte b = (byte)(ch & 0xff);
+                add (b);
+            }
+            else publish ();
             return ch;
         }
+        
         public int read (byte[] b) throws IOException {
+            if (done) return -1;
             int nb = super.read(b);
+            if (nb != -1) {
+                for (int i = 0; i < nb; ++i)
+                    add (b[i]);
+            }
+            else
+                publish ();
+                
             return nb;
         }
+        
         public int read (byte[] b, int off, int len) throws IOException {
+            if (done) return -1;
             int nb = super.read(b, off, len);
+            if (nb != -1) {
+                for (int i = 0; i < nb; ++i)
+                    add (b[off+i]);
+            }
+            else publish ();
             return nb;
         }
-        public byte[] data () { return buf.toByteArray(); }
+        protected void setDone (boolean done) { this.done = done; }
     }
     
-    public PubMedSax (Consumer<PubMedDoc> consumer) {
+    public PubMedSax (Predicate<PubMedDoc> consumer) {
         this (null, consumer);
     }
 
-    public PubMedSax (MeshDb mesh, Consumer<PubMedDoc> consumer) {
+    public PubMedSax (MeshDb mesh, Predicate<PubMedDoc> consumer) {
         this.mesh = mesh;
         this.consumer = consumer;
     }
@@ -80,8 +153,21 @@ public class PubMedSax extends DefaultHandler {
         spf.setFeature
             ("http://apache.org/xml/features/nonvalidating/load-dtd-grammar",
             false);
-        cis = new CaptureInputStream (is);
-        spf.newSAXParser().parse(cis, this);
+        SAXParser sax = spf.newSAXParser();
+        cis = new CaptureInputStream (is, xml -> {
+                doc = new PubMedDoc ();
+                doc.xml = xml;
+                try (InputStream iis = new ByteArrayInputStream (xml)) {
+                    sax.parse(iis, PubMedSax.this);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't parse XML:\n"+new String (xml), ex);
+                }
+            });
+        
+        byte[] buf = new byte[8192];
+        for (int nb; (nb = cis.read(buf, 0, buf.length)) != -1;)
+            ;
     }
     
     public void startDocument () {
@@ -94,7 +180,7 @@ public class PubMedSax extends DefaultHandler {
                               Attributes attrs) {
         switch (qName) {
         case "PubmedArticle":
-            doc = new PubMedDoc ();
+            //doc = new PubMedDoc ();
             break;
         case "PubDate":
             cal.clear();
@@ -282,7 +368,8 @@ public class PubMedSax extends DefaultHandler {
             
         case "PubmedArticle":
             if (consumer != null) {
-                consumer.accept(doc);
+                if (!consumer.test(doc))
+                    cis.setDone(true);
             }
             break;
 
@@ -307,7 +394,9 @@ public class PubMedSax extends DefaultHandler {
         }
 
         PubMedSax pms = new PubMedSax (d -> {
-                System.out.println(d.getPMID()+": "+d.getTitle());
+                Logger.debug(d.getPMID()+": "+d.getTitle());
+                Logger.debug("-------\n\""+new String (d.xml)+"\"");
+                return true;
             });
         for (String a : argv) {
             pms.parse(new java.util.zip.GZIPInputStream

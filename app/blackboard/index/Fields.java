@@ -33,4 +33,5 @@ public interface Fields {
     public static final String FIELD_GRANTTYPE = "granttype";
     public static final String FIELD_GRANTAGENCY = "grantagency";
     public static final String FIELD_GRANTCOUNTRY = "grantcountry";
+    public static final String FIELD_XML = "xml";
 }    

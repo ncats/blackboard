@@ -278,13 +278,16 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
             futures[i] = es.submit(new IndexTask ());
         
         new PubMedSax(mesh, d -> {
+                boolean cont = false;
                 try {
                     //Logger.debug("queuing "+d.pmid+"...");
                     queue.put(d);
+                    cont = true;
                 }
                 catch (Exception ex) {
                     Logger.error("Can't queue document", ex);
                 }
+                return cont;
         }).parse(is);
         
         for (Future f : futures)

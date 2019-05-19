@@ -30,6 +30,7 @@ import gov.nih.nlm.nls.metamap.Utterance;
 import org.apache.lucene.document.*;
 import org.apache.lucene.facet.*;
 import org.apache.lucene.util.BytesRef;
+
 import blackboard.umls.MetaMap;
 
 public class MetaMapIndex extends Index {
@@ -106,35 +107,5 @@ public class MetaMapIndex extends Index {
             }
         }
         return json;
-    }
-
-    protected byte[] toCompressedBytes (JsonNode json) throws IOException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
-             GZIPOutputStream gzip = new GZIPOutputStream (bos);) {
-            byte[] data = mapper.writeValueAsBytes(json);
-            gzip.write(data, 0, data.length);
-            gzip.close();
-            return bos.toByteArray();
-        }
-    }
-
-    protected JsonNode[] toJson (Document doc, String field)
-        throws IOException {
-        BytesRef[] brefs = doc.getBinaryValues(field);
-        List<JsonNode> json = new ArrayList<>();
-        for (BytesRef ref : brefs) {
-            try (ByteArrayInputStream bis = new ByteArrayInputStream
-                 (ref.bytes, ref.offset, ref.length);
-                 ByteArrayOutputStream bos = new ByteArrayOutputStream (1000);
-                 GZIPInputStream gzip = new GZIPInputStream (bis)) {
-                byte[] buf = new byte[1024];
-                for (int nb; (nb = gzip.read(buf, 0, buf.length)) != -1; ) {
-                    bos.write(buf, 0, nb);
-                }
-                JsonNode n = mapper.readTree(bos.toByteArray());
-                json.add(n);
-            }
-        }
-        return json.toArray(new JsonNode[0]);
     }
 }

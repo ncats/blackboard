@@ -121,24 +121,20 @@ public class PubMedIndexBuilder implements AutoCloseable {
         
         AtomicInteger count = new AtomicInteger ();
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
+                boolean cont = false;
                 if (true || count.incrementAndGet() < 200) {
                     try {
                         queue.put(d);
+                        cont = true;
                     }
                     catch (Exception ex) {
                         Logger.error("Can't queue document "+d.getPMID(), ex);
                     }
                 }
-                else
-                    throw new RuntimeException ("done!");
+                return cont;
             });
 
-        try {
-            pms.parse(is);
-        }
-        catch (RuntimeException ex) {
-            Logger.debug("###### DONE!");
-        }
+        pms.parse(is);
     }
 
     public void build (InputStream is) throws Exception {

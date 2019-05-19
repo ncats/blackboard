@@ -60,7 +60,7 @@ public class Controller extends play.mvc.Controller {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    PubMedIndex.SearchResult result = pmi.search(q);
+                    PubMedIndex.SearchResult result = pmi.search(q, null);
                     return ok (Json.toJson(result.docs));
                 }
                 catch (Exception ex) {
