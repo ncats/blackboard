@@ -5,12 +5,15 @@ import play.libs.Json;
 
 import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
+import blackboard.mesh.MeshKSource;
 import blackboard.mesh.Descriptor;
 import blackboard.index.MetaMapIndex;
 import blackboard.semmed.SemMedDbKSource;
 import blackboard.semmed.Predication;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
+
 import java.io.*;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
@@ -34,8 +37,13 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.commons.lang3.text.WordUtils;
 
+import org.apache.commons.lang3.text.WordUtils;
+import org.apache.commons.lang3.StringUtils;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.DocumentType;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -87,8 +95,12 @@ public class PubMedIndex extends MetaMapIndex {
 
     public class SearchResult extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
+        public final Map<Integer, Integer> years = new TreeMap<>();
         
+        final MeshDb mesh;
         protected SearchResult () {
+            mesh = PubMedIndex.this.mesh != null
+                ? PubMedIndex.this.mesh.getMeshDb() : null;
         }
 
         protected boolean process (blackboard.index.Index.ResultDoc rdoc) {
@@ -99,6 +111,12 @@ public class PubMedIndex extends MetaMapIndex {
                     for (String f : frags)
                         mdoc.fragments.add(f);
                 }
+                
+                if (mdoc.year != null) {
+                    Integer c = years.get(mdoc.year);
+                    years.put(mdoc.year, c!=null ? c+1:1);
+                }
+                
                 docs.add(mdoc);
             }
             catch (IOException ex) {
@@ -106,15 +124,86 @@ public class PubMedIndex extends MetaMapIndex {
             }
             return true;
         }
+
+        protected void updateFacets () {
+            if (mesh == null)
+                return;
+            
+            for (Facet f : facets) {
+                switch (f.name) {
+                case FIELD_TR: // treeNumber
+                    for (FV fv : f.values)
+                        updateTreeNumber (fv);
+                    break;
+                        
+                case FIELD_MESH:
+                case FIELD_PUBTYPE:
+                    for (FV fv : f.values) {
+                        Descriptor desc = (Descriptor)mesh.getEntry(fv.label);
+                        //Logger.debug(fv.label +" => "+desc);
+                        if (desc != null)
+                            fv.display = desc.getName();
+                    }
+                    break;
+                }
+            }
+        }
+
+        protected void updateTreeNumber (FV fv) {
+            for (FV p = fv; p != null; p = p.parent) {
+                String path = StringUtils.join(p.toPath(), '.');
+                if (p .display == null) {
+                    List<Descriptor> desc =
+                        mesh.getDescriptorsByTreeNumber(path);
+                    if (desc.isEmpty())
+                        Logger.warn
+                            ("No Descriptor found for tree nubmer: "+path);
+                    else {
+                        if (desc.size() > 1) {
+                            Logger.warn
+                                (desc.size()
+                                 +" descriptors found for tree nubmer: "
+                                 +path);
+                        }
+                        p.display = desc.get(0).getName();
+                    }
+                }
+            }
+            
+            for (FV child : fv.children)
+                updateTreeNumber (child);
+        }
+
+        public void exportXML (OutputStream os) throws Exception {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder();
+            org.w3c.dom.Document doc = builder.newDocument();
+            //doc.setXmlStandalone(true);
+            DocumentType doctype =
+                doc.getImplementation().createDocumentType
+                ("PubmedArticleSet",
+                 "-//NLM//DTD PubMedArticle, 1st January 2019//EN",
+                 "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd");
+            doc.appendChild(doctype);
+            
+            org.w3c.dom.Element container =
+                doc.createElement("PubmedArticleSet");
+            for (MatchedDoc md : docs) {
+                org.w3c.dom.Node node = doc.importNode
+                    (md.doc.getDocumentElement(), true);
+                container.appendChild(node);
+            }
+            TransformerFactory.newInstance().newTransformer()
+                .transform(new DOMSource (container), new StreamResult (os));
+        }
     }
 
-    public final SemMedDbKSource semmed;
+    @Inject public SemMedDbKSource semmed;
+    @Inject public MeshKSource mesh;
     
     @Inject
-    public PubMedIndex (@Assisted File dir, SemMedDbKSource semmed)
-        throws IOException {
+    public PubMedIndex (@Assisted File dir) throws IOException {
         super (dir);
-        this.semmed = semmed;
     }
 
     @Override
@@ -450,27 +539,10 @@ public class PubMedIndex extends MetaMapIndex {
 
     public SearchResult search (Query query, Map<String, Object> facets)
         throws Exception {
-        SearchResult results = new SearchResult ();
-        search (query, facets, results);
-        /*
-        for (Facet f : results.facets)
-            Logger.debug(f.toString());
-
-          Logger.debug(facets.getTopChildren(20, FIELD_MESH).toString());
-          Logger.debug(facets.getTopChildren
-          (20, "tr", "A11.251.860.180".split("\\."))
-          .toString());
-          
-          FacetResult fr = facets.getTopChildren(100, FIELD_MESH);
-          for (int i = 0; i < fr.labelValues.length; ++i) {
-          LabelAndValue lv = fr.labelValues[i];
-          Logger.debug(i+": "+lv.label+" ["+lv.value+"]");
-          }
-          Logger.debug(facets.getTopChildren(20, FIELD_CONCEPT).toString());
-          Logger.debug(facets.getTopChildren(20, FIELD_SEMTYPE).toString());
-          Logger.debug(facets.getTopChildren(20, FIELD_SOURCE).toString());
-        */
-        return results;
+        SearchResult result = new SearchResult ();
+        search (query, facets, result);
+        result.updateFacets();
+        return result;
     }
     
     public SearchResult search (String text, Map<String, Object> facets)
@@ -478,6 +550,7 @@ public class PubMedIndex extends MetaMapIndex {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
         SearchResult result = search (parser.parse(text), facets);
+        result.updateFacets();
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
@@ -487,6 +560,7 @@ public class PubMedIndex extends MetaMapIndex {
                                 Map<String, Object> facets) throws Exception {
         SearchResult result = search
             (new TermQuery (new Term (field, term)), facets);
+        result.updateFacets();
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.docs.size()+" hit(s)!");
         return result;
@@ -502,7 +576,7 @@ public class PubMedIndex extends MetaMapIndex {
         Logger.debug("##  MeshDb: "+argv[1]);
 
         try (MeshDb mesh = new MeshDb (new File (argv[1]));
-             PubMedIndex index = new PubMedIndex (new File (argv[0]), null)) {
+             PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
 
             AtomicInteger count = new AtomicInteger ();
             PubMedSax pms = new PubMedSax (mesh, d -> {
@@ -534,47 +608,6 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
-    public static class Search {
-        public static void main (String[] argv) throws Exception {
-            if (argv.length < 2) {
-                System.err.println
-                    ("PubMedIndex$Search INDEXDB QUERY [FACETS]...");
-                System.exit(1);
-            }
-
-            try (PubMedIndex index =
-                 new PubMedIndex (new File (argv[0]), null)) {
-                Map<String, Object> facets = new LinkedHashMap<>();
-                if (argv.length > 2) {
-                    // format: FIELD:L0/L1/L2...
-                    for (int i = 2; i < argv.length; ++i) {
-                        int pos = argv[i].indexOf(':');
-                        if (pos <= 0) {
-                            Logger.error("Not a valid facet: "+argv[i]);
-                        }
-                        else {
-                            String name = argv[i].substring(0, pos);
-                            String vals = argv[i].substring(pos+1);
-                            facets.put(name, vals.split("/"));
-                            Logger.debug("facet: "+name+"="+vals);
-                        }
-                    }
-                }
-                
-                SearchResult result = index.search(argv[1], facets);
-                for (MatchedDoc d : result.docs) {
-                    System.out.println(d.pmid+": "+d.title);
-                    for (String f : d.fragments)
-                        System.out.println("..."+f);
-                    System.out.println("=== XML ===\n"+d.toXmlString());
-                }
-
-                for (Facet f : result.facets)
-                    Logger.debug(f.toString());
-            }
-        }
-    }
-
     public static class Doc {
         public static void main (String[] argv) throws Exception {
             if (argv.length < 2) {
@@ -583,8 +616,7 @@ public class PubMedIndex extends MetaMapIndex {
                 System.exit(1);
             }
 
-            try (PubMedIndex index =
-                 new PubMedIndex (new File (argv[0]), null)) {
+            try (PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
                 for (int i = 1; i < argv.length; ++i) {
                     try {
                         long pmid = Long.parseLong(argv[i]);

@@ -78,9 +78,8 @@ public class GeneRIFIndex extends PubMedIndex {
     }
 
     @Inject
-    public GeneRIFIndex (@Assisted File dir, SemMedDbKSource semmed)
-        throws IOException {
-        super (dir, semmed);
+    public GeneRIFIndex (@Assisted File dir) throws IOException {
+        super (dir);
     }
 
     protected Document instrument (Document doc, PubMedDoc d, String gene,
@@ -164,7 +163,7 @@ public class GeneRIFIndex extends PubMedIndex {
                 System.exit(1);
         }
         
-        try (GeneRIFIndex index = new GeneRIFIndex (new File (argv[0]), null)) {
+        try (GeneRIFIndex index = new GeneRIFIndex (new File (argv[0]))) {
             for (int i = 1; i < argv.length; ++i) {
                 SearchResult result = index.search(argv[i], null);
                 for (Facet f : result.facets)

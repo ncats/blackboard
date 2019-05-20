@@ -34,7 +34,8 @@ import com.google.inject.assistedinject.Assisted;
 public class Index implements AutoCloseable, Fields {
     public static class FV {
         public FV parent;
-        public Integer total;        
+        public Integer total;
+        public String display;
         public final String label;
         public final Integer count;
         public final List<FV> children = new ArrayList<>();
@@ -70,8 +71,11 @@ public class Index implements AutoCloseable, Fields {
 
         static void print (StringBuilder sb, FV fv) {
             for (FV p = fv; p != null; p = p.parent)
-                sb.append(" ");
-            sb.append(fv.label+" ("+fv.count+")\n");
+                sb.append(".");
+            if (fv.display != null)
+                sb.append("["+fv.label+"] "+fv.display+" ("+fv.count+")\n");
+            else
+                sb.append(fv.label+" ("+fv.count+")\n");
             for (FV child : fv.children)
                 print (sb, child);
         }
@@ -84,6 +88,7 @@ public class Index implements AutoCloseable, Fields {
     }
     
     public static class Facet {
+        public String display;
         public final String name;
         public final List<FV> values = new ArrayList<>();
 
@@ -100,7 +105,7 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
-    protected class ResultDoc {
+    protected static class ResultDoc {
         public final Document doc;
         public final int docId;
         public final IndexReader reader;
@@ -321,7 +326,7 @@ public class Index implements AutoCloseable, Fields {
                 results.facets.addAll(toFacets (facets, results.fdim));
             }
 
-            Logger.debug("## Query executes in "
+            Logger.debug("### Query executed in "
                          +String.format
                          ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
                          +"..."+nd+" hit(s) found!");
@@ -366,8 +371,11 @@ public class Index implements AutoCloseable, Fields {
         byte[] xml = getByteArray (doc, field);
         if (xml != null) {
             try {
-                return DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                org.w3c.dom.Document d =
+                    DocumentBuilderFactory.newInstance().newDocumentBuilder()
                     .parse(new ByteArrayInputStream (xml));
+                d.setXmlStandalone(true);
+                return d;
             }
             catch (Exception ex) {
                 Logger.error("Can't parse xml:\n"+new String (xml), ex);

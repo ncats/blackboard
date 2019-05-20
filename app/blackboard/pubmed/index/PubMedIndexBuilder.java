@@ -14,19 +14,17 @@ import javax.inject.Inject;
 
 import blackboard.pubmed.*;
 import blackboard.umls.UMLSKSource;
-import blackboard.mesh.MeshDb;
+import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
 
 public class PubMedIndexBuilder implements AutoCloseable {
     
     class Builder implements Callable<PubMedIndex> {
-        PubMedIndex index;
+        final PubMedIndex index;
         int count;
 
-        Builder (File db, UMLSKSource umls, SemMedDbKSource semmed)
-            throws IOException {
-            index = new PubMedIndex (db, semmed);
-            index.setMetaMap(umls.getMetaMap());
+        Builder (PubMedIndex index) {
+            this.index = index;
         }
 
         public PubMedIndex call () throws Exception {
@@ -82,9 +80,11 @@ public class PubMedIndexBuilder implements AutoCloseable {
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
             UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
-            SemMedDbKSource semmed =
-                app.injector().instanceOf(SemMedDbKSource.class);
-            this.threads.add(es.submit(new Builder (db, umls, semmed)));
+            PubMedIndex index = new PubMedIndex (db);
+            index.setMetaMap(umls.getMetaMap());
+            index.semmed = app.injector().instanceOf(SemMedDbKSource.class);
+            index.mesh = app.injector().instanceOf(MeshKSource.class);
+            this.threads.add(es.submit(new Builder (index)));
         }
     }
 

@@ -121,7 +121,8 @@ public class GeneRIFIndexBuilder implements AutoCloseable {
 
         Builder (File db, UMLSKSource umls, SemMedDbKSource semmed)
             throws IOException {
-            index = new GeneRIFIndex (db, semmed);
+            index = new GeneRIFIndex (db);
+            index.semmed = semmed;
             index.setMetaMap(umls.getMetaMap());
         }
 

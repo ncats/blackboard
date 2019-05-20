@@ -304,6 +304,10 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         }
         return node;
     }
+    
+    Node getNode (Entry e) {
+        return getNode (e.ui);
+    }
 
     public synchronized void traverse (MeshVisitor visitor) {
         try (Transaction tx = gdb.beginTx();
@@ -349,6 +353,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
     public synchronized List<Descriptor>
         getDescriptorsByTreeNumber (String trNo) {
         List<Descriptor> descriptors = new ArrayList<>();
+        /*
         try (Transaction tx = gdb.beginTx();
              Result result = gdb.execute
              ("match(n) where any(x in n.treeNumbers where x =~ '"
@@ -362,9 +367,37 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
                     descriptors.add((Descriptor)e);
             }
         }
+        */
+        try (Transaction tx = gdb.beginTx()) {
+            Index<Node> index = nodeIndex ();
+            char end = trNo.charAt(trNo.length()-1);
+            if (end == '.') {
+                String tr = trNo.substring(0, trNo.length()-1);
+                try (IndexHits<Node> hits = index.get("parent", tr)) {
+                    for (Node n : hits) {
+                        Entry e = toEntry (n);
+                        descriptors.add((Descriptor)e);
+                    }
+                }
+            }
+            else {
+                try (IndexHits<Node> hits = index.get("treeNumbers", trNo)) {
+                    for (Node n : hits) {
+                        Entry e = toEntry (n);
+                        descriptors.add((Descriptor)e);
+                    }
+                }
+            }
+            tx.success();
+        }
+        
         return descriptors;
     }
 
+    public List<Entry> getParents (Entry e) {
+        return getParents (e.ui);
+    }
+    
     public synchronized List<Entry> getParents (String ui) {
         Node node = getNode (ui);
         if (node != null) {
@@ -545,7 +578,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
                     System.out.println("****** ["+argv[i]+"] ******");
                     for (Descriptor d :
                              mesh.getDescriptorsByTreeNumber(argv[i])) {
-                        System.out.println(d.ui+"\t"+d.name);
+                        System.out.println(d.ui+"\t"+d.name+"\t"+d.treeNumbers);
                     }
                 }
             }
