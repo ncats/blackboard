@@ -76,11 +76,13 @@ public class PubMedIndexSearcher implements AutoCloseable {
                     System.out.println("..."+f);
                 System.out.println("=== XML ===\n"+d.toXmlString());
             }
-            System.out.println("\n********* Full article set *********\n");
+            Logger.debug("\n********* Full article set *********\n");
             result.exportXML(System.out);
             
             for (Index.Facet f : result.facets)
                 Logger.debug(f.toString());
+
+            Logger.debug("####### "+result.size()+" matches!");
         }
     }
 }

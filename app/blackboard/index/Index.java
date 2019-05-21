@@ -139,6 +139,7 @@ public class Index implements AutoCloseable, Fields {
             this.fdim = fdim;
         }
         protected abstract boolean process (ResultDoc doc);
+        public int size () { return 0; }
     }
 
     final protected FieldType tvFieldType;

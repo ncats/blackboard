@@ -103,6 +103,10 @@ public class PubMedIndex extends MetaMapIndex {
                 ? PubMedIndex.this.mesh.getMeshDb() : null;
         }
 
+        
+        @Override
+        public int size () { return docs.size(); }
+        
         protected boolean process (blackboard.index.Index.ResultDoc rdoc) {
             try {
                 MatchedDoc mdoc = toDoc (rdoc.doc);
@@ -189,9 +193,14 @@ public class PubMedIndex extends MetaMapIndex {
             org.w3c.dom.Element container =
                 doc.createElement("PubmedArticleSet");
             for (MatchedDoc md : docs) {
-                org.w3c.dom.Node node = doc.importNode
-                    (md.doc.getDocumentElement(), true);
-                container.appendChild(node);
+                if (md.doc != null) {
+                    org.w3c.dom.Node node = doc.importNode
+                        (md.doc.getDocumentElement(), true);
+                    container.appendChild(node);
+                }
+                else {
+                    Logger.warn(md.pmid+": No XML doc");
+                }
             }
             TransformerFactory.newInstance().newTransformer()
                 .transform(new DOMSource (container), new StreamResult (os));
