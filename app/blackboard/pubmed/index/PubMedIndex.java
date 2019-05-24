@@ -10,6 +10,9 @@ import blackboard.mesh.Descriptor;
 import blackboard.index.MetaMapIndex;
 import blackboard.semmed.SemMedDbKSource;
 import blackboard.semmed.Predication;
+import blackboard.umls.SemanticType;
+import blackboard.umls.UMLSKSource;
+import blackboard.umls.Concept;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -37,6 +40,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.suggest.document.*;
 
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -60,6 +64,7 @@ public class PubMedIndex extends MetaMapIndex {
     static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
 
     public static class MatchedDoc {
+        public Float score;
         public Long pmid;
         public String title;
         public Integer year;
@@ -96,6 +101,7 @@ public class PubMedIndex extends MetaMapIndex {
     public class SearchResult extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
         public final Map<Integer, Integer> years = new TreeMap<>();
+        public final Map<String, String> names = new TreeMap<>();
         
         final MeshDb mesh;
         protected SearchResult () {
@@ -120,7 +126,20 @@ public class PubMedIndex extends MetaMapIndex {
                     Integer c = years.get(mdoc.year);
                     years.put(mdoc.year, c!=null ? c+1:1);
                 }
+
+                for (IndexableField f : rdoc.doc.getFields(FIELD_CONCEPT)) {
+                    String sv = f.stringValue();
+                    if (sv != null) {
+                        int pos = sv.indexOf(':');
+                        if (pos > 0) {
+                            String cui = sv.substring(0, pos);
+                            String name = sv.substring(pos+1);
+                            names.put(cui, name);
+                        }
+                    }
+                }
                 
+                mdoc.score = rdoc.score;
                 docs.add(mdoc);
             }
             catch (IOException ex) {
@@ -130,23 +149,56 @@ public class PubMedIndex extends MetaMapIndex {
         }
 
         protected void updateFacets () {
-            if (mesh == null)
-                return;
-            
             for (Facet f : facets) {
                 switch (f.name) {
                 case FIELD_TR: // treeNumber
-                    for (FV fv : f.values)
-                        updateTreeNumber (fv);
+                    if (mesh != null) {
+                        for (FV fv : f.values)
+                            updateTreeNumber (fv);
+                    }
                     break;
-                        
-                case FIELD_MESH:
+
+                case FIELD_UI:
                 case FIELD_PUBTYPE:
+                    if (mesh != null) {
+                        for (FV fv : f.values) {
+                            Descriptor desc =
+                                (Descriptor)mesh.getEntry(fv.label);
+                            //Logger.debug(fv.label +" => "+desc);
+                            if (desc != null)
+                                fv.display = desc.getName();
+                        }
+                    }
+                    break;
+
+                case FIELD_SEMTYPE:
+                    if (umls != null) {
+                        for (FV fv : f.values) {
+                            SemanticType st = umls.getSemanticType(fv.label);
+                            if (st != null) {
+                                fv.display = st.name;
+                            }
+                            else {
+                                Logger.warn("Unknown semantic type: "+fv.label);
+                            }
+                        }
+                    }
+                    break;
+
+                case FIELD_CUI:
                     for (FV fv : f.values) {
-                        Descriptor desc = (Descriptor)mesh.getEntry(fv.label);
-                        //Logger.debug(fv.label +" => "+desc);
-                        if (desc != null)
-                            fv.display = desc.getName();
+                        /*
+                        try {
+                            Concept concept = umls.getConcept(fv.label);
+                            if (concept != null)
+                                fv.display = concept.name;
+                        }
+                        catch (Exception ex) {
+                            Logger.error("Can't retrieve UMLS concept: "
+                                         +fv.label, ex);
+                        }
+                        */
+                        fv.display = names.get(fv.label);
                     }
                     break;
                 }
@@ -209,6 +261,7 @@ public class PubMedIndex extends MetaMapIndex {
 
     @Inject public SemMedDbKSource semmed;
     @Inject public MeshKSource mesh;
+    @Inject public UMLSKSource umls;
     
     @Inject
     public PubMedIndex (@Assisted File dir) throws IOException {
@@ -220,10 +273,9 @@ public class PubMedIndex extends MetaMapIndex {
         FacetsConfig fc = new FacetsConfig ();
         fc.setMultiValued(FIELD_TR, true);
         fc.setHierarchical(FIELD_TR, true);
-        fc.setMultiValued(FIELD_MESH, true);
+        fc.setMultiValued(FIELD_UI, true);
         fc.setMultiValued(FIELD_SEMTYPE, true); // umls semantic types
         fc.setMultiValued(FIELD_SOURCE, true); // umls sources
-        fc.setMultiValued(FIELD_CONCEPT, true);
         fc.setMultiValued(FIELD_CUI, true);
         fc.setMultiValued(FIELD_PREDICATE, true);
         fc.setMultiValued(FIELD_AUTHOR, true);
@@ -238,7 +290,6 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FIELD_GRANTCOUNTRY, true);
         return fc;
     }
-
 
     public boolean indexed (Long pmid) throws IOException {
         try (IndexReader reader = DirectoryReader.open(indexWriter, true)) {
@@ -355,14 +406,17 @@ public class PubMedIndex extends MetaMapIndex {
         // mesh headings
         for (MeshHeading mh : d.getMeshHeadings()) {
             Descriptor desc = (Descriptor)mh.descriptor;
-            doc.add(new StringField (FIELD_UI, desc.ui, Field.Store.YES));
+            doc.add(new FacetField (FIELD_UI, desc.ui));
             addTextField (doc, FIELD_UI, desc.ui);
             for (String tr : desc.treeNumbers) {
                 Logger.debug("..."+tr);
                 doc.add(new FacetField (FIELD_TR, tr.split("\\.")));
             }
-            doc.add(new FacetField (FIELD_MESH, desc.ui));
-            addTextField (doc, FIELD_MESH, " cui=\""+desc.ui+"\"", desc.name);
+            /*
+            doc.add(new ContextSuggestField (FIELD_MESH, desc.name,
+                                             FIELD_MESH_WEIGHT, desc.ui));
+            */
+            addTextField (doc, FIELD_MESH, " ui=\""+desc.ui+"\"", desc.name);
         }
 
         // identifiers
@@ -421,6 +475,17 @@ public class PubMedIndex extends MetaMapIndex {
                 }
 
                 for (Map.Entry<String, String> me : cuis.entrySet()) {
+                    doc.add(new FacetField (FIELD_CUI, me.getKey()));
+                    /*
+                    doc.add(new ContextSuggestField
+                            (FIELD_CONCEPT, me.getValue(),
+                             FIELD_CONCEPT_WEIGHT, me.getKey()));
+                    */
+                    // store the concept as CUI:NAME so that we can replace
+                    // the cui with its concept name in facet
+                    doc.add(new StoredField
+                            (FIELD_CONCEPT, me.getKey()+":"+me.getValue()));
+                    
                     addTextField (doc, FIELD_CUI, me.getKey());
                     addTextField (doc, FIELD_CONCEPT, " cui=\""
                                   +me.getKey()+"\"", me.getValue());
@@ -440,7 +505,8 @@ public class PubMedIndex extends MetaMapIndex {
             BytesRef ref = new BytesRef (toCompressedBytes (d.xml));
             doc.add(new StoredField (FIELD_XML, ref));
         }
-        
+
+        //Logger.debug("indexed... "+doc);
         return doc;
     }
 
@@ -478,7 +544,7 @@ public class PubMedIndex extends MetaMapIndex {
                          (20, "tr", "D02.455.426.559.847.638".split("\\."))
                          .toString());
             */
-            FacetResult fr = facets.getTopChildren(20, FIELD_MESH);
+            FacetResult fr = facets.getTopChildren(20, FIELD_UI);
             if (fr != null)
                 Logger.debug(fr.toString());
             fr = facets.getTopChildren(20, FIELD_CUI);

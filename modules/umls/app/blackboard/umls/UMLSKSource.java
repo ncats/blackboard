@@ -1,10 +1,12 @@
 package blackboard.umls;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.inject.Named;
 import java.util.regex.*;
 import java.util.*;
 import java.sql.*;
+import java.io.*;
 import java.net.URLEncoder;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Callable;
@@ -20,6 +22,7 @@ import play.libs.F;
 import play.cache.*;
 import play.db.NamedDatabase;
 import play.db.Database;
+import play.Environment;
 
 import akka.actor.ActorSystem;
 
@@ -29,101 +32,23 @@ import play.mvc.Http;
 
 import static blackboard.KEntity.*;
 
+@Singleton
 public class UMLSKSource implements KSource {
-    public final WSClient wsclient;
     public final KSourceProvider ksp;
-    
+
+    private final WSClient wsclient;
     private final SyncCacheApi cache;
     private final Database db;
-    private final TGT tgt;
     private final MetaMap metamap;
     private final String SEMREP_URL;
-
+    public final List<SemanticType> semanticTypes;
+    
     final Pattern cuiregex = Pattern.compile("^[cC]\\d+");    
-    private final Map<String, Set<String>> blacklist;    
-    private final String APIKEY;
-    private final String APIVER;
+    private final Map<String, Set<String>> blacklist;
 
-    class Request {
-        final WSRequest req;
-        Request (String context) throws Exception {
-            req = wsclient.url(ksp.getUri()+"/"+context);
-        }
-        
-        WSRequest q (String param, String value) {
-            return req.setQueryParameter(param, value);
-        }
-    }
-
-    /*
-     * ticket granting ticket
-     */
-    class TGT {
-        String url;
-        TGT () throws Exception {
-            url = getTGTUrl ();
-        }
-
-        String ticket () throws Exception {
-            Logger.debug("URL :"+url);
-            WSResponse res = wsclient.url(url)
-                .setContentType("application/x-www-form-urlencoded")
-                .post("service=http%3A%2F%2Fumlsks.nlm.nih.gov")
-                .toCompletableFuture().get();
-            
-            int status = res.getStatus();
-            String body = res.getBody();
-            
-            if (status == 201 || status == 200)
-                return body;
-
-            Logger.debug("ticket: status="+status+" body="+body);
-            try {
-                // get new tgt url
-                url = getTGTUrl ();
-                return ticket ();
-            }
-            catch (Exception ex) {
-                Logger.error("Can't retrieve TGT url", ex);
-            }
-            return null;
-        }
-    }
-    
-    String getTGTUrl () throws Exception {
-        Logger.debug("getTGTUrl");
-        WSResponse res = wsclient.url
-            ("https://utslogin.nlm.nih.gov/cas/v1/api-key")
-            .setFollowRedirects(true)
-            .setContentType("application/x-www-form-urlencoded")
-            .post("apikey="+APIKEY)
-            .toCompletableFuture().get();
-        Logger.debug(APIKEY);
-        String url = null;
-        int status = res.getStatus();
-        String body = res.getBody();
-        Logger.debug("status="+status);
-        if (status == 201 || status == 200) {
-            int pos = body.indexOf("https");
-            if (pos > 0) {
-                int end = body.indexOf("-cas");
-                if (end > pos) {
-                    url = body.substring(pos, end+4);
-                }
-            }
-            else {
-                Logger.error("Unexpected response: "+body);
-            }
-        }
-        
-        Logger.debug("+++ retrieving TGT.. "
-                     +(url != null ? url : (status+" => "+body)));
-
-        return url;
-    }            
-    
     @Inject
     public UMLSKSource (WSClient wsclient, SyncCacheApi cache,
+                        Environment env,
                         @Named("umls") KSourceProvider ksp,
                         @NamedDatabase("umls") Database db,
                         ApplicationLifecycle lifecycle) {
@@ -133,13 +58,6 @@ public class UMLSKSource implements KSource {
         this.db = db;
 
         Map<String, String> props = ksp.getProperties();
-        APIKEY = props.get("api.key");
-        if (APIKEY == null) {
-            Logger.warn("No UMLS \"apikey\" specified!");
-        }
-
-        APIVER = props.containsKey("api.version")
-            ? props.get("api.version") : "current";
 
         blacklist = new ConcurrentHashMap<>();
         if (ksp.getData() != null) {
@@ -178,32 +96,39 @@ public class UMLSKSource implements KSource {
         else {
             SEMREP_URL = null;
         }
-            
+
+        semanticTypes = new ArrayList<>();
+        String semtype = props.get("semtypes");
+        if (semtype == null)
+            Logger.warn(ksp.getName()
+                        +": No semantic-types property specified!");
+        else {
+            try (BufferedReader br = new BufferedReader
+                 (new InputStreamReader (env.resourceAsStream(semtype)))) {
+                for (String line; (line = br.readLine()) != null; ) {
+                    String[] toks = line.split("\\|");
+                    if (toks.length == 3) {
+                        semanticTypes.add(new SemanticType
+                                          (toks[1], toks[0], toks[2]));
+                    }
+                }
+                Logger.debug(semanticTypes.size()+" semantic types loaded!");
+            }
+            catch (IOException ex) {
+                Logger.error("Can't parse semanticTypes: "+semtype, ex);
+            }
+        }
+        
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 db.shutdown();
                 return CompletableFuture.completedFuture(null);
             });
 
-        TGT _tgt = null;
-        /*
-        try {
-            _tgt = new TGT ();
-        }
-        catch (Exception ex) {
-            Logger.warn("Can't initialize UMLS ticket granting ticket!");
-        }
-        */
-        tgt = _tgt;
-
         try (Connection con = db.getConnection()) {
             Logger.debug("Database connection ok!");
         }
         catch (SQLException ex) {
-            if (tgt == null)
-                throw new RuntimeException
-                    ("UMLS knowledge source is unusable without due to "
-                     +"neither API nor database availability!");
             Logger.warn("Can't connect to database!");
         }
         
@@ -219,7 +144,7 @@ public class UMLSKSource implements KSource {
             for (KNode kn : nodes) {
                 switch (kn.getType()) {
                 case "query":
-                    seedQueryDb ((String) kn.get("term"), kn, kgraph);
+                    seedQuery ((String) kn.get("term"), kn, kgraph);
                     break;
 
                 case "concept":
@@ -229,7 +154,7 @@ public class UMLSKSource implements KSource {
                 default:
                     { String name = (String)kn.get("name");
                         if (name != null) {
-                            seedQueryDb (name, kn, kgraph);
+                            seedQuery (name, kn, kgraph);
                         }
                         else {
                             Logger.debug(ksp.getId()
@@ -247,27 +172,6 @@ public class UMLSKSource implements KSource {
     }
 
     protected void seedQuery (String query, KNode kn, KGraph kg)
-        throws Exception {
-//        //The line below hits the API; should convert to db instance
-        WSRequest req = search (query);
-        WSResponse res = req.get().toCompletableFuture().get();
-        if (200 != res.getStatus()) {
-            Logger.warn(req.getUrl()+": status="+res.getStatus());
-        }
-        else {
-            JsonNode results = res.asJson().get("result").get("results");
-            for (int i = 0; i < results.size(); ++i) {
-                JsonNode n = results.get(i);
-                KNode xn = createConceptNodeIfAbsent (kg, n.get("ui").asText());
-                Map<String, Object> props = new HashMap<>();
-                props.put("value", req.getUrl()+"?string="+query);
-                kg.createEdgeIfAbsent(kn, xn, "resolve", props, null);
-            }
-        }
-
-    }
-    
-    protected void seedQueryDb(String query, KNode kn, KGraph kg)
             throws Exception {
         List<MatchedConcept> concepts = new ArrayList();
         concepts = findConcepts(query);
@@ -290,33 +194,19 @@ public class UMLSKSource implements KSource {
 
     public KNode createConceptNodeIfAbsent (KGraph kg, String cui)
         throws Exception {
-        JsonNode n = getCui (cui);
-        if (n == null)
+        Concept concept = getConcept (cui);
+        if (concept == null)
             return null;
 
         Map<String, Object> props = new HashMap<>();
-        props.put("cui", n.get("ui").asText());
-        String uri = n.get("atoms").asText();
-        int pos = uri.lastIndexOf('/');
-        if (pos > 0) {
-            uri = uri.substring(0, pos);
-        }
-
-        props.put(URI_P, uri);
-        props.put(NAME_P, n.get("name").asText());
+        props.put("cui", concept.cui);
+        props.put(URI_P, "http://purl.obolibrary.org/obo/UMLS_"+concept.cui);
+        props.put(NAME_P, concept.name);
         props.put(TYPE_P, "concept");
-        List<String> types = new ArrayList<>();
         Set<String> semtypes = new TreeSet<>();
-        JsonNode sn = n.get("semanticTypes");
-        for (int i = 0; i < sn.size(); ++i) {
-            String t = sn.get(i).get("uri").asText();
-            pos = t.lastIndexOf('/');
-            if (pos > 0)
-                t = t.substring(pos+1);
-            types.add(t);
-            semtypes.add(sn.get(i).get("name").asText());
-        }
-        props.put("semtypes", types.toArray(new String[0]));
+        for (SemanticType st : concept.semanticTypes)
+            semtypes.add(st.name);
+        props.put("semtypes", semtypes.toArray(new String[0]));
         KNode kn = kg.createNodeIfAbsent(props, URI_P);
         for (String t : kn.getTags())
             semtypes.remove(t);
@@ -326,9 +216,9 @@ public class UMLSKSource implements KSource {
         
         return kn;
     }
+    
     public KNode createConceptNodeIfAbsentDb( KGraph kg, String cui)
-            throws Exception
-    {
+            throws Exception {
         Concept concept = getConcept(cui);
         Map<String, Object> props = new HashMap<>();
         List<String> types = new ArrayList<>();
@@ -351,24 +241,15 @@ public class UMLSKSource implements KSource {
             kn.addTag(semtypes.toArray(new String[0]));
 
         return kn;
-
     }
 
     public Map<String, String> getRelatedCuis (String cui) throws Exception {
-        JsonNode json = getContent (cui, "relations");
         Map<String, String> relations = new HashMap<>();
-        if (json != null) {
-            for (int i = 0; i < json.size(); ++i) {
-                JsonNode n = json.get(i);
-                if (!n.get("obsolete").asBoolean()) {
-                    String rel = n.get("relationLabel").asText();
-                    String uri = n.get("relatedId").asText();
-                    String ui = n.get("ui").asText();
-                    int pos = uri.lastIndexOf('/');
-                    if (pos > 0)
-                        uri = uri.substring(pos+1);
-                    relations.put(ui, rel+":"+uri);
-                }
+        Concept concept = getConcept (cui);
+        if (concept != null) {
+            for (Relation rel : concept.relations) {
+                String ui = rel.cui;
+                relations.put(ui, rel.type+":"+concept.cui);
             }
         }
         return relations;
@@ -398,114 +279,6 @@ public class UMLSKSource implements KSource {
             }
         }
         return edges;
-    }
-
-    public String ticket () throws Exception {
-        if (tgt == null)
-            throw new RuntimeException ("No APIKEY configured!");
-        return tgt.ticket();
-    }
-
-    public WSRequest search (String query) throws Exception {
-        String ticket = ticket ();
-        String url = ksp.getUri()+"/search/"+APIVER;
-            
-        Logger.debug("++ ticket="+ticket+" query="+query);
-        return wsclient.url(url)
-            .setQueryParameter("string", query.replaceAll("%20", "+"))
-            .setQueryParameter("ticket", ticket)
-            ;
-    }
-
-    public WSRequest cui (String cui) throws Exception {
-        String ticket = ticket ();
-        String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui;
-        Logger.debug("++ CUI: ticket="+ticket+" cui="+cui);
-        return wsclient.url(url).setQueryParameter("ticket", ticket);
-    }
-
-    public WSRequest content (String cui, String context) throws Exception {
-        String ticket = ticket ();
-        String url = ksp.getUri()+"/content/"+APIVER+"/CUI/"+cui+"/"+context;
-        Logger.debug("++ "+context+": ticket="+ticket+" cui="+cui);
-        return wsclient.url(url).setQueryParameter("ticket", ticket);
-    }
-
-    public WSRequest source (String src, String id, String context)
-        throws Exception {
-        String ticket = ticket ();
-        String url = ksp.getUri()+"/content/"+APIVER+"/source/"+src+"/"+id;
-        if (context != null)
-            url += "/"+context;
-        Logger.debug("++ "+src+": ticket="+ticket
-                     +" id="+id+" context="+context);
-        return wsclient.url(url).setQueryParameter("ticket", ticket);
-    }
-
-    public JsonNode getCui (final String cui) throws Exception {
-        return cache.getOrElseUpdate("umls/"+cui, new Callable<JsonNode> () {
-                public JsonNode call () throws Exception {
-                    WSResponse res =
-                        cui(cui).get().toCompletableFuture().get();
-                    try {
-                        if (res.getStatus() == 200) {
-                            return res.asJson().get("result");
-                        }
-                    }
-                    catch (Exception ex) {
-                        Logger.error("Can't retrieve CUI "+cui+" ==> "
-                                     +res.getBody(), ex);
-                    }
-                    Logger.warn("** Can't retrieve CUI "+cui);
-                    return null;
-                }
-            });
-    }
-
-    public JsonNode getSource (final String src, final String id,
-                               final String context)
-        throws Exception {
-        return cache.getOrElseUpdate
-            ("umls/"+src+"/"+id+(context!=null?context:""),
-             new Callable<JsonNode> () {
-                 public JsonNode call () throws Exception {
-                     WSResponse res = source(src, id, context)
-                         .get().toCompletableFuture().get();
-                     return res.getStatus() == 200
-                         ? res.asJson().get("result") : null;
-                 }
-             });
-    }
-
-    public JsonNode getContent (final String cui, final String context)
-        throws Exception {
-        return cache.getOrElseUpdate
-            ("umls/"+context+"/"+cui, new Callable<JsonNode>() {
-                    public JsonNode call () throws Exception {
-                        WSResponse res = content(cui, context)
-                            .get().toCompletableFuture().get();
-                        return 200 == res.getStatus()
-                            ? res.asJson().get("result") : null;
-                    }
-                });
-    }
-
-    public JsonNode getSearch (final String query,
-                               final int skip, final int top) throws Exception {
-        return cache.getOrElseUpdate
-            ("umls/search/"+query+"/"+top+"/"+skip, new Callable<JsonNode>() {
-                    public JsonNode call () throws Exception {
-                        WSResponse res = search(query)
-                            .setQueryParameter("pageSize", String.valueOf(top))
-                            .setQueryParameter("pageNumber",
-                                               String.valueOf(skip/top+1))
-                            .get().toCompletableFuture().get();
-                        if (200 == res.getStatus()) {
-                            return res.asJson().get("result").get("results");
-                        }
-                        return null;
-                    }
-                });
     }
 
     public List<MatchedConcept> findConcepts (String term) throws Exception {
@@ -666,7 +439,11 @@ public class UMLSKSource implements KSource {
                 while (rset.next()) {
                     String id = rset.getString("TUI");
                     String type = rset.getString("STY");
-                    concept.semanticTypes.add(new SemanticType (id, type));
+                    SemanticType st = getSemanticType (id);
+                    if (st != null)
+                        concept.semanticTypes.add(st);
+                    else
+                        Logger.warn("Unknown semantic type: "+id);
                 }
                 rset.close();
 
@@ -787,6 +564,14 @@ public class UMLSKSource implements KSource {
             return res.asByteArray();
         }
         Logger.error("status="+status+" body="+res.getBody());
+        return null;
+    }
+
+    public SemanticType getSemanticType (String str) {
+        for (SemanticType st : semanticTypes) {
+            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str))
+                return st;
+        }
         return null;
     }
 }

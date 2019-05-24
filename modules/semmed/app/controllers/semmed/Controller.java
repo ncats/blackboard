@@ -27,9 +27,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import blackboard.semmed.SemMedDbKSource;
 import blackboard.semmed.Predication;
 import blackboard.semmed.PredicateSummary;
-import blackboard.semmed.SemanticType;
 import blackboard.umls.MatchedConcept;
 import blackboard.umls.Concept;
+import blackboard.umls.SemanticType;
 import blackboard.pubmed.PubMedDoc;
 
 @Singleton
@@ -55,12 +55,12 @@ public class Controller extends play.mvc.Controller {
     }
 
     public Result apiSemanticTypes () {
-        return ok (Json.prettyPrint(Json.toJson(ks.semanticTypes)))
+        return ok (Json.prettyPrint(Json.toJson(ks.umls.semanticTypes)))
             .as("application/json");
     }
 
     public Result apiSemanticTypeLookup (String str) {
-        SemanticType st = ks.getSemanticType(str);
+        SemanticType st = ks.umls.getSemanticType(str);
         return st != null ? ok (Json.toJson(st))
             : notFound ("Can't lookup semantic type either by id or abbr: "
                         +str);
@@ -209,7 +209,7 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> semtype (final String cui,
                                             final String semtype) {
         return supplyAsync (() -> {
-                SemanticType st = ks.getSemanticType(semtype);
+                SemanticType st = ks.umls.getSemanticType(semtype);
                 if (st == null)
                     return ok (views.html.ui.notfound.render
                                ("Unknown semantic type <code>"

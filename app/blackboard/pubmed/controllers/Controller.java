@@ -22,40 +22,34 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import blackboard.pubmed.index.PubMedIndex;
+import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndexFactory;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
 
-@Singleton
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
-    final PubMedIndex pmi;
-    final MeshDb mesh;
+    final PubMedIndexManager pmim;
 
     @Inject
-    public Controller (HttpExecutionContext ec, PubMedIndexFactory pmif,
-                       Configuration conf, MeshKSource meshKS,
+    public Controller (HttpExecutionContext ec, PubMedIndexManager pmim,
                        ApplicationLifecycle lifecycle) {
-        String dbdir = conf.getString("app.pubmed.index");
-        this.pmi = dbdir != null ? pmif.get(new File (dbdir)) : null;
+        this.pmim = pmim;
         this.ec = ec;
         
-        mesh = meshKS.getMeshDb();
         lifecycle.addStopHook(() -> {
-                if (pmi != null)
-                    pmi.close();
                 return CompletableFuture.completedFuture(null);
             });
         
-        Logger.debug(getClass().getName()+": "+pmi);
+        Logger.debug("$$" +getClass().getName()+": "+pmim);
     }
     
     public Result index () {
         return ok (blackboard.pubmed.views.html.mock.index.render());
     }
 
+    /*
     public CompletionStage<Result> search (String q) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
@@ -70,4 +64,5 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
+    */
 }

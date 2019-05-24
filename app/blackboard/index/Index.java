@@ -26,6 +26,7 @@ import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
+import org.apache.lucene.search.suggest.document.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -107,14 +108,16 @@ public class Index implements AutoCloseable, Fields {
 
     protected static class ResultDoc {
         public final Document doc;
+        public final Float score;
         public final int docId;
         public final IndexReader reader;
         public final FieldQuery fq;
         public final FastVectorHighlighter fvh;
 
         ResultDoc (Document doc, int docId, IndexReader reader,
-                   FieldQuery fq, FastVectorHighlighter fvh) {
+                   Float score, FieldQuery fq, FastVectorHighlighter fvh) {
             this.doc = doc;
+            this.score = score;
             this.docId = docId;
             this.reader = reader;
             this.fq = fq;
@@ -151,12 +154,15 @@ public class Index implements AutoCloseable, Fields {
     final protected FacetsConfig facetConfig;
     final protected SearcherManager searcherManager;
     final protected int maxHits;
-
+    
     protected Index (File dir) throws IOException {
-        this (dir, 10000);
+        this (dir, 1000);
     }
     
     protected Index (File dir, int maxHits) throws IOException {
+        this.root = dir;
+        this.maxHits = maxHits;
+        
         File text = new File (dir, "text");
         text.mkdirs();
         indexDir = new NIOFSDirectory (text.toPath());
@@ -177,8 +183,6 @@ public class Index implements AutoCloseable, Fields {
 
         searcherManager = new SearcherManager
             (indexWriter, new SearcherFactory ());
-        this.root = dir;
-        this.maxHits = maxHits;
     }
 
     /*
@@ -190,6 +194,7 @@ public class Index implements AutoCloseable, Fields {
 
     public File getDbFile () { return root; }
     public void close () throws Exception {
+        Logger.debug("!! closing index "+getDbFile()+"..."+size ());
         searcherManager.close();
         IOUtils.close(indexWriter, indexDir, taxonWriter, taxonDir);
     }
@@ -320,7 +325,8 @@ public class Index implements AutoCloseable, Fields {
                 for (; nd < docs.totalHits; ++nd) {
                     int docId = docs.scoreDocs[nd].doc;
                     ResultDoc rdoc = new ResultDoc
-                        (searcher.doc(docId), docId, reader, fq, fvh);
+                        (searcher.doc(docId), docId, reader,
+                         docs.scoreDocs[nd].score, fq, fvh);
                     if (!results.process(rdoc))
                         break;
                 }
@@ -336,6 +342,41 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    protected TopSuggestDocs suggest (CompletionQuery query, int n)
+        throws IOException {
+        try (IndexReader reader = DirectoryReader.open(indexWriter, true)) {
+            SuggestIndexSearcher searcher = new SuggestIndexSearcher (reader);
+            TopSuggestDocs docs = searcher.suggest(query, n);
+            return docs;
+        }
+    }
+
+    public void prefix (String field, String prefix, int n)
+        throws IOException {
+        PrefixCompletionQuery query = new PrefixCompletionQuery
+            (indexWriter.getAnalyzer(), new Term (field, prefix));
+        TopSuggestDocs.SuggestScoreDoc[] docs =
+            suggest(query, n).scoreLookupDocs();
+        Logger.debug("prefix: field="+field+" prefix="
+                     +prefix+"..."+docs.length);
+        for (TopSuggestDocs.SuggestScoreDoc d : docs) {
+            Logger.debug("...key="+d.key+" context="+d.context);
+        }
+    }
+
+    protected void addTextField (Document doc, String field,
+                                 Object value) throws IOException {
+        addTextField (doc, field, "", value);
+    }
+    
+    protected void addTextField (Document doc, String field,
+                                 String context, Object value)
+        throws IOException {
+        doc.add(new Field (FIELD_TEXT,
+                           "<fld fn=\""+field+"\""+context
+                           +">"+value+"</fld>", tvFieldType));
+    }
+    
     public static byte[] toCompressedBytes (JsonNode json) throws IOException {
         return toCompressedBytes (Json.mapper().writeValueAsBytes(json));
     }

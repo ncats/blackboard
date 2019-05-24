@@ -4,6 +4,8 @@ GET /:cui    controllers.umls.Controller.cui(cui: String)
 #
 # api
 #
+GET /api/semtypes   controllers.umls.Controller.apiSemanticTypes
+GET /api/semtypes/:str controllers.umls.Controller.apiSemanticTypeLookup(str: String)
 GET /api/metamap/:terms controllers.umls.Controller.apiMetaMap(terms: String)
 POST /api/metamap       controllers.umls.Controller.apiMetaMapPost
 GET  /api/semrep/:text  controllers.umls.Controller.apiSemRep(text: String)

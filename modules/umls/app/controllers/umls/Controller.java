@@ -26,7 +26,7 @@ import blackboard.umls.Concept;
 import blackboard.umls.MatchedConcept;
 import blackboard.umls.DataSource;
 import blackboard.umls.MetaMap;
-
+import blackboard.umls.SemanticType;
 
 
 @Singleton
@@ -50,6 +50,18 @@ public class Controller extends play.mvc.Controller {
         return ok (views.html.umls.index.render(ks, query));
     }
 
+    public Result apiSemanticTypes () {
+        return ok (Json.prettyPrint(Json.toJson(ks.semanticTypes)))
+            .as("application/json");
+    }
+
+    public Result apiSemanticTypeLookup (String str) {
+        SemanticType st = ks.getSemanticType(str);
+        return st != null ? ok (Json.toJson(st))
+            : notFound ("Can't lookup semantic type either by id or abbr: "
+                        +str);
+    }
+    
     public CompletionStage<Result> cui (String cui) {
         return supplyAsync (() -> {
                 try {

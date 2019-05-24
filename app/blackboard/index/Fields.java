@@ -12,8 +12,10 @@ public interface Fields {
     public static final String FIELD_UI = "ui";
     public static final String FIELD_TR = "tr"; // tree number";
     public static final String FIELD_MESH = "mesh";
+    public static final int FIELD_MESH_WEIGHT = 10;
     public static final String FIELD_TITLE = "title";
     public static final String FIELD_CONCEPT = "concept";
+    public static final int FIELD_CONCEPT_WEIGHT = 5;
     public static final String FIELD_SEMTYPE = "semtype";
     public static final String FIELD_SOURCE = "source";
     public static final String FIELD_GENE = "gene";

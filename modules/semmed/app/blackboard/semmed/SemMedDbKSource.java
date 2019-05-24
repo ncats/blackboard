@@ -34,12 +34,12 @@ import blackboard.pubmed.PubMedKSource;
 
 import static blackboard.KEntity.*;
 
+@Singleton
 public class SemMedDbKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     public final UMLSKSource umls;
     public final PubMedKSource pubmed;
-    public final List<SemanticType> semanticTypes;
     
     private final Database db;
     private final SyncCacheApi cache;
@@ -74,27 +74,6 @@ public class SemMedDbKSource implements KSource {
         String count = ksp.getProperties().get("min-predicate-count");
         minPredCount = count != null ? Integer.parseInt(count) : 10;
 
-        semanticTypes = new ArrayList<>();
-        String semtype = ksp.getProperties().get("semantic-types");
-        if (semtype == null)
-            Logger.warn(ksp.getName()
-                        +": No semantic-types property specified!");
-        else {
-            try (BufferedReader br = new BufferedReader
-                 (new InputStreamReader (env.resourceAsStream(semtype)))) {
-                for (String line; (line = br.readLine()) != null; ) {
-                    String[] toks = line.split("\\|");
-                    if (toks.length == 3) {
-                        semanticTypes.add(new SemanticType
-                                          (toks[1], toks[0], toks[2]));
-                    }
-                }
-                Logger.debug(semanticTypes.size()+" semantic types loaded!");
-            }
-            catch (IOException ex) {
-                Logger.error("Can't parse semanticTypes: "+semtype, ex);
-            }
-        }
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();
@@ -425,14 +404,6 @@ public class SemMedDbKSource implements KSource {
                             (cui, getPredications (cui));
                     }
                 });
-    }
-
-    public SemanticType getSemanticType (String str) {
-        for (SemanticType st : semanticTypes) {
-            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str))
-                return st;
-        }
-        return null;
     }
 
     /*

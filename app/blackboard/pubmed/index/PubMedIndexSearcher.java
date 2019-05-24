@@ -14,11 +14,13 @@ import javax.inject.Inject;
 
 import blackboard.pubmed.*;
 import blackboard.index.Index;
+import blackboard.index.Fields;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
 
-public class PubMedIndexSearcher implements AutoCloseable {
+
+public class PubMedIndexSearcher implements AutoCloseable, Fields {
     final Application app;
     final PubMedIndex index;
     
@@ -71,13 +73,15 @@ public class PubMedIndexSearcher implements AutoCloseable {
             PubMedIndex.SearchResult result =
                 searcher.index.search(argv[1], facets);
             for (PubMedIndex.MatchedDoc d : result.docs) {
-                System.out.println(d.pmid+": "+d.title);
+                Logger.debug("################# "
+                             +d.pmid+": "+String.format("%1$.3f", d.score)
+                             +"\n"+d.title);
                 for (String f : d.fragments)
-                    System.out.println("..."+f);
-                System.out.println("=== XML ===\n"+d.toXmlString());
+                    Logger.debug("..."+f);
+                //System.out.println("=== XML ===\n"+d.toXmlString());
             }
-            Logger.debug("\n********* Full article set *********\n");
-            result.exportXML(System.out);
+            //Logger.debug("\n********* Full article set *********\n");
+            //result.exportXML(System.out);
             
             for (Index.Facet f : result.facets)
                 Logger.debug(f.toString());
