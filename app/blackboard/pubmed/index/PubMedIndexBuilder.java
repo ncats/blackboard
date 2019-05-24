@@ -122,7 +122,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         AtomicInteger count = new AtomicInteger ();
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
                 boolean cont = false;
-                if (/*true ||*/ count.incrementAndGet() < 1000) {
+                if (true || count.incrementAndGet() < 1000) {
                     try {
                         queue.put(d);
                         cont = true;
