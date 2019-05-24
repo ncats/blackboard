@@ -61,6 +61,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     final PubMedKSource pubmed;
     final Application app;
     final AtomicBoolean addIfAbsent = new AtomicBoolean (false);
+    final AtomicInteger count = new AtomicInteger ();
     
     public PubMedIndexBuilder () throws IOException {
         this ("pubmed");
@@ -115,11 +116,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         play.api.Play.stop(app.getWrappedApplication());
     }
 
-    public void buildXml (InputStream is) throws Exception {
-        if (es.isShutdown() || es.isTerminated())
-            throw new RuntimeException ("Instance has already been closed!");
-        
-        AtomicInteger count = new AtomicInteger ();
+    protected PubMedSax createSaxParser () {
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
                 boolean cont = false;
                 if (true || count.incrementAndGet() < 1000) {
@@ -133,8 +130,19 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 }
                 return cont;
             });
-
-        pms.parse(is);
+        return pms;
+    }
+    
+    public void buildXml (File file) throws Exception {
+        if (es.isShutdown() || es.isTerminated())
+            throw new RuntimeException ("Instance has already been closed!");
+        createSaxParser().parse(file);
+    }
+    
+    public void buildXml (InputStream is) throws Exception {
+        if (es.isShutdown() || es.isTerminated())
+            throw new RuntimeException ("Instance has already been closed!");
+        createSaxParser().parse(is);
     }
 
     public void build (InputStream is) throws Exception {
@@ -257,8 +265,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
                 for (File f : files) {
                     Logger.debug("########## "+f+" #########");
                     long start = System.currentTimeMillis();
-                    pmb.buildXml(new java.util.zip.GZIPInputStream
-                                 (new FileInputStream (f)));
+                    pmb.buildXml(f);
                     Logger.debug("##### finished "+f+" in "+String.format
                                  ("%1$.3fs", (System.currentTimeMillis()-start)
                                   /1000.));

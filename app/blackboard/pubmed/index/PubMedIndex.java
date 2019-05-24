@@ -313,6 +313,11 @@ public class PubMedIndex extends MetaMapIndex {
         throws IOException {
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
         addTextField (doc, FIELD_PMID, d.getPMID());
+        if (d.timestamp != null)
+            doc.add(new LongField (FIELD_TIMESTAMP,
+                                   d.timestamp, Field.Store.YES));
+        if (d.source != null)
+            doc.add(new FacetField (FIELD_FILE, d.source));
         
         String title = d.getTitle();
         if (title != null && !"".equals(title)) {

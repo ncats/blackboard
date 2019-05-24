@@ -13,11 +13,7 @@ import org.xml.sax.helpers.*;
 import org.xml.sax.*;
 
 import java.util.*;
-import java.io.InputStream;
-import java.io.FilterInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -39,7 +35,10 @@ public class PubMedSax extends DefaultHandler {
     Map<String, Object> author = new LinkedHashMap<>();
     Map<String, Object> grant = new LinkedHashMap<>();
     Map<String, Object> reference = new LinkedHashMap<>();
+    
     CaptureInputStream cis;
+    String source;
+    Long timestamp;
     
     static class CaptureInputStream extends FilterInputStream {
         ByteArrayOutputStream buf = new ByteArrayOutputStream (1024);
@@ -142,6 +141,21 @@ public class PubMedSax extends DefaultHandler {
         this.mesh = mesh;
         this.consumer = consumer;
     }
+
+    public void setSource (String source) { this.source = source; }
+    public String getSource () { return source; }
+    public void setTimestamp (Long timestamp) { this.timestamp = timestamp; }
+    public Long getTimestamp () { return timestamp; }
+    
+    public void parse (File file) throws Exception {
+        source = file.getName();
+        int pos = source.indexOf('.');
+        if (pos > 0)
+            source = source.substring(0, pos);
+        timestamp = file.lastModified();
+        parse (new java.util.zip.GZIPInputStream
+               (new FileInputStream (file)));
+    }
     
     public void parse (InputStream is) throws Exception {
         SAXParserFactory spf = SAXParserFactory.newInstance();
@@ -157,6 +171,8 @@ public class PubMedSax extends DefaultHandler {
         cis = new CaptureInputStream (is, xml -> {
                 doc = new PubMedDoc ();
                 doc.xml = xml;
+                doc.source = source;
+                doc.timestamp = timestamp;
                 try (InputStream iis = new ByteArrayInputStream (xml)) {
                     sax.parse(iis, PubMedSax.this);
                 }
