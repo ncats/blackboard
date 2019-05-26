@@ -50,6 +50,7 @@ public class GeneRIFIndex extends PubMedIndex {
     
     public class SearchResult extends PubMedIndex.SearchResult {
         protected SearchResult () {
+            super (null, null);
         }
 
         @Override
@@ -57,7 +58,7 @@ public class GeneRIFIndex extends PubMedIndex {
             try {
                 GeneRIFDoc doc = new GeneRIFDoc
                     (rdoc.doc.get(FIELD_GENE), rdoc.doc.get(FIELD_GENERIF));
-                toDoc (doc, rdoc.doc);
+                toMatchedDoc (doc, rdoc.doc);
                 
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
                 if (frags != null) {

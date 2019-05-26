@@ -395,6 +395,11 @@ public class PubMedDoc implements java.io.Serializable {
     public String getTitle () { return title; }
     public List<String> getAbstract () { return abs; }
     public Date getDate () { return date; }
+    public int getYear () {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        return cal.get(Calendar.YEAR);
+    }
     public String getDOI () { return doi; }
     public String getPMC () { return pmc; }
     public String getJournal () { return journal; }

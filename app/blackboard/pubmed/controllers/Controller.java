@@ -23,39 +23,43 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import blackboard.pubmed.index.PubMedIndexManager;
-import blackboard.pubmed.index.PubMedIndexFactory;
+import blackboard.pubmed.index.PubMedIndex;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
 
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
-    final PubMedIndexManager pmim;
+    final PubMedIndexManager indexManager;
 
     @Inject
-    public Controller (HttpExecutionContext ec, PubMedIndexManager pmim,
+    public Controller (HttpExecutionContext ec, PubMedIndexManager indexManager,
                        ApplicationLifecycle lifecycle) {
-        this.pmim = pmim;
+        this.indexManager = indexManager;
         this.ec = ec;
         
         lifecycle.addStopHook(() -> {
                 return CompletableFuture.completedFuture(null);
             });
         
-        Logger.debug("$$" +getClass().getName()+": "+pmim);
+        Logger.debug("$$" +getClass().getName()+": "+indexManager);
     }
     
     public Result index () {
         return ok (blackboard.pubmed.views.html.mock.index.render());
     }
 
-    /*
     public CompletionStage<Result> search (String q) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    PubMedIndex.SearchResult result = pmi.search(q, null);
-                    return ok (Json.toJson(result.docs));
+                    PubMedIndex.SearchResult[] results =
+                        indexManager.search(q, null);
+                    ArrayNode json = Json.newArray();
+                    for (PubMedIndex.SearchResult r : results)
+                        json.add(Json.toJson(r.docs));
+                    
+                    return ok (json);
                 }
                 catch (Exception ex) {
                     return internalServerError
@@ -64,5 +68,18 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
-    */
+
+    public CompletionStage<Result> pmid (Long pmid, String format) {
+        return supplyAsync (() -> {
+                try {
+                    byte[] doc = indexManager.getDoc(pmid, format);
+                    return ok(doc).as("application/xml");
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve doc: "+pmid, ex);
+                    return internalServerError
+                        ("Internal server error: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
 }

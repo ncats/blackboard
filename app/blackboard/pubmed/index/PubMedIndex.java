@@ -69,7 +69,7 @@ public class PubMedIndex extends MetaMapIndex {
         public String title;
         public Integer year;
         public List<String> fragments = new ArrayList<>();
-        public List<String> mesh = new ArrayList<>();
+        public Map<String, String> concepts = new TreeMap<>();
         
         public org.w3c.dom.Document doc;
 
@@ -98,24 +98,30 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
-    public class SearchResult extends blackboard.index.Index.SearchResult {
+    public static class SearchResult
+        extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
         public final Map<Integer, Integer> years = new TreeMap<>();
-        public final Map<String, String> names = new TreeMap<>();
+        public final Map<String, String> concepts = new TreeMap<>();
         
         final MeshDb mesh;
-        protected SearchResult () {
-            mesh = PubMedIndex.this.mesh != null
-                ? PubMedIndex.this.mesh.getMeshDb() : null;
-        }
+        final UMLSKSource umls;
 
+        protected SearchResult () {
+            this (null, null);
+        }
+            
+        protected SearchResult (MeshKSource mesh, UMLSKSource umls) {
+            this.mesh = mesh != null ? mesh.getMeshDb() : null;
+            this.umls = umls;
+        }
         
         @Override
         public int size () { return docs.size(); }
         
         protected boolean process (blackboard.index.Index.ResultDoc rdoc) {
             try {
-                MatchedDoc mdoc = toDoc (rdoc.doc);
+                MatchedDoc mdoc = toMatchedDoc (rdoc.doc);
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
                 if (frags != null) {
                     for (String f : frags)
@@ -127,18 +133,7 @@ public class PubMedIndex extends MetaMapIndex {
                     years.put(mdoc.year, c!=null ? c+1:1);
                 }
 
-                for (IndexableField f : rdoc.doc.getFields(FIELD_CONCEPT)) {
-                    String sv = f.stringValue();
-                    if (sv != null) {
-                        int pos = sv.indexOf(':');
-                        if (pos > 0) {
-                            String cui = sv.substring(0, pos);
-                            String name = sv.substring(pos+1);
-                            names.put(cui, name);
-                        }
-                    }
-                }
-                
+                concepts.putAll(mdoc.concepts);
                 mdoc.score = rdoc.score;
                 docs.add(mdoc);
             }
@@ -198,7 +193,7 @@ public class PubMedIndex extends MetaMapIndex {
                                          +fv.label, ex);
                         }
                         */
-                        fv.display = names.get(fv.label);
+                        fv.display = concepts.get(fv.label);
                     }
                     break;
                 }
@@ -345,6 +340,7 @@ public class PubMedIndex extends MetaMapIndex {
                 }
             }
             doc.add(new FacetField (FIELD_AUTHOR, auth.getName()));
+            addTextField (doc, FIELD_AUTHOR, auth.getName());
         }
 
         // journal
@@ -405,8 +401,7 @@ public class PubMedIndex extends MetaMapIndex {
             addTextField (doc, FIELD_ABSTRACT, abs);
 
         // publication year
-        doc.add(new IntField (FIELD_YEAR,
-                              d.getDate().getYear(), Field.Store.YES));
+        doc.add(new IntField (FIELD_YEAR, d.getYear(), Field.Store.YES));
 
         // mesh headings
         for (MeshHeading mh : d.getMeshHeadings()) {
@@ -582,20 +577,28 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
-    MatchedDoc toDoc (Document doc) throws IOException {
-        return toDoc (new MatchedDoc (), doc);
+    SearchResult createSearchResult () {
+        return new SearchResult (mesh, umls);
+    }
+
+    static MatchedDoc toMatchedDoc (Document doc) throws IOException {
+        return toMatchedDoc (new MatchedDoc (), doc);
     }
     
-    MatchedDoc toDoc (MatchedDoc md, Document doc) throws IOException {
+    static MatchedDoc toMatchedDoc (MatchedDoc md, Document doc)
+        throws IOException {
         IndexableField field = doc.getField(FIELD_PMID);
         if (field != null) {
             md.pmid = field.numericValue().longValue();
             md.title = doc.get(FIELD_TITLE);
             md.year = doc.getField(FIELD_YEAR).numericValue().intValue();
-            String[] mesh = doc.getValues(FIELD_UI);
-            for (String ui : mesh)
-                md.mesh.add(ui);
-
+            for (String concept : doc.getValues(FIELD_CONCEPT)) {
+                int pos = concept.indexOf(':');
+                if (pos > 0) {
+                    md.concepts.put(concept.substring(0, pos),
+                                    concept.substring(pos+1));
+                }
+            }
             md.doc = getXmlDoc (doc, FIELD_XML);
         }
         else {
@@ -604,7 +607,7 @@ public class PubMedIndex extends MetaMapIndex {
         return md;
     }
 
-    public MatchedDoc getDoc (long pmid) throws Exception {
+    public MatchedDoc getMatchedDoc (long pmid) throws Exception {
         NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
             (FIELD_PMID, pmid, pmid, true, true);
         SearchResult result = search (query, EMPTY_FACETS);
@@ -619,7 +622,7 @@ public class PubMedIndex extends MetaMapIndex {
 
     public SearchResult search (Query query, Map<String, Object> facets)
         throws Exception {
-        SearchResult result = new SearchResult ();
+        SearchResult result = createSearchResult ();
         search (query, facets, result);
         result.updateFacets();
         return result;
@@ -700,7 +703,7 @@ public class PubMedIndex extends MetaMapIndex {
                 for (int i = 1; i < argv.length; ++i) {
                     try {
                         long pmid = Long.parseLong(argv[i]);
-                        MatchedDoc doc = index.getDoc(pmid);
+                        MatchedDoc doc = index.getMatchedDoc(pmid);
                         Logger.debug("======== "+pmid+" ========");
                         if (doc != null)
                             Logger.debug(doc.toXmlString());
