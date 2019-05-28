@@ -322,6 +322,7 @@ public class PubMedIndex extends MetaMapIndex {
                 if (c == null) c = 0;
                 merged.years.put(me.getKey(), c + me.getValue());
             }
+            merged.total += r.total;
 
             for (Facet f : r.facets) {
                 /*

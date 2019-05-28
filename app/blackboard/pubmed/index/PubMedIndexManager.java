@@ -66,14 +66,17 @@ public class PubMedIndexManager implements AutoCloseable {
     }
     
     static class PubMedIndexActor extends AbstractActor {
-        static Props props (PubMedIndexFactory pmif, File db) {
+        static Props props (PubMedIndexFactory pmif, File db, int maxHits) {
             return Props.create
-                (PubMedIndexActor.class, () -> new PubMedIndexActor (pmif, db));
+                (PubMedIndexActor.class,
+                 () -> new PubMedIndexActor (pmif, db, maxHits));
         }
         
         final PubMedIndex pmi;
-        public PubMedIndexActor (PubMedIndexFactory pmif, File dir) {
+        public PubMedIndexActor (PubMedIndexFactory pmif,
+                                 File dir, int maxHits) {
             pmi = pmif.get(dir);
+            pmi.setMaxHits(maxHits);
         }
 
         @Override
@@ -129,7 +132,7 @@ public class PubMedIndexManager implements AutoCloseable {
     
     final List<ActorRef> indexes = new ArrayList<>();
     final ActorSystem actorSystem;
-    final int maxTimeout, maxTries;
+    final int maxTimeout, maxTries, maxHits;
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
@@ -150,13 +153,14 @@ public class PubMedIndexManager implements AutoCloseable {
         maxTimeout = conf.hasPath("max-timeout")
             ? conf.getInt("max-timeout") : 10;
         maxTries = conf.hasPath("max-tries") ? conf.getInt("max-tries") : 5;
+        maxHits = conf.hasPath("max-hits") ? conf.getInt("max-hits") : 1000;
         
         List<String> indexes = conf.getStringList("indexes");
         for (String idx : indexes) {
             File db = new File (dir, idx);
             try {
                 ActorRef actorRef = actorSystem.actorOf
-                    (PubMedIndexActor.props(pmif, db), idx);
+                    (PubMedIndexActor.props(pmif, db, maxHits), idx);
                 this.indexes.add(actorRef);
             }
             catch (Exception ex) {
@@ -171,8 +175,10 @@ public class PubMedIndexManager implements AutoCloseable {
 
         this.actorSystem = actorSystem;
         Logger.debug("$$$$ "+getClass().getName()
-                     +": base="+dir+" indexes="+indexes
-                     +" max-timeout="+maxTimeout);
+                     +": base="+dir
+                     +" max-hits="+maxHits
+                     +" max-timeout="+maxTimeout
+                     +" indexes="+indexes);
     }
 
     public void close () throws Exception {

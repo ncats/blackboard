@@ -36,6 +36,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import com.google.inject.assistedinject.Assisted;
 
 public class Index implements AutoCloseable, Fields {
+    public static final int MAX_HITS = 1000;
+    
     public static class FV {
         @JsonIgnore
         public FV parent;
@@ -235,6 +237,7 @@ public class Index implements AutoCloseable, Fields {
         public final List<Facet> facets = new ArrayList<>();
         @JsonIgnore
         public final int fdim;
+        public int total; // total matches
         
         protected SearchResult () {
             this (100);
@@ -257,10 +260,10 @@ public class Index implements AutoCloseable, Fields {
     final protected DirectoryTaxonomyWriter taxonWriter;
     final protected FacetsConfig facetConfig;
     final protected SearcherManager searcherManager;
-    final protected int maxHits;
+    protected int maxHits;
     
     protected Index (File dir) throws IOException {
-        this (dir, 1000);
+        this (dir, MAX_HITS);
     }
     
     protected Index (File dir, int maxHits) throws IOException {
@@ -288,6 +291,9 @@ public class Index implements AutoCloseable, Fields {
         searcherManager = new SearcherManager
             (indexWriter, new SearcherFactory ());
     }
+
+    public void setMaxHits (int maxHits) { this.maxHits = maxHits; }
+    public int getMaxHits () { return maxHits; }
 
     /*
      * should be overriden by subclass!
@@ -380,7 +386,7 @@ public class Index implements AutoCloseable, Fields {
     }
     
     protected int search (Query query, Map<String, Object> fmap,
-                          SearchResult results) throws Exception {
+                          SearchResult result) throws Exception {
         long start = System.currentTimeMillis();
         Logger.debug("### Query: "+query+" Facets: "+fmap);
         
@@ -426,21 +432,22 @@ public class Index implements AutoCloseable, Fields {
             
             int nd = 0;
             if (docs != null) {
-                for (; nd < docs.totalHits; ++nd) {
+                result.total = docs.totalHits;
+                for (; nd < docs.scoreDocs.length; ++nd) {
                     int docId = docs.scoreDocs[nd].doc;
                     ResultDoc rdoc = new ResultDoc
                         (searcher.doc(docId), docId, reader,
                          docs.scoreDocs[nd].score, fq, fvh);
-                    if (!results.process(rdoc))
+                    if (!result.process(rdoc))
                         break;
                 }
-                results.facets.addAll(toFacets (facets, results.fdim));
+                result.facets.addAll(toFacets (facets, result.fdim));
             }
 
             Logger.debug("### Query executed in "
                          +String.format
                          ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
-                         +"..."+nd+" hit(s) found!");
+                         +"..."+nd+" hit(s) (out of "+result.total+" found)!");
             
             return nd;
         }
