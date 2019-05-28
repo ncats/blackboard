@@ -29,18 +29,39 @@ import static blackboard.pubmed.index.PubMedIndex.*;
 @Singleton
 public class PubMedIndexManager implements AutoCloseable {
     public static class TextQuery {
-        public String field;
-        public String query;
-        public Map<String, Object> facets = new TreeMap<>();
+        public final String field;
+        public final String query;
+        public final Map<String, Object> facets = new TreeMap<>();
 
+        TextQuery (Map<String, Object> facets) {
+            this (null, null, facets);
+        }
+        TextQuery (String query) {
+            this (null, query, null);
+        }
         TextQuery (String query, Map<String, Object> facets) {
+            this (null, query, facets);
+        }
+        TextQuery (String field, String query, Map<String, Object> facets) {
+            this.field = field;
             this.query = query;
-            this.facets = facets;
+            if (facets != null)
+                this.facets.putAll(facets);
         }
         
         public String toString () {
             return "TextQuery{field="+field+",query="
                 +query+",facets="+facets+"}";
+        }
+    }
+
+    public static class PMIDQuery {
+        public final Long pmid;
+        PMIDQuery (Long pmid) {
+            this.pmid = pmid;
+        }
+        public String toString () {
+            return "PmidQuery{pmid="+pmid+"}";
         }
     }
     
@@ -75,6 +96,7 @@ public class PubMedIndexManager implements AutoCloseable {
         public Receive createReceive () {
             return receiveBuilder()
                 .match(TextQuery.class, this::doTextSearch)
+                .match(PMIDQuery.class, this::doPMIDSearch)
                 .build();
         }
 
@@ -94,28 +116,40 @@ public class PubMedIndexManager implements AutoCloseable {
             
             getSender().tell(result, getSelf ());
         }
+
+        void doPMIDSearch (PMIDQuery q) throws Exception {
+            Logger.debug(self()+": fetching "+q.pmid);
+            long start = System.currentTimeMillis();
+            MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
+            Logger.debug(self()+": fetch completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+            getSender().tell(doc, getSelf ());
+        }
     }
     
     final List<ActorRef> indexes = new ArrayList<>();
     final ActorSystem actorSystem;
+    final int maxTimeout, maxTries;
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
                                ActorSystem actorSystem,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
-        String base = ".";
-        if (conf.hasPath("base")) {
-            base = conf.getString("base");
-        }
         
-        File dir = new File (base);
-        if (!dir.exists()) 
-            throw new IllegalArgumentException ("Not a valid base: "+base);
-                
         if (!conf.hasPath("indexes"))
             throw new IllegalArgumentException
                 ("No app.pubmed.indexes property defined!");
+
+        File dir = new File
+            (conf.hasPath("base") ? conf.getString("base") : ".");
+        if (!dir.exists())
+            throw new IllegalArgumentException
+                ("base path "+dir+" doesn't exist!");
+
+        maxTimeout = conf.hasPath("max-timeout")
+            ? conf.getInt("max-timeout") : 10;
+        maxTries = conf.hasPath("max-tries") ? conf.getInt("max-tries") : 5;
         
         List<String> indexes = conf.getStringList("indexes");
         for (String idx : indexes) {
@@ -130,11 +164,6 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
-        /*
-        if (this.indexes.isEmpty())
-            throw new IllegalArgumentException ("No valid indexes loaded!");
-        */
-
         lifecycle.addStopHook(() -> {
                 close ();
                 return CompletableFuture.completedFuture(null);
@@ -142,7 +171,8 @@ public class PubMedIndexManager implements AutoCloseable {
 
         this.actorSystem = actorSystem;
         Logger.debug("$$$$ "+getClass().getName()
-                     +": base="+base+" indexes="+indexes);
+                     +": base="+dir+" indexes="+indexes
+                     +" max-timeout="+maxTimeout);
     }
 
     public void close () throws Exception {
@@ -152,27 +182,52 @@ public class PubMedIndexManager implements AutoCloseable {
         Logger.debug("$$ shutting down "+getClass().getName());
     }
 
-    public SearchResult[] search (String query, Map<String, Object> facets) {
+    public SearchResult search (String query, Map<String, Object> facets) {
         TextQuery tq = new TextQuery (query, facets);
         Inbox inbox = Inbox.create(actorSystem);
-        List<SearchResult> results = new ArrayList<>();
-        for (ActorRef actorRef : indexes) {
+        for (ActorRef actorRef : indexes)
             inbox.send(actorRef, tq);
+
+        List<SearchResult> results = new ArrayList<>();        
+        for (int i = 0, ntries = 0; i < indexes.size()
+                 && ntries < maxTries;) {
             try {
                 SearchResult result = (SearchResult)inbox.receive
-                    (Duration.ofSeconds(5l));
-                if (result.size() > 0)
+                    (Duration.ofSeconds(maxTimeout));
+                if (!result.isEmpty())
                     results.add(result);
+                ++i;
+            }
+            catch (TimeoutException ex) {
+                ++ntries;
+                Logger.warn("Unable to receive result from Inbox"
+                            +" within alloted time; retrying "+ntries);
+            }
+        }
+        
+        return PubMedIndex.merge(results.toArray(new SearchResult[0]));
+    }
+
+    public MatchedDoc getDoc (Long pmid, String format) {
+        PMIDQuery q = new PMIDQuery (pmid);
+        Inbox inbox = Inbox.create(actorSystem);
+        List<MatchedDoc> docs = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            inbox.send(actorRef, q);
+            try {
+                MatchedDoc doc = (MatchedDoc)inbox.receive
+                    (Duration.ofSeconds(2l));
+                if (doc != EMPTY_DOC)
+                    docs.add(doc);
             }
             catch (TimeoutException ex) {
                 Logger.error("Unable to receive result from "+actorRef
                              +" within alloted time", ex);
             }
         }
-        return results.toArray(new SearchResult[0]);
-    }
 
-    public byte[] getDoc (Long pmid, String format) {
-        return new byte[0];
+        if (docs.size() > 1)
+            Logger.warn(pmid+" has multiple ("+docs.size()+") documents!");
+        return docs.isEmpty() ? null : docs.get(0);
     }
 }

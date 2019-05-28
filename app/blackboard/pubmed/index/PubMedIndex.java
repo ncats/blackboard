@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import org.apache.lucene.store.*;
 import org.apache.lucene.index.*;
@@ -61,16 +63,73 @@ public class PubMedIndex extends MetaMapIndex {
     public static final String FIELD_MM_ABSTRACT = "mm_abstract";
     public static final int MAX_FACET_FIELD_LENGTH = 1024;
 
-    static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
+    public static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
+    public static final MatchedDoc EMPTY_DOC = new MatchedDoc ();
+    public static final SearchResult EMPTY_RESULT = new SearchResult ();
 
+    public static class MatchedFragment {
+        public final String fragment;
+        public final String field;
+        public final String text;
+
+        MatchedFragment (String text) {
+            String f = null, t = null;
+            // locate <b>...</b>
+            int pos = text.indexOf("<b>");
+            if (pos >= 0) {
+                int bgn = pos;
+                while (--bgn > 0 && text.charAt(bgn) != '>')
+                    ;
+                for (int i = bgn; --i >= 0; ) {
+                    if (text.startsWith("fn=\"", i)) {
+                        i += 4;
+                        int j = i;
+                        for (; j < bgn && text.charAt(j) != '"'; ++j)
+                            ;
+                        f = text.substring(i, j);
+                        break;
+                    }
+                }
+                
+                pos = text.indexOf("</b>", pos);
+                if (pos > 0) {
+                    pos += 4;
+                    for (int i = pos; i < text.length(); ++i) {
+                        if (text.startsWith("</fld", i)) {
+                            if (text.charAt(bgn) == '>')
+                                ++bgn;
+                            t = text.substring(bgn, i);
+                            break;
+                        }
+                    }
+                    
+                    if (t == null) {
+                        if (text.charAt(bgn) == '>')
+                            ++bgn;
+                        t = text.substring(bgn);
+                    }
+                }
+            }
+            this.field = f;
+            this.fragment = t;
+            this.text = text;
+        }
+
+        public String toString () {
+            return "MatchedFragment{text="+text+",field="+field
+                +",fragment="+fragment+"}";
+        }
+    }
+    
     public static class MatchedDoc {
         public Float score;
         public Long pmid;
         public String title;
         public Integer year;
-        public List<String> fragments = new ArrayList<>();
+        public List<MatchedFragment> fragments = new ArrayList<>();
         public Map<String, String> concepts = new TreeMap<>();
-        
+
+        @JsonIgnore
         public org.w3c.dom.Document doc;
 
         protected MatchedDoc () {
@@ -125,7 +184,7 @@ public class PubMedIndex extends MetaMapIndex {
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
                 if (frags != null) {
                     for (String f : frags)
-                        mdoc.fragments.add(f);
+                        mdoc.fragments.add(new MatchedFragment (f));
                 }
                 
                 if (mdoc.year != null) {
@@ -149,7 +208,7 @@ public class PubMedIndex extends MetaMapIndex {
                 case FIELD_TR: // treeNumber
                     if (mesh != null) {
                         for (FV fv : f.values)
-                            updateTreeNumber (fv);
+                            updateTreeNumberDisplay (fv);
                     }
                     break;
 
@@ -200,29 +259,27 @@ public class PubMedIndex extends MetaMapIndex {
             }
         }
 
-        protected void updateTreeNumber (FV fv) {
-            for (FV p = fv; p != null; p = p.parent) {
-                String path = StringUtils.join(p.toPath(), '.');
-                if (p .display == null) {
-                    List<Descriptor> desc =
-                        mesh.getDescriptorsByTreeNumber(path);
-                    if (desc.isEmpty())
+        protected void updateTreeNumberDisplay (FV fv) {
+            if (fv .display == null) {
+                String path = StringUtils.join(fv.toPath(), '.');
+                List<Descriptor> desc =
+                    mesh.getDescriptorsByTreeNumber(path);
+                if (desc.isEmpty())
+                    Logger.warn
+                        ("No Descriptor found for tree nubmer: "+path);
+                else {
+                    if (desc.size() > 1) {
                         Logger.warn
-                            ("No Descriptor found for tree nubmer: "+path);
-                    else {
-                        if (desc.size() > 1) {
-                            Logger.warn
-                                (desc.size()
-                                 +" descriptors found for tree nubmer: "
-                                 +path);
-                        }
-                        p.display = desc.get(0).getName();
+                            (desc.size()
+                             +" descriptors found for tree nubmer: "
+                             +path);
                     }
+                    fv.display = desc.get(0).getName();
                 }
             }
             
             for (FV child : fv.children)
-                updateTreeNumber (child);
+                updateTreeNumberDisplay (child);
         }
 
         public void exportXML (OutputStream os) throws Exception {
@@ -252,6 +309,57 @@ public class PubMedIndex extends MetaMapIndex {
             TransformerFactory.newInstance().newTransformer()
                 .transform(new DOMSource (container), new StreamResult (os));
         }
+    }
+
+    public static SearchResult merge (SearchResult... results) {
+        SearchResult merged = new SearchResult ();
+        Map<String, List<Facet>> facets = new TreeMap<>();
+        for (SearchResult r : results) {
+            merged.docs.addAll(r.docs);
+            merged.concepts.putAll(r.concepts);
+            for (Map.Entry<Integer, Integer> me : r.years.entrySet()) {
+                Integer c = merged.years.get(me.getKey());
+                if (c == null) c = 0;
+                merged.years.put(me.getKey(), c + me.getValue());
+            }
+
+            for (Facet f : r.facets) {
+                /*
+                Logger.debug("#### "+f.toString());
+                Facet c = clone (f);
+                Logger.debug("**** "+c.toString());
+                */
+                List<Facet> fs = facets.get(f.name);
+                if (fs == null)
+                    facets.put(f.name, fs = new ArrayList<>());
+                fs.add(f);
+            }
+        }
+
+        for (List<Facet> fs : facets.values()) {
+            Facet f = merge (fs.toArray(new Facet[0]));
+            merged.facets.add(f);
+        }
+
+        /*
+        Logger.debug("$$$$$$ merged facets...");
+        for (Facet f : merged.facets)
+            Logger.debug(f.toString());
+        */
+        
+        Collections.sort(merged.docs, (a, b) -> {
+                float score = b.score - a.score;
+                if (score > 0) return 1;
+                else if (score < 0) return -1;
+                int d = b.year - a.year;
+                if (d == 0) {
+                    if (b.pmid > a.pmid) d = 1;
+                    else if (b.pmid < a.pmid) d = -1;
+                    else d = a.title.compareTo(b.title);
+                }
+                return d;
+            });
+        return merged;
     }
 
     @Inject public SemMedDbKSource semmed;
@@ -393,8 +501,11 @@ public class PubMedIndex extends MetaMapIndex {
             doc.add(new FacetField (FIELD_PUBTYPE, e.ui));
 
         // keywords
-        for (String k : d.keywords)
-            doc.add(new FacetField (FIELD_KEYWORD, WordUtils.capitalize(k)));
+        for (String k : d.keywords) {
+            String keyword = WordUtils.capitalize(k);
+            doc.add(new FacetField (FIELD_KEYWORD, keyword));
+            addTextField (doc, FIELD_KEYWORD, k);
+        }
 
         // abstract texts
         for (String abs : d.getAbstract())
@@ -602,7 +713,7 @@ public class PubMedIndex extends MetaMapIndex {
             md.doc = getXmlDoc (doc, FIELD_XML);
         }
         else {
-            md = null;
+            md = EMPTY_DOC;
         }
         return md;
     }
@@ -611,10 +722,10 @@ public class PubMedIndex extends MetaMapIndex {
         NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
             (FIELD_PMID, pmid, pmid, true, true);
         SearchResult result = search (query, EMPTY_FACETS);
-        if (result.docs.isEmpty())
-            return null;
+        if (result.isEmpty())
+            return EMPTY_DOC;
         
-        int size = result.docs.size();
+        int size = result.size();
         if (size > 1)
             Logger.warn("PMID "+pmid+" has "+size+" documents!");
         return result.docs.get(size-1);
@@ -633,9 +744,8 @@ public class PubMedIndex extends MetaMapIndex {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
         SearchResult result = search (parser.parse(text), facets);
-        result.updateFacets();
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
-                     +result.docs.size()+" hit(s)!");
+                     +result.size()+" hit(s)!");
         return result;
     }
 
@@ -643,9 +753,8 @@ public class PubMedIndex extends MetaMapIndex {
                                 Map<String, Object> facets) throws Exception {
         SearchResult result = search
             (new TermQuery (new Term (field, term)), facets);
-        result.updateFacets();
         Logger.debug("## searching for "+field+":"+term+"..."
-                     +result.docs.size()+" hit(s)!");
+                     +result.size()+" hit(s)!");
         return result;
     }
     

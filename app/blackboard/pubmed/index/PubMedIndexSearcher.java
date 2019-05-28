@@ -18,41 +18,42 @@ import blackboard.index.Fields;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
-
+import static blackboard.pubmed.index.PubMedIndex.*;
 
 public class PubMedIndexSearcher implements AutoCloseable, Fields {
     final Application app;
-    final PubMedIndex index;
+    final PubMedIndexManager indexManager;
+
+    public PubMedIndexSearcher () throws IOException {
+        this (new File("."));
+    }
     
-    public PubMedIndexSearcher (File dir) throws IOException {
+    public PubMedIndexSearcher (File base) throws IOException {
         app = new GuiceApplicationBuilder()
-            .in(new File("."))
+            .in(base)
             .build();
 
-        PubMedIndexFactory pmif =
-            app.injector().instanceOf(PubMedIndexFactory.class);
-        index = pmif.get(dir);
+        indexManager = app.injector().instanceOf(PubMedIndexManager.class);
     }
 
     public void close () throws Exception {
-        index.close();
         play.api.Play.stop(app.getWrappedApplication());        
     }
     
     public static void main (String[] argv) throws Exception {
         if (argv.length < 2) {
             System.err.println("Usage: "+PubMedIndexSearcher.class.getName()
-                               +" DB TERM [FACETS...]");
+                               +"BASEDIR TERM [FACETS...]");
             System.exit(1);
         }
 
-        File file = new File (argv[0]);
-        if (!file.exists()) {
-            Logger.error("Database \""+argv[0]+"\" does not exist!");
+        File base = new File (argv[0]);
+        if (!base.exists()) {
+            Logger.error("BASEDIR \""+argv[0]+"\" does not exist!");
             System.exit(1);
         }
 
-        try (PubMedIndexSearcher searcher = new PubMedIndexSearcher (file)) {
+        try (PubMedIndexSearcher searcher = new PubMedIndexSearcher (base)) {
             Map<String, Object> facets = new LinkedHashMap<>();
             if (argv.length > 2) {
                 // format: FIELD:L0/L1/L2...
@@ -70,13 +71,13 @@ public class PubMedIndexSearcher implements AutoCloseable, Fields {
                 }
             }
             
-            PubMedIndex.SearchResult result =
-                searcher.index.search(argv[1], facets);
-            for (PubMedIndex.MatchedDoc d : result.docs) {
+            SearchResult result =
+                searcher.indexManager.search(argv[1], facets);
+            for (MatchedDoc d : result.docs) {
                 Logger.debug("################# "
                              +d.pmid+": "+String.format("%1$.3f", d.score)
                              +"\n"+d.title);
-                for (String f : d.fragments)
+                for (MatchedFragment f : d.fragments)
                     Logger.debug("..."+f);
                 //System.out.println("=== XML ===\n"+d.toXmlString());
             }

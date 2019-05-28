@@ -50,7 +50,6 @@ public class GeneRIFIndex extends PubMedIndex {
     
     public class SearchResult extends PubMedIndex.SearchResult {
         protected SearchResult () {
-            super (null, null);
         }
 
         @Override
@@ -63,7 +62,7 @@ public class GeneRIFIndex extends PubMedIndex {
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
                 if (frags != null) {
                     for (String f : frags)
-                        doc.fragments.add(f);
+                        doc.fragments.add(new MatchedFragment (f));
                 }
                 
                 JsonNode[] json = getJson (rdoc.doc, FIELD_MM_GENERIF);
@@ -174,7 +173,7 @@ public class GeneRIFIndex extends PubMedIndex {
                     GeneRIFDoc d = (GeneRIFDoc)md;
                     System.out.println(d.gene+" "+d.pmid+": "
                                        +d.title+"\n"+d.text);
-                    for (String f : d.fragments)
+                    for (MatchedFragment f : d.fragments)
                         System.out.println("..."+f);
                     //System.out.println("title_mm: "+d.mm_title);
                     System.out.println();

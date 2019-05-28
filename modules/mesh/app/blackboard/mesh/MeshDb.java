@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.*;
 import java.lang.reflect.Array;
 import java.util.function.Consumer;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletableFuture;
 
@@ -28,15 +29,19 @@ import javax.inject.Inject;
 import play.libs.F;
 import play.Logger;
 import play.inject.ApplicationLifecycle;
+import play.cache.SyncCacheApi;
+
 import com.google.inject.assistedinject.Assisted;
 
 import blackboard.neo4j.Neo4j;
 
 public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
     final Map<String, Integer> files;
+    final SyncCacheApi cache;
 
     @Inject
-    public MeshDb (ApplicationLifecycle lifecycle, @Assisted File dbdir) {
+    public MeshDb (ApplicationLifecycle lifecycle,
+                   @Assisted File dbdir, SyncCacheApi cache) {
         super (dbdir);
 
         files = new TreeMap<>();
@@ -65,11 +70,13 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
                     return CompletableFuture.completedFuture(null);
                 });
         }
+        
+        this.cache = cache;
         Logger.debug("## "+dbdir+" mesh database initialized...");
     }
 
     public MeshDb (File dbdir) {
-        this (null, dbdir);
+        this (null, dbdir, null);
     }
 
     public void close () throws Exception {
@@ -327,96 +334,101 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
 
     public Map<String, Integer> getSummary () { return files; }
     
-    public synchronized Entry getEntry (String ui) {
-        Entry entry = null;
-        try (Transaction tx = gdb.beginTx()) {
-            Node node = getNode (ui);
-            if (node != null)
-                entry = toEntry (node);
-            tx.success();
-        }
-        return entry;
+    public Entry getEntry (String ui) {
+        return cache.getOrElseUpdate("mesh/entry/"+ui, new Callable<Entry>() {
+                public Entry call () {
+                    Entry entry = null;
+                    try (Transaction tx = gdb.beginTx()) {
+                        Node node = getNode (ui);
+                        if (node != null)
+                            entry = toEntry (node);
+                        tx.success();
+                    }
+                    return entry;
+                }
+            });
     }
 
-    public synchronized Entry getEntryByName (String name) {
-        Entry entry = null;
-        try (Transaction tx = gdb.beginTx();
-             IndexHits<Node> hits = nodeIndex().get("name", name)) {
-            if (hits.hasNext()) {
-                entry = toEntry (hits.next());
-            }
-            tx.success();
-        }
-        return entry;
+    public Entry getEntryByName (String name) {
+        return cache.getOrElseUpdate
+            ("mesh/entry/"+name, new Callable<Entry>() {
+                    public Entry call () {
+                        Entry entry = null;
+                        try (Transaction tx = gdb.beginTx();
+                             IndexHits<Node> hits =
+                             nodeIndex().get("name", name)) {
+                            if (hits.hasNext()) {
+                                entry = toEntry (hits.next());
+                            }
+                            tx.success();
+                        }
+                        return entry;
+                    }
+                });
     }
 
-    public synchronized List<Descriptor>
-        getDescriptorsByTreeNumber (String trNo) {
-        List<Descriptor> descriptors = new ArrayList<>();
-        /*
-        try (Transaction tx = gdb.beginTx();
-             Result result = gdb.execute
-             ("match(n) where any(x in n.treeNumbers where x =~ '"
-              +trNo+"*') return n")) {
-            while (result.hasNext()) {
-                Map<String, Object> row = result.next();
-                Node n = (Node)row.get("n");
-                // only Descriptor should have treeNumbers
-                Entry e = toEntry (n);
-                if (e instanceof Descriptor)
-                    descriptors.add((Descriptor)e);
-            }
-        }
-        */
-        try (Transaction tx = gdb.beginTx()) {
-            Index<Node> index = nodeIndex ();
-            char end = trNo.charAt(trNo.length()-1);
-            if (end == '.') {
-                String tr = trNo.substring(0, trNo.length()-1);
-                try (IndexHits<Node> hits = index.get("parent", tr)) {
-                    for (Node n : hits) {
-                        Entry e = toEntry (n);
-                        descriptors.add((Descriptor)e);
+    public List<Descriptor> getDescriptorsByTreeNumber (String trNo) {
+        return cache.getOrElseUpdate
+            ("mesh/tree/"+trNo, new Callable<List<Descriptor>> () {
+                    public List<Descriptor> call () {
+                        List<Descriptor> descriptors = new ArrayList<>();
+                        try (Transaction tx = gdb.beginTx()) {
+                            Index<Node> index = nodeIndex ();
+                            char end = trNo.charAt(trNo.length()-1);
+                            if (end == '.') {
+                                String tr = trNo.substring(0, trNo.length()-1);
+                                try (IndexHits<Node> hits =
+                                     index.get("parent", tr)) {
+                                    for (Node n : hits) {
+                                        Entry e = toEntry (n);
+                                        descriptors.add((Descriptor)e);
+                                    }
+                                }
+                            }
+                            else {
+                                try (IndexHits<Node> hits =
+                                     index.get("treeNumbers", trNo)) {
+                                    for (Node n : hits) {
+                                        Entry e = toEntry (n);
+                                        descriptors.add((Descriptor)e);
+                                    }
+                                }
+                            }
+                            tx.success();
+                        }
+                        return descriptors;
                     }
-                }
-            }
-            else {
-                try (IndexHits<Node> hits = index.get("treeNumbers", trNo)) {
-                    for (Node n : hits) {
-                        Entry e = toEntry (n);
-                        descriptors.add((Descriptor)e);
-                    }
-                }
-            }
-            tx.success();
-        }
-        
-        return descriptors;
+                });
     }
 
     public List<Entry> getParents (Entry e) {
         return getParents (e.ui);
     }
     
-    public synchronized List<Entry> getParents (String ui) {
-        Node node = getNode (ui);
-        if (node != null) {
-            List<Entry> parents = new ArrayList<>();
-            try (Transaction tx = gdb.beginTx()) {
-                Set<Long> seen = new HashSet<>();
-                for (Relationship rel : node.getRelationships
-                         (PARENT_RELTYPE, Direction.OUTGOING)) {
-                    Node n = rel.getOtherNode(node);
-                    if (!seen.contains(n.getId())) {
-                        parents.add(toEntry (n));
-                        seen.add(n.getId());
+    public List<Entry> getParents (String ui) {
+        return cache.getOrElseUpdate
+            ("mesh/parent/"+ui, new Callable<List<Entry>> () {
+                    public List<Entry> call () {
+                        Node node = getNode (ui);
+                        if (node != null) {
+                            List<Entry> parents = new ArrayList<>();
+                            try (Transaction tx = gdb.beginTx()) {
+                                Set<Long> seen = new HashSet<>();
+                                for (Relationship rel : node.getRelationships
+                                         (PARENT_RELTYPE, Direction.OUTGOING)) {
+                                    Node n = rel.getOtherNode(node);
+                                    if (!seen.contains(n.getId())) {
+                                        parents.add(toEntry (n));
+                                        seen.add(n.getId());
+                                    }
+                                }
+                                tx.success();
+                            }
+                            return parents;
+                        }
+                        return null;
                     }
-                }
-                tx.success();
-            }
-            return parents;
-        }
-        return null;
+                });
     }
 
     /*
@@ -492,8 +504,17 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
         return entries;
     }
 
-    public synchronized List<Entry> search
-        (String q, int top, String... label) {
+    public List<Entry> search (final String q, final int top,
+                               final String... label) {
+        return cache.getOrElseUpdate
+            ("mesh/search/"+q+"/"+top, new Callable<List<Entry>>() {
+                    public List<Entry> call () {
+                        return _search (q, top, label);
+                    }
+                });
+    }
+    
+    public List<Entry> _search (String q, int top, String... label) {
         if (q.charAt(0) == '"') {
         }
         else {
@@ -560,7 +581,7 @@ public class MeshDb extends Neo4j implements Mesh, AutoCloseable {
             System.exit(1);
         }
 
-        try (MeshDb mesh = new MeshDb (null, new File (argv[0]))) {
+        try (MeshDb mesh = new MeshDb (null, new File (argv[0]), null)) {
             if (argv.length == 1) {
                 mesh.traverse((ui, name, tr) -> {
                         System.out.print(ui+"\t"+name);

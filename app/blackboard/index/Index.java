@@ -29,16 +29,20 @@ import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.suggest.document.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 import com.google.inject.assistedinject.Assisted;
 
 public class Index implements AutoCloseable, Fields {
     public static class FV {
+        @JsonIgnore
         public FV parent;
         public Integer total;
         public String display;
         public final String label;
-        public final Integer count;
+        public Integer count;
         public final List<FV> children = new ArrayList<>();
 
         protected FV (String label, Integer count) {
@@ -104,6 +108,102 @@ public class Index implements AutoCloseable, Fields {
                 FV.print(sb, fv);
             return sb.toString();
         }
+
+        void sort () {
+            Collections.sort(values, (fa, fb) -> {
+                    int d = fb.count - fa.count;
+                    if (d == 0)
+                        d = fa.label.compareTo(fb.label);
+                    return d;
+                });
+            for (FV fv : values)
+                Index.sort(fv);
+        }
+    }
+
+    /*
+     * merge facets; facet names must be the same 
+     */
+    public static Facet merge (Facet... facets) {
+        Facet merged = null;
+        for (Facet f : facets) {
+            if (merged == null) {
+                merged = clone (f);
+            }
+            else if (merged.name.equals(f.name)) {
+                for (FV fv : f.values)
+                    merge (merged.values, fv);
+            }
+            else {
+                Logger.warn("Facet \""+f.name+"\" not merged!");
+            }
+        }
+        merged.sort();
+        return merged;
+    }
+
+    public static Facet clone (Facet facet) {
+        Facet clone = new Facet (facet.name);
+        clone.display = facet.display;
+        for (FV fv : facet.values) {
+            clone.values.add(clone (fv));
+        }
+        return clone;
+    }
+
+    static FV clone (FV fv) {
+        FV c = _clone (fv);
+        clone (c, fv);
+        return c;
+    }
+    
+    static FV _clone (FV fv) {
+        FV clone = new FV (fv.label, fv.count);
+        clone.total = fv.total;
+        clone.display = fv.display;
+        return clone;
+    }
+
+    static void clone (FV clone, FV fv) {
+        for (FV child : fv.children) {
+            FV c = _clone (child);
+            clone.add(c);
+            clone (c, child);
+        }
+    }
+
+    static void sort (FV fv) {
+        Collections.sort(fv.children, (fa, fb) -> {
+                int d = fb.count - fa.count;
+                if (d == 0)
+                    d = fa.label.compareTo(fb.label);
+                return d;
+            });
+        for (FV child : fv.children)
+            sort (child);
+    }
+    
+    static void merge (List<FV> values, FV fval) {
+        int pos = -1;
+        for (int i = 0; i < values.size() && pos < 0; ++i) {
+            FV fv = values.get(i);
+            if (fv.label.equals(fval.label)) {
+                fv.count += fval.count;
+                if (fv.children.isEmpty()) {
+                    for (FV fc : fval.children)
+                        fv.add(clone (fc));
+                }
+                else {
+                    for (FV fc : fval.children)
+                        merge (fv.children, fc);
+                }
+                pos = i;
+            }
+        }
+        
+        if (pos < 0) {
+            values.add(fval);
+        }
     }
 
     protected static class ResultDoc {
@@ -133,6 +233,7 @@ public class Index implements AutoCloseable, Fields {
 
     protected static abstract class SearchResult {
         public final List<Facet> facets = new ArrayList<>();
+        @JsonIgnore
         public final int fdim;
         
         protected SearchResult () {
@@ -142,7 +243,10 @@ public class Index implements AutoCloseable, Fields {
             this.fdim = fdim;
         }
         protected abstract boolean process (ResultDoc doc);
+        @JsonProperty(value="count")
         public int size () { return 0; }
+        @JsonIgnore
+        public boolean isEmpty () { return 0 == size (); }
     }
 
     final protected FieldType tvFieldType;

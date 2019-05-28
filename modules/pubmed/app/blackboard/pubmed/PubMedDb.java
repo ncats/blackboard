@@ -344,7 +344,7 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
                 System.exit(1);
             }
             
-            try (MeshDb mesh = new MeshDb (null, new File (argv[1]));
+            try (MeshDb mesh = new MeshDb (null, new File (argv[1]), null);
                  PubMedDb pdb = new PubMedDb (new File (argv[0]), mesh)) {
                 for (int i = 2; i < argv.length; ++i)
                     pdb.index(argv[i]);

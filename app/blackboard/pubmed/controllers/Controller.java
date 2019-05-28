@@ -21,9 +21,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndex;
+import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
@@ -31,13 +33,15 @@ import blackboard.mesh.MeshDb;
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
     final PubMedIndexManager indexManager;
+    final ObjectMapper mapper = Json.mapper();
 
     @Inject
     public Controller (HttpExecutionContext ec, PubMedIndexManager indexManager,
                        ApplicationLifecycle lifecycle) {
         this.indexManager = indexManager;
         this.ec = ec;
-        
+
+        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
         lifecycle.addStopHook(() -> {
                 return CompletableFuture.completedFuture(null);
             });
@@ -53,13 +57,8 @@ public class Controller extends play.mvc.Controller {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    PubMedIndex.SearchResult[] results =
-                        indexManager.search(q, null);
-                    ArrayNode json = Json.newArray();
-                    for (PubMedIndex.SearchResult r : results)
-                        json.add(Json.toJson(r.docs));
-                    
-                    return ok (json);
+                    SearchResult result = indexManager.search(q, null);
+                    return ok ((JsonNode)mapper.valueToTree(result));
                 }
                 catch (Exception ex) {
                     return internalServerError
@@ -72,8 +71,10 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> pmid (Long pmid, String format) {
         return supplyAsync (() -> {
                 try {
-                    byte[] doc = indexManager.getDoc(pmid, format);
-                    return ok(doc).as("application/xml");
+                    MatchedDoc doc = indexManager.getDoc(pmid, format);
+                    if (doc != null)
+                        return ok(doc.toXmlString()).as("application/xml");
+                    return notFound ("Can't find PMID "+pmid);
                 }
                 catch (Exception ex) {
                     Logger.error("Can't retrieve doc: "+pmid, ex);
