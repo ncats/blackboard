@@ -312,10 +312,17 @@ public class PubMedIndex extends MetaMapIndex {
     }
 
     public static SearchResult merge (SearchResult... results) {
+        return merge (0, 0, results);
+    }
+    
+    public static SearchResult merge
+        (int skip, int top, SearchResult... results) {
+        
         SearchResult merged = new SearchResult ();
         Map<String, List<Facet>> facets = new TreeMap<>();
+        List<MatchedDoc> docs = new ArrayList<>();
         for (SearchResult r : results) {
-            merged.docs.addAll(r.docs);
+            docs.addAll(r.docs);
             merged.concepts.putAll(r.concepts);
             for (Map.Entry<Integer, Integer> me : r.years.entrySet()) {
                 Integer c = merged.years.get(me.getKey());
@@ -348,7 +355,7 @@ public class PubMedIndex extends MetaMapIndex {
             Logger.debug(f.toString());
         */
         
-        Collections.sort(merged.docs, (a, b) -> {
+        Collections.sort(docs, (a, b) -> {
                 float score = b.score - a.score;
                 if (score > 0) return 1;
                 else if (score < 0) return -1;
@@ -360,6 +367,14 @@ public class PubMedIndex extends MetaMapIndex {
                 }
                 return d;
             });
+
+        if (top <= 0) {
+            merged.docs.addAll(docs);
+        }
+        else {
+            int max = Math.min(docs.size(), skip+top);
+            merged.docs.addAll(docs.subList(skip, max));
+        }
         return merged;
     }
 
@@ -732,19 +747,29 @@ public class PubMedIndex extends MetaMapIndex {
         return result.docs.get(size-1);
     }
 
-    public SearchResult search (Query query, Map<String, Object> facets)
-        throws Exception {
+    public SearchResult search
+        (Query query, Map<String, Object> facets) throws Exception {
+        return search (query, facets, MAX_HITS);
+    }
+    
+    public SearchResult search (Query query, Map<String, Object> facets,
+                                int maxHits) throws Exception {
         SearchResult result = createSearchResult ();
-        search (query, facets, result);
+        search (query, facets, result, maxHits);
         result.updateFacets();
         return result;
     }
+
+    public SearchResult search (String text,
+                                Map<String, Object> facets) throws Exception {
+        return search (text, facets, MAX_HITS);
+    }
     
-    public SearchResult search (String text, Map<String, Object> facets)
-        throws Exception {
+    public SearchResult search (String text, Map<String, Object> facets,
+                                int maxHits) throws Exception {
         QueryParser parser = new QueryParser
             (FIELD_TEXT, indexWriter.getAnalyzer());
-        SearchResult result = search (parser.parse(text), facets);
+        SearchResult result = search (parser.parse(text), facets, maxHits);
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
                      +result.size()+" hit(s)!");
         return result;
@@ -752,8 +777,14 @@ public class PubMedIndex extends MetaMapIndex {
 
     public SearchResult search (String field, String term,
                                 Map<String, Object> facets) throws Exception {
+        return search (field, term, facets, MAX_HITS);
+    }
+    
+    public SearchResult search (String field, String term,
+                                Map<String, Object> facets, int maxHits)
+        throws Exception {
         SearchResult result = search
-            (new TermQuery (new Term (field, term)), facets);
+            (new TermQuery (new Term (field, term)), facets, maxHits);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.size()+" hit(s)!");
         return result;

@@ -159,7 +159,7 @@ public class ClinicalTrialDb extends Neo4j implements KType {
         InterventionEntityRepo () {
             super ("intervention", INTERVENTION_T);
             try {
-                uniis.putAll(loadUniiToNames ());
+                //uniis.putAll(loadUniiToNames ());
             }
             catch (Exception ex) {
                 Logger.error("Unable to load UNII mappings!", ex);

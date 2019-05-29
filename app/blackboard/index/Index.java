@@ -260,15 +260,9 @@ public class Index implements AutoCloseable, Fields {
     final protected DirectoryTaxonomyWriter taxonWriter;
     final protected FacetsConfig facetConfig;
     final protected SearcherManager searcherManager;
-    protected int maxHits;
     
     protected Index (File dir) throws IOException {
-        this (dir, MAX_HITS);
-    }
-    
-    protected Index (File dir, int maxHits) throws IOException {
         this.root = dir;
-        this.maxHits = maxHits;
         
         File text = new File (dir, "text");
         text.mkdirs();
@@ -291,9 +285,6 @@ public class Index implements AutoCloseable, Fields {
         searcherManager = new SearcherManager
             (indexWriter, new SearcherFactory ());
     }
-
-    public void setMaxHits (int maxHits) { this.maxHits = maxHits; }
-    public int getMaxHits () { return maxHits; }
 
     /*
      * should be overriden by subclass!
@@ -382,13 +373,24 @@ public class Index implements AutoCloseable, Fields {
     }
 
     protected int search (Query query, SearchResult results) throws Exception {
-        return search (query, null, results);
+        return search (query, null, results, MAX_HITS);
+    }
+
+    protected int search (Query query, SearchResult results, int maxHits)
+        throws Exception {
+        return search (query, null, results, maxHits);
+    }
+
+    protected int search (Query query, Map<String, Object> fmap,
+                          SearchResult result) throws Exception {
+        return search (query, fmap, result, MAX_HITS);
     }
     
     protected int search (Query query, Map<String, Object> fmap,
-                          SearchResult result) throws Exception {
+                          SearchResult result, int maxHits)
+        throws Exception {
         long start = System.currentTimeMillis();
-        Logger.debug("### Query: "+query+" Facets: "+fmap);
+        Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
         
         try (IndexReader reader = DirectoryReader.open(indexWriter);
              TaxonomyReader taxonReader =
@@ -429,11 +431,10 @@ public class Index implements AutoCloseable, Fields {
                 facets = swresults.facets;
                 docs = swresults.hits;
             }
-            
-            int nd = 0;
+
             if (docs != null) {
                 result.total = docs.totalHits;
-                for (; nd < docs.scoreDocs.length; ++nd) {
+                for (int nd = 0; nd < docs.scoreDocs.length; ++nd) {
                     int docId = docs.scoreDocs[nd].doc;
                     ResultDoc rdoc = new ResultDoc
                         (searcher.doc(docId), docId, reader,
@@ -447,9 +448,10 @@ public class Index implements AutoCloseable, Fields {
             Logger.debug("### Query executed in "
                          +String.format
                          ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
-                         +"..."+nd+" hit(s) (out of "+result.total+" found)!");
+                         +"..."+result.size()+" hit(s) (out of "
+                         +result.total+" found)!");
             
-            return nd;
+            return result.size();
         }
     }
 

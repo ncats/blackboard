@@ -1,5 +1,6 @@
 package blackboard.pubmed.controllers;
 
+import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -53,14 +54,44 @@ public class Controller extends play.mvc.Controller {
         return ok (blackboard.pubmed.views.html.mock.index.render());
     }
 
-    public CompletionStage<Result> search (String q) {
+    Map<String, Object> parseFacets () {
+        Map<String, Object> facets = null;
+        String[] params = request().queryString().get("facet");
+        if (params != null) {
+            facets = new TreeMap<>();
+            for (String p : params) {
+                int pos = p.indexOf('/');
+                if (pos > 0) {
+                    String name = p.substring(0, pos);
+                    Object value = p.substring(pos+1);
+                    switch (name) {
+                    case FIELD_TR:
+                        value = ((String)value).split("\\.");
+                        break;
+                        
+                    default:
+                    }
+                    facets.put(name, value);
+                }
+                else {
+                    Logger.warn("Not a valid facet: "+p);
+                }
+            }
+        }
+        return facets;
+    }
+
+    public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    SearchResult result = indexManager.search(q, null);
+                    Map<String, Object> facets = parseFacets ();
+                    SearchResult result = indexManager.search
+                        (q, facets, skip, top);
                     return ok ((JsonNode)mapper.valueToTree(result));
                 }
                 catch (Exception ex) {
+                    Logger.error("Search failed", ex);
                     return internalServerError
                         (views.html.ui.status.render(ex.getMessage(),
                                                      "Server Error"));
