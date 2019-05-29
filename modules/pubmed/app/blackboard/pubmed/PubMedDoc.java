@@ -60,6 +60,7 @@ public class PubMedDoc implements java.io.Serializable {
         public final String initials;
         public final String collectiveName;
         public final String[] affiliations;
+        public final String identifier;
 
         Author (Element elm) {
             NodeList nodes = elm.getElementsByTagName("LastName");
@@ -86,6 +87,10 @@ public class PubMedDoc implements java.io.Serializable {
             for (int i = 0; i < nodes.getLength(); ++i) {
                 affiliations[i] = getText (nodes.item(i));
             }
+
+            nodes = elm.getElementsByTagName("Identifier");
+            identifier = nodes == null || nodes.getLength() == 0
+                ? null : getText (nodes.item(0));
         }
 
         Author (Map<String, Object> auth) {
@@ -97,6 +102,7 @@ public class PubMedDoc implements java.io.Serializable {
             forename = (String) auth.get("ForeName");
             initials = (String) auth.get("Initials");
             affiliations = (String[]) auth.get("Affiliation");
+            identifier = (String) auth.get("Identifier");
         }
 
         public String getName () {

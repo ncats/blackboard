@@ -65,11 +65,11 @@ public class Controller extends play.mvc.Controller {
                     String name = p.substring(0, pos);
                     Object value = p.substring(pos+1);
                     switch (name) {
-                    case FIELD_TR:
+                    case FACET_TR:
                         value = ((String)value).split("\\.");
                         break;
                         
-                    case FIELD_GRANTAGENCY:
+                    case FACET_GRANTAGENCY:
                         value = ((String)value).split("_");
                         break;
                         
@@ -85,6 +85,36 @@ public class Controller extends play.mvc.Controller {
         return facets;
     }
 
+    public CompletionStage<Result> filter (int skip, int top) {
+        Logger.debug(">> "+request().uri());
+        return supplyAsync (() -> {
+                try {
+                    Map<String, Object> facets = parseFacets ();
+                    if (facets == null || facets.isEmpty())
+                        return badRequest ("No facets specified!");
+                    
+                    SearchResult result =
+                        indexManager.search(facets, skip, top);
+                    ObjectNode json = Json.newObject();
+                    json.put("filters", mapper.valueToTree(facets));
+                    json.put("skip", skip);
+                    json.put("top", top);
+                    json.put("count", result.size());
+                    json.put("total", result.total);
+                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("count");
+                    content.remove("total");
+                    json.put("content", content);
+                    return ok (json);
+                }
+                catch (Exception ex) {
+                    Logger.error("Search failed", ex);
+                    return internalServerError
+                        ("Internal server error: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
+    
     public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
@@ -92,13 +122,25 @@ public class Controller extends play.mvc.Controller {
                     Map<String, Object> facets = parseFacets ();
                     SearchResult result = indexManager.search
                         (q, facets, skip, top);
-                    return ok ((JsonNode)mapper.valueToTree(result));
+                    ObjectNode json = Json.newObject();
+                    json.put("query", q);
+                    if (facets != null && !facets.isEmpty()) {
+                        json.put("filters", mapper.valueToTree(facets));
+                    }
+                    json.put("skip", skip);
+                    json.put("top", top);
+                    json.put("count", result.size());
+                    json.put("total", result.total);
+                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("count");
+                    content.remove("total");
+                    json.put("content", content);
+                    return ok (json);
                 }
                 catch (Exception ex) {
                     Logger.error("Search failed", ex);
                     return internalServerError
-                        (views.html.ui.status.render(ex.getMessage(),
-                                                     "Server Error"));
+                        ("Internal server error: "+ex.getMessage());
                 }
             }, ec.current());
     }

@@ -289,6 +289,13 @@ public class PubMedSax extends DefaultHandler {
             author.put(qName, value);
             break;
 
+        case "Identifier":
+            if ("Author".equals(parent)) {
+                //Logger.debug("########### "+doc.pmid+": "+value);
+                author.put(qName, value);
+            }
+            break;
+
         case "Affiliation":
             { Object affia = author.get(qName);
                 if (affia != null) {

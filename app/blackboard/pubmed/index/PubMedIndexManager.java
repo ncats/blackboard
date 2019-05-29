@@ -223,6 +223,10 @@ public class PubMedIndexManager implements AutoCloseable {
     public SearchResult search (String query, Map<String, Object> facets) {
         return search (query, facets, 0, maxHits);
     }
+
+    public SearchResult search (Map<String, Object> facets, int skip, int top) {
+        return search (null, facets, skip, top);
+    }
     
     public SearchResult search (String query, Map<String, Object> facets,
                                 int skip, int top) {

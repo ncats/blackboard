@@ -52,11 +52,11 @@ public class MetaMapIndex extends Index {
         addTextField (doc, FIELD_CUI, ev.getConceptId());
         addTextField (doc, FIELD_CONCEPT, " cui=\""+ev.getConceptId()+"\"",
                       ev.getConceptName());
-        doc.add(new FacetField (FIELD_CUI, ev.getConceptId()));
+        doc.add(new FacetField (FACET_CUI, ev.getConceptId()));
         for (String t : ev.getSemanticTypes())
-            doc.add(new FacetField (FIELD_SEMTYPE, t));
+            doc.add(new FacetField (FACET_SEMTYPE, t));
         for (String s : ev.getSources())
-            doc.add(new FacetField (FIELD_SOURCE, s));
+            doc.add(new FacetField (FACET_SOURCE, s));
     }
     
     protected JsonNode metamap (Document doc, String text) {

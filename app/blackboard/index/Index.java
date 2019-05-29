@@ -111,6 +111,9 @@ public class Index implements AutoCloseable, Fields {
             return sb.toString();
         }
 
+        @JsonProperty(value="count")
+        public int size () { return values.size(); }
+
         void sort () {
             Collections.sort(values, (fa, fb) -> {
                     int d = fb.count - fa.count;
@@ -234,20 +237,24 @@ public class Index implements AutoCloseable, Fields {
     }
 
     protected static abstract class SearchResult {
-        public final List<Facet> facets = new ArrayList<>();
         @JsonIgnore
         public final int fdim;
         public int total; // total matches
+        public final List<Facet> facets = new ArrayList<>();
         
         protected SearchResult () {
-            this (100);
+            this (10);
         }
         protected SearchResult (int fdim) {
             this.fdim = fdim;
         }
         protected abstract boolean process (ResultDoc doc);
+        
         @JsonProperty(value="count")
         public int size () { return 0; }
+        @JsonProperty(value="facets")
+        public List<Facet> getFacets () { return facets; }
+        
         @JsonIgnore
         public boolean isEmpty () { return 0 == size (); }
     }

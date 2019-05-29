@@ -119,7 +119,8 @@ public class PubMedIndexBuilder implements AutoCloseable {
     protected PubMedSax createSaxParser () {
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
                 boolean cont = false;
-                if (true || count.incrementAndGet() < 5000) {
+                if (true ||
+                    count.incrementAndGet() < 5000) {
                     try {
                         queue.put(d);
                         cont = true;

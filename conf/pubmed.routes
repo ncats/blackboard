@@ -1,4 +1,5 @@
 
 GET /   blackboard.pubmed.controllers.Controller.index
 GET /api/search/:q blackboard.pubmed.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
+GET /api/search blackboard.pubmed.controllers.Controller.filter(skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/$pmid<[0-9]+>.$format<(xml|json)> blackboard.pubmed.controllers.Controller.pmid(pmid: Long, format: String)
