@@ -363,7 +363,8 @@ public class PubMedIndex extends MetaMapIndex {
                 if (d == 0) {
                     if (b.pmid > a.pmid) d = 1;
                     else if (b.pmid < a.pmid) d = -1;
-                    else d = a.title.compareTo(b.title);
+                    else if (a.title != null)
+                        d = a.title.compareTo(b.title);
                 }
                 return d;
             });
