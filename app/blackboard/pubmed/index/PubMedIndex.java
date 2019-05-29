@@ -63,6 +63,16 @@ public class PubMedIndex extends MetaMapIndex {
     public static final String FIELD_MM_ABSTRACT = "mm_abstract";
     public static final int MAX_FACET_FIELD_LENGTH = 1024;
 
+    static final String[] HIGHLIGHT_FIELDS = {
+        FIELD_TITLE,
+        FIELD_AUTHOR,
+        FIELD_ABSTRACT,
+        FIELD_MESH,
+        FIELD_KEYWORD,
+        FIELD_JOURNAL,
+        FIELD_GRANTID
+    };
+
     public static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
     public static final MatchedDoc EMPTY_DOC = new MatchedDoc ();
     public static final SearchResult EMPTY_RESULT = new SearchResult ();
@@ -113,6 +123,12 @@ public class PubMedIndex extends MetaMapIndex {
             this.field = f;
             this.fragment = t;
             this.text = text;
+        }
+
+        MatchedFragment (String field, String text) {
+            this.fragment = text;
+            this.text = text;
+            this.field = field;
         }
 
         public String toString () {
@@ -181,9 +197,20 @@ public class PubMedIndex extends MetaMapIndex {
             try {
                 MatchedDoc mdoc = toMatchedDoc (rdoc.doc);
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
-                if (frags != null) {
+                if (frags != null && frags.length > 0) {
                     for (String f : frags)
                         mdoc.fragments.add(new MatchedFragment (f));
+                }
+                else {
+                    for (String field : HIGHLIGHT_FIELDS) {
+                        frags = rdoc.getFragments(field, 500, 10);
+                        if (frags != null && frags.length > 0) {
+                            for (String f : frags)
+                                mdoc.fragments.add
+                                    (new MatchedFragment (field, f));
+                            break;
+                        }
+                    }
                 }
                 
                 concepts.putAll(mdoc.concepts);
