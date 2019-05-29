@@ -69,6 +69,10 @@ public class Controller extends play.mvc.Controller {
                         value = ((String)value).split("\\.");
                         break;
                         
+                    case FIELD_GRANTAGENCY:
+                        value = ((String)value).split("_");
+                        break;
+                        
                     default:
                     }
                     facets.put(name, value);
