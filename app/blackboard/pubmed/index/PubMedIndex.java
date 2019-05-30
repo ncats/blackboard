@@ -2,6 +2,7 @@ package blackboard.pubmed.index;
 
 import play.Logger;
 import play.libs.Json;
+import play.cache.SyncCacheApi;
 
 import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
@@ -12,7 +13,6 @@ import blackboard.semmed.SemMedDbKSource;
 import blackboard.semmed.Predication;
 import blackboard.umls.SemanticType;
 import blackboard.umls.UMLSKSource;
-import blackboard.umls.Concept;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Callable;
 import java.time.temporal.ChronoField;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -58,6 +59,25 @@ import javax.xml.transform.stream.StreamResult;
 import com.google.inject.assistedinject.Assisted;
 
 public class PubMedIndex extends MetaMapIndex {
+    /*
+     * these are internal fields used for resolving concept cuis
+     */
+    static final String _FIELD_CUI = "_cui";
+    static final String _FIELD_CONCEPT = "_concept";
+    static final String _FIELD_SEMTYPE = "_semtype";
+    
+    static public class Concept {
+        public final String ui;
+        public final String name;
+        public final String type;
+
+        Concept (String ui, String name, String type) {
+            this.ui = ui;
+            this.name = name;
+            this.type = type;
+        }
+    }
+    
     // MetaMap compressed json
     public static final String FIELD_MM_TITLE = "mm_title";
     public static final String FIELD_MM_ABSTRACT = "mm_abstract";
@@ -143,7 +163,8 @@ public class PubMedIndex extends MetaMapIndex {
         public String title;
         public Integer year;
         public List<MatchedFragment> fragments = new ArrayList<>();
-        public Map<String, String> concepts = new TreeMap<>();
+        public List<Concept> concepts = new ArrayList<>();
+        public List<Concept> mesh = new ArrayList<>();
 
         @JsonIgnore
         public org.w3c.dom.Document doc;
@@ -176,24 +197,27 @@ public class PubMedIndex extends MetaMapIndex {
     public static class SearchResult
         extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
-        public final Map<String, String> concepts = new TreeMap<>();
         
         final MeshDb mesh;
         final UMLSKSource umls;
+        final SyncCacheApi cache;
 
         protected SearchResult () {
-            this (null, null);
+            this (null, null, null);
         }
             
-        protected SearchResult (MeshKSource mesh, UMLSKSource umls) {
+        protected SearchResult (SyncCacheApi cache,
+                                MeshKSource mesh, UMLSKSource umls) {
             this.mesh = mesh != null ? mesh.getMeshDb() : null;
             this.umls = umls;
+            this.cache = cache;
         }
         
         @Override
         public int size () { return docs.size(); }
         
-        protected boolean process (blackboard.index.Index.ResultDoc rdoc) {
+        protected boolean process (IndexSearcher searcher,
+                                   blackboard.index.Index.ResultDoc rdoc) {
             try {
                 MatchedDoc mdoc = toMatchedDoc (rdoc.doc);
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
@@ -213,7 +237,22 @@ public class PubMedIndex extends MetaMapIndex {
                     }
                 }
                 
-                concepts.putAll(mdoc.concepts);
+                for (String cui : rdoc.doc.getValues(FIELD_CUI)) {
+                    Concept c = getConcept (searcher, cui);
+                    if (c != null)
+                        mdoc.concepts.add(c);
+                }
+
+                for (String ui : rdoc.doc.getValues(FIELD_UI)) {
+                    Descriptor d = (Descriptor)mesh.getEntry(ui);
+                    if (d != null) {
+                        Concept c = new Concept
+                            (d.ui, d.name, d.treeNumbers.isEmpty() ? null
+                             : d.treeNumbers.get(0));
+                        mdoc.mesh.add(c);
+                    }
+                }
+                
                 mdoc.score = rdoc.score;
                 docs.add(mdoc);
             }
@@ -223,7 +262,9 @@ public class PubMedIndex extends MetaMapIndex {
             return true;
         }
 
-        protected void updateFacets () {
+        @Override
+        protected void postProcessing (IndexSearcher searcher)
+            throws IOException {
             for (Facet f : facets) {
                 switch (f.name) {
                 case FACET_TR: // treeNumber
@@ -262,22 +303,42 @@ public class PubMedIndex extends MetaMapIndex {
 
                 case FACET_CUI:
                     for (FV fv : f.values) {
-                        /*
-                        try {
-                            Concept concept = umls.getConcept(fv.label);
-                            if (concept != null)
-                                fv.display = concept.name;
-                        }
-                        catch (Exception ex) {
-                            Logger.error("Can't retrieve UMLS concept: "
-                                         +fv.label, ex);
-                        }
-                        */
-                        fv.display = concepts.get(fv.label);
+                        Concept concept = getConcept (searcher, fv.label);
+                        if (concept != null)
+                            fv.display = concept.name;
                     }
                     break;
                 }
             }
+        } // postProcessing ()
+
+        Concept getConcept (final IndexSearcher searcher, final String cui) {
+            return cache.getOrElseUpdate
+                (PubMedIndex.class.getName()+"/concept/"+cui,
+                 new Callable<Concept> () {
+                     public Concept call () {
+                         try {
+                             return _getConcept (searcher, cui);
+                         }
+                         catch (IOException ex) {
+                             Logger.error("Can't get concept: "+cui, ex);
+                         }
+                         return null;
+                     }
+                 });
+        }
+        
+        Concept _getConcept (IndexSearcher searcher, String cui)
+            throws IOException {
+            TermQuery tq = new TermQuery (new Term (_FIELD_CUI, cui));
+            TopDocs hits = searcher.search(tq, 1);
+            if (hits.totalHits > 0) {
+                Document doc = searcher.doc(hits.scoreDocs[0].doc);
+                return new Concept
+                    (doc.get(_FIELD_CUI), doc.get(_FIELD_CONCEPT),
+                     doc.get(_FIELD_SEMTYPE));
+            }
+            return null;
         }
 
         protected void updateTreeNumberDisplay (FV fv) {
@@ -344,7 +405,6 @@ public class PubMedIndex extends MetaMapIndex {
         List<MatchedDoc> docs = new ArrayList<>();
         for (SearchResult r : results) {
             docs.addAll(r.docs);
-            merged.concepts.putAll(r.concepts);
             merged.total += r.total;
 
             for (Facet f : r.facets) {
@@ -398,6 +458,7 @@ public class PubMedIndex extends MetaMapIndex {
     @Inject public SemMedDbKSource semmed;
     @Inject public MeshKSource mesh;
     @Inject public UMLSKSource umls;
+    @Inject SyncCacheApi cache;
     
     @Inject
     public PubMedIndex (@Assisted File dir) throws IOException {
@@ -465,17 +526,6 @@ public class PubMedIndex extends MetaMapIndex {
         for (PubMedDoc.Author auth : d.authors) {
             if (auth.affiliations != null) {
                 for (String affi : auth.affiliations) {
-                    /*
-                    if (affi.length() > MAX_FACET_FIELD_LENGTH) {
-                        Logger.warn(d.getPMID()+": Affiliation is too long (>"
-                                    +MAX_FACET_FIELD_LENGTH+"); "
-                                    +"truncating...\n"+affi);
-                        affi = affi.substring(0, MAX_FACET_FIELD_LENGTH);
-                    }
-                    
-                    if (affi.length() > 2)
-                        doc.add(new FacetField (FIELD_AFFILIATION, affi));
-                    */
                     addTextField (doc, FIELD_AFFILIATION, affi);
                     doc.add(new Field (FIELD_AFFILIATION, affi, tvFieldType));
                 }
@@ -484,8 +534,10 @@ public class PubMedIndex extends MetaMapIndex {
                 && auth.identifier.indexOf("orcid") > 0) {
                 int pos = auth.identifier.lastIndexOf('/');
                 if (pos > 0) {
-                    doc.add(new FacetField
-                            (FACET_ORCID, auth.identifier.substring(pos+1)));
+                    String orcid = auth.identifier.substring(pos+1);
+                    if (!"".equals(orcid.trim())) {
+                        doc.add(new FacetField (FACET_ORCID, orcid));
+                    }
                 }
                 doc.add(new Field (FIELD_ORCID, auth.identifier, tvFieldType));
             }
@@ -628,35 +680,7 @@ public class PubMedIndex extends MetaMapIndex {
          */
         if (semmed != null) {
             try {
-                List<Predication> preds = semmed.getPredicationsByPMID
-                    (String.valueOf(d.getPMID()));
-                Map<String, String> cuis = new LinkedHashMap<>();
-                Set<String> types = new LinkedHashSet<>();
-                Set<String> predicates = new LinkedHashSet<>();
-                for (Predication p : preds) {
-                    cuis.put(p.subcui, p.subject);
-                    cuis.put(p.objcui, p.object);
-                    types.add(p.subtype);
-                    types.add(p.objtype);
-                    predicates.add(p.predicate);
-                }
-
-                for (Map.Entry<String, String> me : cuis.entrySet()) {
-                    doc.add(new FacetField (FACET_CUI, me.getKey()));
-                    doc.add(new Field (FIELD_CUI, me.getKey(), tvFieldType));
-                    // store the concept as CUI:NAME so that we can replace
-                    // the cui with its concept name in facet
-                    doc.add(new StoredField
-                            (FIELD_CONCEPT, me.getKey()+":"+me.getValue()));
-                    
-                    addTextField (doc, FIELD_CUI, me.getKey());
-                    addTextField (doc, FIELD_CONCEPT, " cui=\""
-                                  +me.getKey()+"\"", me.getValue());
-                }
-                for (String type : types)
-                    doc.add(new FacetField (FACET_SEMTYPE, type));
-                for (String pred : predicates)
-                    doc.add(new FacetField (FACET_PREDICATE, pred));
+                semmed (doc, d.getPMID());
             }
             catch (Exception ex) {
                 Logger.error("Can't retrieve Predications for "
@@ -672,6 +696,65 @@ public class PubMedIndex extends MetaMapIndex {
         //Logger.debug("indexed... "+doc);
         return doc;
     }
+
+    void semmed (Document doc, Long pmid) throws Exception {
+        List<Predication> preds =
+            semmed.getPredicationsByPMID(pmid.toString());
+
+        if (!preds.isEmpty()) {
+            Map<String, String> cuis = new LinkedHashMap<>();
+            Set<String> types = new LinkedHashSet<>();
+            Set<String> predicates = new LinkedHashSet<>();
+            
+            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                IndexSearcher searcher = new IndexSearcher (reader);
+                for (Predication p : preds) {
+                    addConceptIfAbsent
+                        (searcher, new Concept (p.subcui,
+                                                p.subject, p.subtype));
+                    addConceptIfAbsent
+                        (searcher, new Concept (p.objcui,
+                                                 p.object, p.objtype));
+                    cuis.put(p.subcui, p.subject);
+                    cuis.put(p.objcui, p.object);
+                    types.add(p.subtype);
+                    types.add(p.objtype);
+                    predicates.add(p.predicate);
+                }
+            }
+            
+            for (Map.Entry<String, String> me : cuis.entrySet()) {
+                doc.add(new FacetField (FACET_CUI, me.getKey()));
+                doc.add(new Field (FIELD_CUI, me.getKey(), tvFieldType));
+                addTextField (doc, FIELD_CUI, me.getKey());
+                addTextField (doc, FIELD_CONCEPT, " cui=\""
+                              +me.getKey()+"\"", me.getValue());
+            }
+            for (String type : types)
+                doc.add(new FacetField (FACET_SEMTYPE, type));
+            for (String pred : predicates)
+                doc.add(new FacetField (FACET_PREDICATE, pred));
+        }
+    }
+
+    void addConceptIfAbsent (IndexSearcher searcher, Concept concept) 
+        throws IOException {
+        TermQuery tq = new TermQuery (new Term (_FIELD_CUI, concept.ui));
+        TopDocs hits = searcher.search(tq, 1);
+        if (hits.totalHits > 0) {
+            //searcher.doc(hits.scoreDocs[0].doc);
+        }
+        else {
+            Document doc = new Document ();
+            doc.add(new StringField
+                    (_FIELD_CUI, concept.ui, Field.Store.YES));
+            doc.add(new TextField
+                    (_FIELD_CONCEPT, concept.name, Field.Store.YES));
+            doc.add(new StringField
+                    (_FIELD_SEMTYPE, concept.type, Field.Store.YES));
+            indexWriter.addDocument(doc);
+        }
+    }       
 
     protected void add (Document doc) throws IOException {
         indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
@@ -738,7 +821,7 @@ public class PubMedIndex extends MetaMapIndex {
     }
 
     SearchResult createSearchResult () {
-        return new SearchResult (mesh, umls);
+        return new SearchResult (cache, mesh, umls);
     }
 
     static MatchedDoc toMatchedDoc (Document doc) throws IOException {
@@ -752,13 +835,6 @@ public class PubMedIndex extends MetaMapIndex {
             md.pmid = field.numericValue().longValue();
             md.title = doc.get(FIELD_TITLE);
             md.year = doc.getField(FIELD_YEAR).numericValue().intValue();
-            for (String concept : doc.getValues(FIELD_CONCEPT)) {
-                int pos = concept.indexOf(':');
-                if (pos > 0) {
-                    md.concepts.put(concept.substring(0, pos),
-                                    concept.substring(pos+1));
-                }
-            }
             md.doc = getXmlDoc (doc, FIELD_XML);
         }
         else {
@@ -789,7 +865,6 @@ public class PubMedIndex extends MetaMapIndex {
                                 int maxHits) throws Exception {
         SearchResult result = createSearchResult ();
         search (query, facets, result, maxHits);
-        result.updateFacets();
         return result;
     }
 

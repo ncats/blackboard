@@ -62,6 +62,8 @@ public class PubMedIndexBuilder implements AutoCloseable {
     final Application app;
     final AtomicBoolean addIfAbsent = new AtomicBoolean (false);
     final AtomicInteger count = new AtomicInteger ();
+
+    Integer max;
     
     public PubMedIndexBuilder () throws IOException {
         this ("pubmed");
@@ -70,7 +72,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     public PubMedIndexBuilder (String base) throws IOException {
         this (base, 2);
     }
-    
+
     public PubMedIndexBuilder (String base, int threads)
         throws IOException {
         es = Executors.newFixedThreadPool(threads);
@@ -89,6 +91,11 @@ public class PubMedIndexBuilder implements AutoCloseable {
         }
     }
 
+    public void setMax (Integer max) {
+        this.max = max;
+    }
+    public Integer getMax () { return max; }
+        
     public void setAddIfAbsent (boolean b) {
         addIfAbsent.set(b);
     }
@@ -119,8 +126,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     protected PubMedSax createSaxParser () {
         PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
                 boolean cont = false;
-                if (true ||
-                    count.incrementAndGet() < 5000) {
+                if (max == null || max == 0 || count.incrementAndGet() < max) {
                     try {
                         queue.put(d);
                         cont = true;
@@ -155,7 +161,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
             int count = 0;
             for (String line; (line = br.readLine()) != null; ) {
                 try {
-                    if (true || count < 1000) {
+                    if (max == null || max == 0 || count < max) {
                         Long pmid = Long.parseLong(line);
                         add (pmid);
                         ++count;
@@ -200,7 +206,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
         if (argv.length < 1)
             usage ();
 
-        int threads = 2;
+        int threads = 2, max = 0;
         String base = "pubmed";
         List<File> files = new ArrayList<>();
         List<File> pmids = new ArrayList<>();
@@ -212,6 +218,10 @@ public class PubMedIndexBuilder implements AutoCloseable {
             else if (a.startsWith("THREADS=")) {
                 threads = Integer.parseInt(a.substring(8));
                 Logger.debug("THEADS: "+threads);
+            }
+            else if (a.startsWith("MAX=")) {
+                max = Integer.parseInt(a.substring(4));
+                Logger.debug("MAX: "+max);
             }
             else if (a.startsWith("INPUT=")) {
                 try (BufferedReader br = new BufferedReader
@@ -250,6 +260,9 @@ public class PubMedIndexBuilder implements AutoCloseable {
         Logger.debug("processing "+files.size()+" files!");
         try (final PubMedIndexBuilder pmb =
              new PubMedIndexBuilder (base, threads)) {
+            if (max > 0)
+                pmb.setMax(max);
+            
             Runtime.getRuntime().addShutdownHook(new Thread () {
                     public void run () {
                         Logger.debug("##### SHUTTING DOWN! ######");

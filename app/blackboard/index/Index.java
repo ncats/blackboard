@@ -248,15 +248,23 @@ public class Index implements AutoCloseable, Fields {
         protected SearchResult (int fdim) {
             this.fdim = fdim;
         }
-        protected abstract boolean process (ResultDoc doc);
+        
+        protected abstract boolean process
+            (IndexSearcher searcher, ResultDoc doc);
         
         @JsonProperty(value="count")
         public int size () { return 0; }
+        
         @JsonProperty(value="facets")
         public List<Facet> getFacets () { return facets; }
         
         @JsonIgnore
         public boolean isEmpty () { return 0 == size (); }
+
+        // can be overriden by subclass to do post processing
+        protected void postProcessing (IndexSearcher searcher)
+            throws IOException {
+        }
     }
 
     final protected FieldType tvFieldType;
@@ -408,7 +416,7 @@ public class Index implements AutoCloseable, Fields {
             IndexSearcher searcher = new IndexSearcher (reader);
             FacetsCollector fc = new FacetsCollector ();
 
-            int max = Math.min(maxHits, reader.maxDoc());
+            int max = Math.max(1, Math.min(maxHits, reader.maxDoc()));
             Facets facets;
             TopDocs docs;
             if (fmap == null || fmap.isEmpty()) {
@@ -446,10 +454,11 @@ public class Index implements AutoCloseable, Fields {
                     ResultDoc rdoc = new ResultDoc
                         (searcher.doc(docId), docId, reader,
                          docs.scoreDocs[nd].score, fq, fvh);
-                    if (!result.process(rdoc))
+                    if (!result.process(searcher, rdoc))
                         break;
                 }
                 result.facets.addAll(toFacets (facets, result.fdim));
+                result.postProcessing(searcher);
             }
 
             Logger.debug("### Query executed in "

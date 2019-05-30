@@ -12,7 +12,7 @@ public interface Fields {
     public static final String FIELD_YEAR = "year";
     public static final String FACET_YEAR = "@year";
     public static final String FACET_CUI = "@cui";
-    public static final String FIELD_CUI = "@cui";
+    public static final String FIELD_CUI = "cui";
     public static final String FIELD_PMID = "pmid";
     public static final String FACET_UI = "@ui";
     public static final String FIELD_UI = "ui";
@@ -25,6 +25,7 @@ public interface Fields {
     public static final String FACET_CONCEPT = "@concept";
     public static final String FACET_SEMTYPE = "@semtype";
     public static final String FACET_SOURCE = "@source";
+    public static final String FIELD_SOURCE = "source";
     public static final String FIELD_GENE = "gene";
     public static final String FIELD_UNIPROT = "uniprot";
     public static final String FIELD_NAME = "name";

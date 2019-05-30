@@ -53,7 +53,8 @@ public class GeneRIFIndex extends PubMedIndex {
         }
 
         @Override
-        protected boolean process (blackboard.index.Index.ResultDoc rdoc) {
+        protected boolean process (IndexSearcher searcher,
+                                   blackboard.index.Index.ResultDoc rdoc) {
             try {
                 GeneRIFDoc doc = new GeneRIFDoc
                     (rdoc.doc.get(FIELD_GENE), rdoc.doc.get(FIELD_GENERIF));
