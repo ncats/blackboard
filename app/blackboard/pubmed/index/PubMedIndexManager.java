@@ -33,13 +33,13 @@ public class PubMedIndexManager implements AutoCloseable {
     static interface CacheableContent {
         String cacheKey ();
     }
-    
+
     public static class TextQuery implements CacheableContent {
         public final String field;
         public final String query;
         public final Map<String, Object> facets = new TreeMap<>();
         public int skip = 0;
-        public int top = 20;
+        public int top = 10;
 
         TextQuery (Map<String, Object> facets) {
             this (null, null, facets);
@@ -227,10 +227,16 @@ public class PubMedIndexManager implements AutoCloseable {
     public SearchResult search (Map<String, Object> facets, int skip, int top) {
         return search (null, facets, skip, top);
     }
-    
+
     public SearchResult search (String query, Map<String, Object> facets,
                                 int skip, int top) {
-        final TextQuery tq = new TextQuery (query, facets);
+        return search (null, query, facets, skip, top);
+    }
+    
+    public SearchResult search (String field, String query,
+                                Map<String, Object> facets,
+                                int skip, int top) {
+        final TextQuery tq = new TextQuery (field, query, facets);
         tq.skip = skip;
         tq.top = top;
         

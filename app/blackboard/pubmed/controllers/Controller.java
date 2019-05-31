@@ -121,7 +121,8 @@ public class Controller extends play.mvc.Controller {
                 try {
                     Map<String, Object> facets = parseFacets ();
                     SearchResult result = indexManager.search
-                        (q, facets, skip, top);
+                        (request().getQueryString("field"), q,
+                         facets, skip, top);
                     ObjectNode json = Json.newObject();
                     json.put("query", q);
                     if (facets != null && !facets.isEmpty()) {

@@ -19,6 +19,7 @@ import javax.inject.Singleton;
 
 import java.io.*;
 import java.util.*;
+import java.util.regex.*;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,6 +98,9 @@ public class PubMedIndex extends MetaMapIndex {
     public static final MatchedDoc EMPTY_DOC = new MatchedDoc ();
     public static final SearchResult EMPTY_RESULT = new SearchResult ();
 
+    final static Pattern RANGE_REGEX = Pattern.compile
+        ("\\(([^,]*),([^\\)]*)\\)");
+    
     public static class MatchedFragment {
         public final String fragment;
         public final String field;
@@ -898,8 +902,59 @@ public class PubMedIndex extends MetaMapIndex {
     public SearchResult search (String field, String term,
                                 Map<String, Object> facets, int maxHits)
         throws Exception {
-        SearchResult result = search
-            (new TermQuery (new Term (field, term)), facets, maxHits);
+        if (field == null)
+            return search (term, facets, maxHits);
+
+        Query query = null;
+        switch (field) {
+        case FIELD_PMID:
+            try {
+                long pmid = Long.parseLong(term);
+                query = NumericRangeQuery.newLongRange
+                    (field, pmid, pmid, true, true);
+            }
+            catch (NumberFormatException ex) {
+                Logger.error("Bogus pmid: "+term, ex);
+            }
+            break;
+
+        case FIELD_YEAR:
+            try {
+                // syntax: (XXXX,YYYY) all years from XXXX to YYYY inclusive
+                //   (,YYYY) all years before YYYY inclusive
+                //   (XXXX,) all years after XXXX inclusive
+                //   ZZZZ only year ZZZZ
+                int min = Integer.MIN_VALUE, max = Integer.MAX_VALUE; 
+                Matcher m = RANGE_REGEX.matcher(term);
+                if (m.find()) {
+                    String m1 = m.group(1);
+                    if (!m1.equals(""))
+                        min = Integer.parseInt(m1);
+                    String m2 = m.group(2);
+                    if (!m2.equals(""))
+                        max = Integer.parseInt(m2);
+                    Logger.debug("### year range search: "
+                                 +" min="+m1+" max="+m2);
+                }
+                else {
+                    min = max = Integer.parseInt(term);
+                }
+                query = NumericRangeQuery.newIntRange
+                    (field, min, max, true, true);
+            }
+            catch (NumberFormatException ex) {
+                Logger.error("Bogus year format: "+term, ex);
+            }
+            break;
+            
+        default:
+            query = new TermQuery (new Term (field, term));
+        }
+
+        if (query == null)
+            query = new MatchNoDocsQuery ();
+        
+        SearchResult result = search (query, facets, maxHits);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.size()+" hit(s)!");
         return result;
