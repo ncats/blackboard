@@ -430,12 +430,35 @@ public class Index implements AutoCloseable, Fields {
             else {
                 DrillDownQuery ddq = new DrillDownQuery (facetConfig, query);
                 for (Map.Entry<String, Object> me : fmap.entrySet()) {
-                    Object value = me.getValue();
-                    if (value instanceof String[]) {
-                        ddq.add(me.getKey(), (String[]) value);
+                    FacetsConfig.DimConfig conf =
+                        facetConfig.getDimConfig(me.getKey());
+                    if (conf != null) {
+                        Object value = me.getValue();
+                        Logger.debug("facet: "+me.getKey()+" value="+value);
+                        if (value instanceof String[]) {
+                            String[] values = (String[])value;
+                            if (conf.hierarchical)
+                                ddq.add(me.getKey(), values);
+                            else {
+                                for (String v : values)
+                                    ddq.add(me.getKey(), v);
+                            }
+                        }
+                        else if (value instanceof Object[]) {
+                            Object[] values = (Object[])value;
+                            for (Object v : values) {
+                                if (v instanceof String[])
+                                    ddq.add(me.getKey(), (String[])v);
+                                else
+                                    ddq.add(me.getKey(), (String)v);
+                            }
+                        }
+                        else {
+                            ddq.add(me.getKey(), (String) value);
+                        }
                     }
                     else {
-                        ddq.add(me.getKey(), (String) value);
+                        Logger.warn("Unknown facet: "+me.getKey());
                     }
                 }
                 

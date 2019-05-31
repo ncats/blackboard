@@ -952,7 +952,7 @@ public class PubMedIndex extends MetaMapIndex {
             
         default:
             query = new QueryBuilder (indexWriter.getAnalyzer())
-                .createPhraseQuery(field, term);
+                .createPhraseQuery(field, term, 3);
         }
 
         if (query == null)

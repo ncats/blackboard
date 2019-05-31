@@ -72,6 +72,18 @@ public class PubMedIndexManager implements AutoCloseable {
                     for (String s : vals)
                         values.add(s);
                 }
+                else if (v instanceof Object[]) {
+                    Object[] vals = (Object[])v;
+                    for (Object val : vals) {
+                        if (val instanceof String[]) {
+                            for (String s : (String[])val)
+                                values.add(s);
+                        }
+                        else {
+                            values.add((String)val);
+                        }
+                    }
+                }
                 else {
                     values.add((String)v);
                 }

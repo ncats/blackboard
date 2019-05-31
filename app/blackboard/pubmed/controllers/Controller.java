@@ -1,5 +1,6 @@
 package blackboard.pubmed.controllers;
 
+import java.lang.reflect.Array;
 import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
@@ -23,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
+
+import org.apache.commons.lang3.StringUtils;
 
 import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndex;
@@ -66,16 +69,55 @@ public class Controller extends play.mvc.Controller {
                     Object value = p.substring(pos+1);
                     switch (name) {
                     case FACET_TR:
+                    case FACET_GRANTAGENCY:
                         value = ((String)value).split("\\.");
                         break;
-                        
-                    case FACET_GRANTAGENCY:
-                        value = ((String)value).split("_");
-                        break;
-                        
                     default:
                     }
-                    facets.put(name, value);
+                    
+                    Object old = facets.get(name);
+                    if (old != null) {
+                        if (old instanceof String[]) {
+                            int len = Array.getLength(old);
+                            if (value instanceof String[]) {
+                                Object[] values = new Object[]{
+                                    old, value
+                                };
+                                facets.put(name, values);
+                            }
+                            else {
+                                String[] values = new String[len+1];
+                                for (int i = 0; i < len; ++i)
+                                    values[i] = (String)Array.get(old, i);
+                                values[len] = (String) value;
+                                facets.put(name, values);
+                            }
+                        }
+                        else if (old instanceof Object[]) {
+                            int len = Array.getLength(old);
+                            Object[] values = new Object[len+1];
+                            for (int i = 0; i < len; ++i)
+                                values[i] = Array.get(old, i);
+                            values[len] = value;
+                            facets.put(name, values);
+                        }
+                        else {
+                            if (value instanceof String[]) {
+                                facets.put(name, new Object[]{
+                                        old, value
+                                    });
+                            }
+                            else {
+                                facets.put(name, new String[]{
+                                        (String)old,
+                                        (String)value
+                                    });
+                            }
+                        }
+                    }
+                    else {
+                        facets.put(name, value);
+                    }
                 }
                 else {
                     Logger.warn("Not a valid facet: "+p);
@@ -83,6 +125,32 @@ public class Controller extends play.mvc.Controller {
             }
         }
         return facets;
+    }
+
+    JsonNode toJson (Map<String, Object> fmap) {
+        /*
+        ObjectNode json = Json.newObject();
+        for (Map.Entry<String, Object> me : fmap.entrySet()) {
+            Object value = me.getValue();
+            if (value instanceof Object[]) {
+                Object[] values = (Object[])value;
+                List<String> vs = new ArrayList<>();
+                for (Object v : values) {
+                    if (v instanceof String[]) {
+                        vs.add(StringUtils.join((String[])v, '.'));
+                    }
+                    else
+                        vs.add((String)v);
+                }
+                json.put(me.getKey(), mapper.valueToTree(vs));
+            }
+            else {
+                json.put(me.getKey(), mapper.valueToTree(value));
+            }
+        }
+        return json;
+        */
+        return mapper.valueToTree(fmap);
     }
 
     public CompletionStage<Result> filter (int skip, int top) {
@@ -96,7 +164,7 @@ public class Controller extends play.mvc.Controller {
                     SearchResult result =
                         indexManager.search(facets, skip, top);
                     ObjectNode json = Json.newObject();
-                    json.put("filters", mapper.valueToTree(facets));
+                    json.put("filters", toJson (facets));
                     json.put("skip", skip);
                     json.put("top", top);
                     json.put("count", result.size());
@@ -126,7 +194,7 @@ public class Controller extends play.mvc.Controller {
                     ObjectNode json = Json.newObject();
                     json.put("query", q);
                     if (facets != null && !facets.isEmpty()) {
-                        json.put("filters", mapper.valueToTree(facets));
+                        json.put("filters", toJson (facets));
                     }
                     json.put("skip", skip);
                     json.put("top", top);
