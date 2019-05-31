@@ -42,6 +42,7 @@ import org.apache.lucene.facet.taxonomy.TaxonomyReader;
 import org.apache.lucene.facet.taxonomy.FastTaxonomyFacetCounts;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.suggest.document.*;
@@ -522,8 +523,8 @@ public class PubMedIndex extends MetaMapIndex {
         
         String title = d.getTitle();
         if (title != null && !"".equals(title)) {
-            addTextField (doc, FIELD_TITLE, title);
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
+            addTextField (doc, FIELD_TITLE, title);
         }
 
         // author
@@ -615,8 +616,10 @@ public class PubMedIndex extends MetaMapIndex {
         }
 
         // abstract texts
-        for (String abs : d.getAbstract())
+        for (String abs : d.getAbstract()) {
+            doc.add(new Field (FIELD_ABSTRACT, abs, tvFieldType));
             addTextField (doc, FIELD_ABSTRACT, abs);
+        }
 
         // publication year
         doc.add(new IntField (FIELD_YEAR, d.getYear(), Field.Store.YES));
@@ -948,7 +951,8 @@ public class PubMedIndex extends MetaMapIndex {
             break;
             
         default:
-            query = new TermQuery (new Term (field, term));
+            query = new QueryBuilder (indexWriter.getAnalyzer())
+                .createPhraseQuery(field, term);
         }
 
         if (query == null)

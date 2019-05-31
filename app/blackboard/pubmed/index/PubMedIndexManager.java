@@ -25,8 +25,11 @@ import akka.actor.Terminated;
 import akka.actor.PoisonPill;
 import akka.actor.Inbox;
 
+import blackboard.umls.UMLSKSource;
 import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.Util;
+
+import gov.nih.nlm.nls.metamap.Result;
 
 @Singleton
 public class PubMedIndexManager implements AutoCloseable {
@@ -77,7 +80,7 @@ public class PubMedIndexManager implements AutoCloseable {
         }
         
         public String toString () {
-            return "TextQuery{field="+field+",query="
+            return "TextQuery{key="+cacheKey()+",field="+field+",query="
                 +query+",skip="+skip+",top="+top+",facets="+facets+"}";
         }
     }
@@ -95,6 +98,51 @@ public class PubMedIndexManager implements AutoCloseable {
         public String toString () {
             return "PmidQuery{pmid="+pmid+"}";
         }
+    }
+
+    static class MetaMapActor extends AbstractActor {
+        static Props props (UMLSKSource umls) {
+            return Props.create
+                (MetaMapActor.class, () -> new MetaMapActor (umls));
+        }
+        
+        final UMLSKSource umls;
+        public MetaMapActor (UMLSKSource umls) {
+            this.umls = umls;
+        }
+        
+        @Override
+        public void preStart () {
+            Logger.debug("### "+self ()+ "...initialized!");
+        }
+
+        @Override
+        public void postStop () {
+            Logger.debug("### "+self ()+"...stopped!");
+        }
+
+        @Override
+        public Receive createReceive () {
+            return receiveBuilder()
+                .match(TextQuery.class, this::doMetaMap)
+                .build();
+        }
+
+        void doMetaMap (TextQuery q) throws Exception {
+            Logger.debug(self()+": metamap "+q);
+            try {
+                long start = System.currentTimeMillis();
+                List<Result> result = umls.getMetaMap().annotate(q.query);
+                Logger.debug(self()+": metamap executed in "+String.format
+                             ("%1$.3fs",
+                              1e-3*(System.currentTimeMillis()-start)));
+                
+                getSender().tell(result, getSelf ());
+            }
+            catch (Exception ex) {
+                Logger.error("Can't execute MetaMap", ex);
+            }
+        }        
     }
     
     static class PubMedIndexActor extends AbstractActor {
@@ -135,14 +183,9 @@ public class PubMedIndexManager implements AutoCloseable {
         void doTextSearch (TextQuery q) throws Exception {
             Logger.debug(self()+": searching "+q);
 
-            SearchResult result = null;
             long start = System.currentTimeMillis();
-            if (q.field != null) {
-                result = pmi.search(q.field, q.query, q.facets, q.skip+q.top); 
-            }
-            else {
-                result = pmi.search(q.query, q.facets, q.skip+q.top);
-            }
+            SearchResult result = pmi.search
+                (q.field, q.query, q.facets, q.skip+q.top); 
             Logger.debug(self()+": search completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             
@@ -163,9 +206,11 @@ public class PubMedIndexManager implements AutoCloseable {
     final ActorSystem actorSystem;
     final int maxTimeout, maxTries, maxHits;
     final SyncCacheApi cache;
+    final UMLSKSource umls;
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
+                               UMLSKSource umls,
                                ActorSystem actorSystem, SyncCacheApi cache,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
@@ -203,6 +248,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 return CompletableFuture.completedFuture(null);
             });
 
+        this.umls = umls;
         this.actorSystem = actorSystem;
         this.cache = cache;
         
@@ -249,6 +295,7 @@ public class PubMedIndexManager implements AutoCloseable {
     }
 
     protected SearchResult search (TextQuery tq) {
+        Logger.debug("#### Query: "+tq);
         Inbox inbox = Inbox.create(actorSystem);
         for (ActorRef actorRef : indexes)
             inbox.send(actorRef, tq);
