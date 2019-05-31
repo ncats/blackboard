@@ -365,24 +365,27 @@ public class Index implements AutoCloseable, Fields {
         throws IOException {
         List<Facet> lf = new ArrayList<>();
         for (FacetResult fr : facets.getAllDims(topN)) {
-            FacetsConfig.DimConfig dimconf = facetConfig.getDimConfig(fr.dim);
-            Facet f = new Facet (fr.dim);
-            if (dimconf.hierarchical) {
-                for (int i = 0; i < fr.labelValues.length; ++i) {
-                    LabelAndValue lv = fr.labelValues[i];
-                    FV root = new FV (lv.label, lv.value.intValue());
-                    f.values.add(root);
-                    getFacetHierarchy (root, facets, fr.dim, topN);
+            if (fr != null) {
+                FacetsConfig.DimConfig dimconf =
+                    facetConfig.getDimConfig(fr.dim);
+                Facet f = new Facet (fr.dim);
+                if (dimconf.hierarchical) {
+                    for (int i = 0; i < fr.labelValues.length; ++i) {
+                        LabelAndValue lv = fr.labelValues[i];
+                        FV root = new FV (lv.label, lv.value.intValue());
+                        f.values.add(root);
+                        getFacetHierarchy (root, facets, fr.dim, topN);
+                    }
                 }
-            }
-            else {
-                for (int i = 0; i < fr.labelValues.length; ++i) {
-                    LabelAndValue lv = fr.labelValues[i];
-                    FV fv = new FV (lv.label, lv.value.intValue());
-                    f.values.add(fv);
+                else {
+                    for (int i = 0; i < fr.labelValues.length; ++i) {
+                        LabelAndValue lv = fr.labelValues[i];
+                        FV fv = new FV (lv.label, lv.value.intValue());
+                        f.values.add(fv);
+                    }
                 }
+                lf.add(f);
             }
-            lf.add(f);
         }
         return lf;
     }
