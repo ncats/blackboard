@@ -434,7 +434,6 @@ public class Index implements AutoCloseable, Fields {
                         facetConfig.getDimConfig(me.getKey());
                     if (conf != null) {
                         Object value = me.getValue();
-                        Logger.debug("facet: "+me.getKey()+" value="+value);
                         if (value instanceof String[]) {
                             String[] values = (String[])value;
                             if (conf.hierarchical)

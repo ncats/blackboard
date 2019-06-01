@@ -212,6 +212,7 @@ public class PubMedDoc implements java.io.Serializable {
     public List<MeshHeading> headings = new ArrayList<>();
     public List<Entry> chemicals = new ArrayList<>();
     public List<Reference> references = new ArrayList<>();
+    public List<Author> investigators = new ArrayList<>();
 
     public byte[] xml; // raw xml
     public String source; // input source for xml
@@ -224,6 +225,10 @@ public class PubMedDoc implements java.io.Serializable {
     }
     
     protected PubMedDoc () {
+    }
+
+    public static PubMedDoc getInstance (Document doc, MeshDb mesh) {
+        return new PubMedDoc (doc, mesh);
     }
     
     protected PubMedDoc (Document doc, MeshDb mesh) {
@@ -307,6 +312,9 @@ public class PubMedDoc implements java.io.Serializable {
             }
         }
 
+        /*
+         * grant
+         */
         nodes = doc.getElementsByTagName("Grant");
         for (int i = 0; i < nodes.getLength(); ++i) {
             try {
@@ -395,6 +403,20 @@ public class PubMedDoc implements java.io.Serializable {
             if (chem != null)
                 chemicals.add(chem);
         }
+
+        /*
+         * investigator
+         */
+        nodes = doc.getElementsByTagName("Investigator");
+        for (int i = 0; i < nodes.getLength(); ++i) {
+            try {
+                Author auth = new Author ((Element)nodes.item(i));
+                investigators.add(auth);
+            }
+            catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
     }
 
     public Long getPMID () { return pmid; }
@@ -414,6 +436,10 @@ public class PubMedDoc implements java.io.Serializable {
 
     public PubMedDoc addAuthor (Map<String, Object> author) {
         authors.add(new Author (author));
+        return this;
+    }
+    public PubMedDoc addInvestigator (Map<String, Object> author) {
+        investigators.add(new Author (author));
         return this;
     }
     public PubMedDoc addGrant (Map<String, Object> grant) {

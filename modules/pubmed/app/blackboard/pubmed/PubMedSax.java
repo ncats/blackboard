@@ -26,6 +26,7 @@ public class PubMedSax extends DefaultHandler {
     
     StringBuilder content = new StringBuilder ();
     LinkedList<String> stack = new LinkedList<>();
+    StringBuilder abstext = new StringBuilder ();
     PubMedDoc doc;
     Calendar cal = Calendar.getInstance();
     String idtype, ui, majorTopic;
@@ -220,6 +221,7 @@ public class PubMedSax extends DefaultHandler {
             break;
 
         case "Author":
+        case "Investigator":
             author.clear();
             break;
 
@@ -230,6 +232,14 @@ public class PubMedSax extends DefaultHandler {
         case "Reference":
             reference.clear();
             break;
+
+        case "AbstractText":
+            abstext.setLength(0);
+            break;
+
+        default:
+            if (!stack.isEmpty() && "AbstractText".equals(stack.peek()))
+                abstext.append(content.toString());
         }
         stack.push(qName);
         content.setLength(0);
@@ -274,8 +284,8 @@ public class PubMedSax extends DefaultHandler {
             break;
             
         case "AbstractText":
-            if ("Abstract".equals(parent))
-                doc.abs.add(value);
+            abstext.append(value);
+            doc.abs.add(abstext.toString());
             break;
             
         case "ArticleTitle":
@@ -313,6 +323,10 @@ public class PubMedSax extends DefaultHandler {
             
         case "Author":
             doc.addAuthor(author);
+            break;
+
+        case "Investigator":
+            doc.addInvestigator(author);
             break;
 
         case "GrantID":
@@ -403,6 +417,10 @@ public class PubMedSax extends DefaultHandler {
         case "Reference":
             doc.addReference(reference);
             break;
+
+        default:
+            //            if ("AbstractText".equals(parent))
+            //  abstext.append(" "+value);
         }
     }
     
@@ -417,8 +435,8 @@ public class PubMedSax extends DefaultHandler {
         }
 
         PubMedSax pms = new PubMedSax (d -> {
-                Logger.debug(d.getPMID()+": "+d.getTitle());
-                Logger.debug("-------\n\""+new String (d.xml)+"\"");
+                Logger.debug(d.getPMID()+": "+d.getTitle()+"\n"+d.abs);
+                //Logger.debug("-------\n\""+new String (d.xml)+"\"");
                 return true;
             });
         for (String a : argv) {

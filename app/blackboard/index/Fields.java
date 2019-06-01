@@ -31,6 +31,8 @@ public interface Fields {
     public static final String FIELD_NAME = "name";
     public static final String FIELD_AUTHOR = "author";
     public static final String FACET_AUTHOR = "@author";
+    public static final String FIELD_INVESTIGATOR = "investigator";
+    public static final String FACET_INVESTIGATOR = "@investigator";
     public static final String FACET_ORCID = "@orcid";
     public static final String FIELD_ORCID = "orcid";
     public static final String FIELD_AFFILIATION = "affiliation";

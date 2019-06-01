@@ -168,6 +168,7 @@ public class PubMedIndex extends MetaMapIndex {
         public String title;
         public Integer year;
         public List<MatchedFragment> fragments = new ArrayList<>();
+        public List<String> abstracts = new ArrayList<>();        
         public List<Concept> concepts = new ArrayList<>();
         public List<Concept> mesh = new ArrayList<>();
 
@@ -481,6 +482,7 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FACET_CUI, true);
         fc.setMultiValued(FACET_PREDICATE, true);
         fc.setMultiValued(FACET_AUTHOR, true);
+        fc.setMultiValued(FACET_INVESTIGATOR, true);
         fc.setMultiValued(FACET_ORCID, true);
         fc.setMultiValued(FACET_PUBTYPE, true);
         fc.setMultiValued(FACET_JOURNAL, true);
@@ -518,8 +520,9 @@ public class PubMedIndex extends MetaMapIndex {
         if (d.timestamp != null)
             doc.add(new LongField (FIELD_TIMESTAMP,
                                    d.timestamp, Field.Store.YES));
-        if (d.source != null)
+        if (d.source != null) {
             doc.add(new FacetField (FACET_FILE, d.source));
+        }
         
         String title = d.getTitle();
         if (title != null && !"".equals(title)) {
@@ -552,6 +555,13 @@ public class PubMedIndex extends MetaMapIndex {
             doc.add(new Field (FIELD_AUTHOR, auth.getName(), tvFieldType));
             // for general text search
             addTextField (doc, FIELD_AUTHOR, auth.getName());
+        }
+
+        for (PubMedDoc.Author auth : d.investigators) {
+            doc.add(new FacetField (FACET_INVESTIGATOR, auth.getName()));
+            doc.add(new Field (FIELD_INVESTIGATOR,
+                               auth.getName(), tvFieldType));
+            addTextField (doc, FIELD_INVESTIGATOR, auth.getName());
         }
 
         // journal
@@ -843,6 +853,8 @@ public class PubMedIndex extends MetaMapIndex {
             md.title = doc.get(FIELD_TITLE);
             md.year = doc.getField(FIELD_YEAR).numericValue().intValue();
             md.doc = getXmlDoc (doc, FIELD_XML);
+            for (String txt : doc.getValues(FIELD_ABSTRACT))
+                md.abstracts.add(txt);
         }
         else {
             md = EMPTY_DOC;
