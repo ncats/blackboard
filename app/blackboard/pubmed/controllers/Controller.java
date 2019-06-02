@@ -214,6 +214,29 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> facets () {
+        return supplyAsync (() -> {
+                try {
+                    SearchResult result = indexManager.facets();
+                    ObjectNode json = Json.newObject();
+                    json.put("skip", 0);
+                    json.put("top", 0);
+                    json.put("count", 0);
+                    json.put("total", result.total);
+                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("count");
+                    content.remove("total");
+                    json.put("content", content);
+                    return ok (json);
+                }
+                catch (Exception ex) {
+                    Logger.error("Search failed", ex);
+                    return internalServerError
+                        ("Internal server error: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
+    
     public CompletionStage<Result> pmid (Long pmid, String format) {
         return supplyAsync (() -> {
                 try {

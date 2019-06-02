@@ -44,6 +44,10 @@ public class PubMedIndexManager implements AutoCloseable {
         public int skip = 0;
         public int top = 10;
 
+        TextQuery () {
+            this (null, null, null);
+            top = 0;
+        }
         TextQuery (Map<String, Object> facets) {
             this (null, null, facets);
         }
@@ -88,7 +92,8 @@ public class PubMedIndexManager implements AutoCloseable {
                     values.add((String)v);
                 }
             }
-            return "pubmed/search/"+Util.sha1(values.toArray(new String[0]));
+            return TextQuery.class.getName()
+                +"/"+Util.sha1(values.toArray(new String[0]));
         }
         
         public String toString () {
@@ -104,7 +109,7 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         public String cacheKey () {
-            return "pubmed/"+pmid;
+            return PMIDQuery.class.getName()+"/"+pmid;
         }
         
         public String toString () {
@@ -304,6 +309,17 @@ public class PubMedIndexManager implements AutoCloseable {
                         return search (tq);
                     }
                 });
+    }
+
+    public SearchResult facets () {
+        final TextQuery tq = new TextQuery ();
+        return cache.getOrElseUpdate
+            (PubMedIndexManager.class.getName()+"/facets",
+             new Callable<SearchResult>() {
+                    public SearchResult call () {
+                        return search (tq);
+                    }
+                });        
     }
 
     protected SearchResult search (TextQuery tq) {

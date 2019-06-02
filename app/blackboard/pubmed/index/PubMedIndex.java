@@ -450,7 +450,7 @@ public class PubMedIndex extends MetaMapIndex {
                 }
                 return d;
             });
-
+        
         if (top <= 0) {
             merged.docs.addAll(docs);
         }
@@ -458,6 +458,7 @@ public class PubMedIndex extends MetaMapIndex {
             int max = Math.min(docs.size(), skip+top);
             merged.docs.addAll(docs.subList(skip, max));
         }
+        
         return merged;
     }
 
@@ -780,7 +781,7 @@ public class PubMedIndex extends MetaMapIndex {
     protected Document newDocument () {
         Document doc = new Document ();
         doc.add(new StringField
-                (FIELD_INDEXER, getClass().getName(), Field.Store.YES));
+                (FIELD_INDEXER, getClass().getName(), Field.Store.NO));
         return doc;
     }
     
@@ -901,7 +902,9 @@ public class PubMedIndex extends MetaMapIndex {
             query = parser.parse(text);
         }
         else {
-            query = new MatchAllDocsQuery ();
+            //query = new MatchAllDocsQuery ();
+            query = new TermQuery
+                (new Term (FIELD_INDEXER, getClass().getName()));
         }
         SearchResult result = search (query, facets, maxHits);
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."

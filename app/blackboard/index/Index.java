@@ -75,6 +75,10 @@ public class Index implements AutoCloseable, Fields {
             }
             return sb.toString();
         }
+        
+        public String getPath () {
+            return parent != null ? toPath (".") : null;
+        }
 
         static void print (StringBuilder sb, FV fv) {
             for (FV p = fv; p != null; p = p.parent)
@@ -259,7 +263,9 @@ public class Index implements AutoCloseable, Fields {
         public List<Facet> getFacets () { return facets; }
         
         @JsonIgnore
-        public boolean isEmpty () { return 0 == size (); }
+        public boolean isEmpty () {
+            return 0 == size () && facets.isEmpty();
+        }
 
         // can be overriden by subclass to do post processing
         protected void postProcessing (IndexSearcher searcher)
@@ -365,6 +371,7 @@ public class Index implements AutoCloseable, Fields {
         throws IOException {
         List<Facet> lf = new ArrayList<>();
         for (FacetResult fr : facets.getAllDims(topN)) {
+            //Logger.debug("Facet: "+fr);
             if (fr != null) {
                 FacetsConfig.DimConfig dimconf =
                     facetConfig.getDimConfig(fr.dim);
@@ -474,14 +481,18 @@ public class Index implements AutoCloseable, Fields {
 
             if (docs != null) {
                 result.total = docs.totalHits;
-                for (int nd = 0; nd < docs.scoreDocs.length; ++nd) {
-                    int docId = docs.scoreDocs[nd].doc;
-                    ResultDoc rdoc = new ResultDoc
-                        (searcher.doc(docId), docId, reader,
-                         docs.scoreDocs[nd].score, fq, fvh);
-                    if (!result.process(searcher, rdoc))
-                        break;
+                // don't fetch the doc if the caller doesn't want to
+                if (maxHits > 0) {
+                    for (int nd = 0; nd < docs.scoreDocs.length; ++nd) {
+                        int docId = docs.scoreDocs[nd].doc;
+                        ResultDoc rdoc = new ResultDoc
+                            (searcher.doc(docId), docId, reader,
+                             docs.scoreDocs[nd].score, fq, fvh);
+                        if (!result.process(searcher, rdoc))
+                            break;
+                    }
                 }
+                
                 result.facets.addAll(toFacets (facets, result.fdim));
                 result.postProcessing(searcher);
             }
