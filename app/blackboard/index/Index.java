@@ -35,6 +35,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.xml.parsers.DocumentBuilderFactory;
 import com.google.inject.assistedinject.Assisted;
 
+import blackboard.Util;
+
 public class Index implements AutoCloseable, Fields {
     public static final int MAX_HITS = 1000;
     
@@ -240,16 +242,144 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    static public class Concept {
+        public final String ui;
+        public final String name;
+        public final List<String> types = new ArrayList<>();
+        public Object context; // optional context for the concept
+
+        public Concept (String ui, String name) {
+            this (ui, name, null);
+        }
+        
+        public Concept (String ui, String name, String type) {
+            if (ui == null)
+                throw new IllegalArgumentException
+                    ("Concept can't have null UI!");
+            this.ui = ui;
+            this.name = name;
+            if (type != null)
+                types.add(type);
+        }
+
+        public boolean equals (Object obj) {
+            if (obj instanceof Concept) {
+                return ui.equals(((Concept)obj).ui);
+            }
+            return false;
+        }
+
+        public int hashCode () { return ui.hashCode(); }
+    }
+    
+    public interface SearchQuery {
+        String getField ();
+        Object getQuery ();
+        Map<String, Object> getFacets ();
+        List<Concept> getConcepts ();
+        Query rewrite (); // rewrite this SearchQuery into its native form
+    }
+
+    public interface CacheableContent {
+        String cacheKey ();
+    }
+
+    public static class TextQuery implements SearchQuery, CacheableContent {
+        public final String field;
+        public final String query;
+        public final Map<String, Object> facets = new TreeMap<>();
+        public final List<Concept> concepts = new ArrayList<>();
+        public int skip = 0;
+        public int top = 10;
+
+        public TextQuery () {
+            this (null, null, null);
+            top = 0;
+        }
+        public TextQuery (Map<String, Object> facets) {
+            this (null, null, facets);
+        }
+        public TextQuery (String query) {
+            this (null, query, null);
+        }
+        public TextQuery (String query, Map<String, Object> facets) {
+            this (null, query, facets);
+        }
+        public TextQuery (String field, String query,
+                          Map<String, Object> facets) {
+            this.field = field;
+            this.query = query;
+            if (facets != null)
+                this.facets.putAll(facets);
+        }
+        public TextQuery (TextQuery tq) {
+            this (tq.field, tq.query, tq.facets);
+        }
+
+        public String getField () { return field; }
+        public Object getQuery () { return query; }
+        public Map<String, Object> getFacets () { return facets; }
+        public List<Concept> getConcepts () { return concepts; }
+        // subclass should override for specific implementation
+        public Query rewrite () {
+            return new TermQuery (new Term (field, query));
+        }
+
+        public String cacheKey () {
+            List<String> values = new ArrayList<>();
+            if (field != null) values.add(field);
+            if (query != null) values.add(query);
+            for (Map.Entry<String, Object> me : facets.entrySet()) {
+                values.add(me.getKey());
+                Object v = me.getValue();
+                if (v instanceof String[]) {
+                    String[] vals = (String[])v;
+                    for (String s : vals)
+                        values.add(s);
+                }
+                else if (v instanceof Object[]) {
+                    Object[] vals = (Object[])v;
+                    for (Object val : vals) {
+                        if (val instanceof String[]) {
+                            for (String s : (String[])val)
+                                values.add(s);
+                        }
+                        else {
+                            values.add((String)val);
+                        }
+                    }
+                }
+                else {
+                    values.add((String)v);
+                }
+            }
+            return TextQuery.class.getName()
+                +"/"+Util.sha1(values.toArray(new String[0]));
+        }
+        
+        public String toString () {
+            return "TextQuery{key="+cacheKey()+",field="+field+",query="
+                +query+",skip="+skip+",top="+top+",facets="+facets+"}";
+        }
+    }
+    
     protected static abstract class SearchResult {
+        public final SearchQuery query;
         @JsonIgnore
         public final int fdim;
         public int total; // total matches
         public final List<Facet> facets = new ArrayList<>();
         
         protected SearchResult () {
-            this (10);
+            this (null, 20);
         }
-        protected SearchResult (int fdim) {
+        
+        protected SearchResult (SearchQuery query) {
+            this (query, 20);
+        }
+        
+        protected SearchResult (SearchQuery query, int fdim) {
+            this.query = query;
             this.fdim = fdim;
         }
         
@@ -397,24 +527,10 @@ public class Index implements AutoCloseable, Fields {
         return lf;
     }
 
-    protected int search (Query query, SearchResult results) throws Exception {
-        return search (query, null, results, MAX_HITS);
-    }
-
-    protected int search (Query query, SearchResult results, int maxHits)
-        throws Exception {
-        return search (query, null, results, maxHits);
-    }
-
-    protected int search (Query query, Map<String, Object> fmap,
-                          SearchResult result) throws Exception {
-        return search (query, fmap, result, MAX_HITS);
-    }
-    
-    protected int search (Query query, Map<String, Object> fmap,
-                          SearchResult result, int maxHits)
-        throws Exception {
+    protected int search (SearchResult result, int maxHits) throws Exception {
         long start = System.currentTimeMillis();
+        Map<String, Object> fmap = result.query.getFacets();
+        Query query = result.query.rewrite();
         Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
         
         try (IndexReader reader = DirectoryReader.open(indexWriter);

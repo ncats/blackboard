@@ -49,7 +49,8 @@ public class GeneRIFIndex extends PubMedIndex {
     }
     
     public class SearchResult extends PubMedIndex.SearchResult {
-        protected SearchResult () {
+        protected SearchResult (SearchQuery query) {
+            super (query);
         }
 
         @Override
@@ -130,19 +131,9 @@ public class GeneRIFIndex extends PubMedIndex {
     }
 
     @Override
-    public SearchResult search (Query query, Map<String, Object> facets)
-        throws Exception {
-        SearchResult results = new SearchResult ();
-        search (query, facets, results);
-        return results;
-    }
-
-    @Override
     public SearchResult search (String text, Map<String, Object> facets)
         throws Exception {
-        QueryParser parser = new QueryParser
-            (FIELD_TEXT, indexWriter.getAnalyzer());
-        SearchResult result = search (parser.parse(text), facets);
+        SearchResult result = search (null, text, facets);
         Logger.debug("## searching for \""+text+"\"..."
                      +result.docs.size()+" hit(s)!");
         return result;
@@ -151,10 +142,11 @@ public class GeneRIFIndex extends PubMedIndex {
     @Override
     public SearchResult search (String field, String term,
                                 Map<String, Object> facets) throws Exception {
-        SearchResult result = search
-            (new TermQuery (new Term (field, term)), facets);
+        TextQuery tq = new TextQuery (field, term, facets);
+        SearchResult result = new SearchResult (tq);
+        search (result, tq.skip+tq.top);
         Logger.debug("## searching for "+field+":"+term+"..."
-                     +result.docs.size()+" hit(s)!");
+                     +result.size()+" hit(s)!");
         return result;
     }
 

@@ -67,19 +67,7 @@ public class PubMedIndex extends MetaMapIndex {
     static final String _FIELD_CUI = "_cui";
     static final String _FIELD_CONCEPT = "_concept";
     static final String _FIELD_SEMTYPE = "_semtype";
-    
-    static public class Concept {
-        public final String ui;
-        public final String name;
-        public final String type;
-
-        Concept (String ui, String name, String type) {
-            this.ui = ui;
-            this.name = name;
-            this.type = type;
-        }
-    }
-    
+        
     // MetaMap compressed json
     public static final String FIELD_MM_TITLE = "mm_title";
     public static final String FIELD_MM_ABSTRACT = "mm_abstract";
@@ -200,6 +188,131 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
+    class PubMedTextQuery extends TextQuery {
+        PubMedTextQuery () {
+        }
+        PubMedTextQuery (Map<String, Object> facets) {
+            super (facets);
+        }
+        PubMedTextQuery (String query) {
+            super (query);
+        }
+        PubMedTextQuery (String query, Map<String, Object> facets) {
+            super (query, facets);
+        }
+        PubMedTextQuery (String field, String query,
+                         Map<String, Object> facets) {
+            super (field, query, facets);
+        }
+        PubMedTextQuery (TextQuery tq) {
+            super (tq);
+        }
+        
+        @Override
+        public Query rewrite () {
+            Query query = null;
+            String term = (String) getQuery ();
+            if (field == null) {
+                if (term != null) {
+                    try {
+                        QueryParser parser = new QueryParser
+                            (FIELD_TEXT, indexWriter.getAnalyzer());
+                        query = parser.parse(term);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Can't parse query: "+term, ex);
+                    }
+                }
+                else {
+                    query = new TermQuery
+                        (new Term (FIELD_INDEXER, PubMedIndex.class.getName()));
+                }
+            }
+            else {
+                switch (field) {
+                case FIELD_PMID:
+                    try {
+                        long pmid = Long.parseLong(term);
+                        query = NumericRangeQuery.newLongRange
+                            (field, pmid, pmid, true, true);
+                    }
+                    catch (NumberFormatException ex) {
+                        Logger.error("Bogus pmid: "+term, ex);
+                    }
+                    break;
+                    
+                case FIELD_YEAR:
+                    try {
+                        // syntax: (XXXX,YYYY) all years from XXXX to YYYY
+                        //      inclusive
+                        //   (,YYYY) all years before YYYY inclusive
+                        //   (XXXX,) all years after XXXX inclusive
+                        //   ZZZZ only year ZZZZ
+                        int min = Integer.MIN_VALUE, max = Integer.MAX_VALUE; 
+                        Matcher m = RANGE_REGEX.matcher(term);
+                        if (m.find()) {
+                            String m1 = m.group(1);
+                            if (!m1.equals(""))
+                                min = Integer.parseInt(m1);
+                            String m2 = m.group(2);
+                            if (!m2.equals(""))
+                                max = Integer.parseInt(m2);
+                            Logger.debug("### year range search: "
+                                         +" min="+m1+" max="+m2);
+                        }
+                        else {
+                            min = max = Integer.parseInt(term);
+                        }
+                        query = NumericRangeQuery.newIntRange
+                            (field, min, max, true, true);
+                    }
+                    catch (NumberFormatException ex) {
+                        Logger.error("Bogus year format: "+term, ex);
+                    }
+                    break;
+                    
+                default:
+                    query = new QueryBuilder (indexWriter.getAnalyzer())
+                        .createPhraseQuery(field, term, 3);
+                }
+            }
+            
+            if (query == null)
+                query = new MatchNoDocsQuery ();
+            
+            return query;
+        }
+    } // PubMedTextQuery 
+    
+    public static class PMIDQuery implements SearchQuery {
+        public final Long pmid;
+        public PMIDQuery (Long pmid) {
+            this.pmid = pmid;
+        }
+
+        public String getField () { return FIELD_PMID; }
+        public Object getQuery () { return pmid; }
+        public Map<String, Object> getFacets () {
+            return Collections.emptyMap();
+        }
+        public List<Concept> getConcepts () {
+            return Collections.emptyList();
+        }
+        @Override
+        public Query rewrite () {
+            return NumericRangeQuery.newLongRange
+                (getField (), pmid, pmid, true, true);
+        }
+        
+        public String cacheKey () {
+            return PMIDQuery.class.getName()+"/"+pmid;
+        }
+
+        public String toString () {
+            return "PMIDQuery{pmid="+pmid+"}";
+        }
+    }
+    
     public static class SearchResult
         extends blackboard.index.Index.SearchResult {
         public final List<MatchedDoc> docs = new ArrayList<>();
@@ -209,11 +322,16 @@ public class PubMedIndex extends MetaMapIndex {
         final SyncCacheApi cache;
 
         protected SearchResult () {
-            this (null, null, null);
+            this (null, null, null, null);
         }
-            
-        protected SearchResult (SyncCacheApi cache,
+
+        protected SearchResult (SearchQuery query) {
+            this (query, null, null, null);
+        }
+        
+        protected SearchResult (SearchQuery query, SyncCacheApi cache,
                                 MeshKSource mesh, UMLSKSource umls) {
+            super (query);
             this.mesh = mesh != null ? mesh.getMeshDb() : null;
             this.umls = umls;
             this.cache = cache;
@@ -255,6 +373,8 @@ public class PubMedIndex extends MetaMapIndex {
                         Concept c = new Concept
                             (d.ui, d.name, d.treeNumbers.isEmpty() ? null
                              : d.treeNumbers.get(0));
+                        for (int i = 1; i < d.treeNumbers.size(); ++i)
+                            c.types.add(d.treeNumbers.get(i));
                         mdoc.mesh.add(c);
                     }
                 }
@@ -338,13 +458,16 @@ public class PubMedIndex extends MetaMapIndex {
             throws IOException {
             TermQuery tq = new TermQuery (new Term (_FIELD_CUI, cui));
             TopDocs hits = searcher.search(tq, 1);
+            Concept c = null;
             if (hits.totalHits > 0) {
                 Document doc = searcher.doc(hits.scoreDocs[0].doc);
-                return new Concept
-                    (doc.get(_FIELD_CUI), doc.get(_FIELD_CONCEPT),
-                     doc.get(_FIELD_SEMTYPE));
+                String[] types = doc.getValues(_FIELD_SEMTYPE);
+                c = new Concept
+                    (doc.get(_FIELD_CUI), doc.get(_FIELD_CONCEPT), types[0]);
+                for (int i = 1; i < types.length; ++i)
+                    c.types.add(types[i]);
             }
-            return null;
+            return c;
         }
 
         protected void updateTreeNumberDisplay (FV fv) {
@@ -406,11 +529,16 @@ public class PubMedIndex extends MetaMapIndex {
     public static SearchResult merge
         (int skip, int top, SearchResult... results) {
         
-        SearchResult merged = new SearchResult ();
+        SearchResult merged = null;
         Map<String, List<Facet>> facets = new TreeMap<>();
         List<MatchedDoc> docs = new ArrayList<>();
         for (SearchResult r : results) {
             docs.addAll(r.docs);
+            if (merged == null) {
+                // this assumes that all SearchResults came from the same
+                // SearchQuery!
+                merged = new SearchResult (r.query);
+            }
             merged.total += r.total;
 
             for (Facet f : r.facets) {
@@ -460,6 +588,28 @@ public class PubMedIndex extends MetaMapIndex {
         }
         
         return merged;
+    }
+
+    public static List<Concept> parseMetaMapConcepts (JsonNode result) {
+        Logger.debug("MetaMap ===> "+result);
+        JsonNode evList = result.at
+            ("/utteranceList/0/pcmlist/mappingList/0/evList/0");
+        if (evList.isMissingNode()) {
+            return Collections.emptyList();
+        }
+
+        List<Concept> concepts = new ArrayList<>();
+        for (int i = 0; i < evList.size(); ++i) {
+            JsonNode ev = evList.get(i);
+            Concept c = new Concept (ev.get("conceptId").asText(),
+                                     ev.get("preferredName").asText(), null);
+            JsonNode types = ev.get("semanticTypes");
+            for (int j = 0; j < types.size(); ++j)
+                c.types.add(types.get(j).asText());
+            c.context = result;
+            concepts.add(c);
+        }
+        return concepts;
     }
 
     @Inject public SemMedDbKSource semmed;
@@ -523,6 +673,7 @@ public class PubMedIndex extends MetaMapIndex {
                                    d.timestamp, Field.Store.YES));
         if (d.source != null) {
             doc.add(new FacetField (FACET_FILE, d.source));
+            doc.add(new StringField (FIELD_FILE, d.source, Field.Store.YES));
         }
         
         String title = d.getTitle();
@@ -768,8 +919,8 @@ public class PubMedIndex extends MetaMapIndex {
                     (_FIELD_CUI, concept.ui, Field.Store.YES));
             doc.add(new TextField
                     (_FIELD_CONCEPT, concept.name, Field.Store.YES));
-            doc.add(new StringField
-                    (_FIELD_SEMTYPE, concept.type, Field.Store.YES));
+            for (String t : concept.types)
+                doc.add(new StringField (_FIELD_SEMTYPE, t, Field.Store.YES));
             indexWriter.addDocument(doc);
         }
     }       
@@ -838,8 +989,8 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
-    SearchResult createSearchResult () {
-        return new SearchResult (cache, mesh, umls);
+    SearchResult createSearchResult (SearchQuery query) {
+        return new SearchResult (query, cache, mesh, umls);
     }
 
     static MatchedDoc toMatchedDoc (Document doc) throws IOException {
@@ -864,30 +1015,26 @@ public class PubMedIndex extends MetaMapIndex {
     }
 
     public MatchedDoc getMatchedDoc (long pmid) throws Exception {
-        NumericRangeQuery<Long> query = NumericRangeQuery.newLongRange
-            (FIELD_PMID, pmid, pmid, true, true);
-        SearchResult result = search (query, EMPTY_FACETS);
-        if (result.isEmpty())
+        PMIDQuery pq = new PMIDQuery (pmid);
+        SearchResult result = search (pq, 1);
+        if (result.total == 0)
             return EMPTY_DOC;
-        
-        int size = result.size();
-        if (size > 1)
-            Logger.warn("PMID "+pmid+" has "+size+" documents!");
-        return result.docs.get(size-1);
+        if (result.total > 1)
+            Logger.warn("PMID "+pmid+" has "+result.total+" documents!");
+        return result.docs.get(0);
     }
 
-    public SearchResult search
-        (Query query, Map<String, Object> facets) throws Exception {
-        return search (query, facets, MAX_HITS);
-    }
-    
-    public SearchResult search (Query query, Map<String, Object> facets,
-                                int maxHits) throws Exception {
-        SearchResult result = createSearchResult ();
-        search (query, facets, result, maxHits);
+    public SearchResult search (SearchQuery query, int maxHits)
+        throws Exception {
+        if (query instanceof TextQuery) {
+            // we recast this to use PubMedTextQuery
+            query = new PubMedTextQuery ((TextQuery)query);
+        }
+        SearchResult result = createSearchResult (query);
+        search (result, maxHits);
         return result;
     }
-
+    
     public SearchResult search (String text,
                                 Map<String, Object> facets) throws Exception {
         return search (text, facets, MAX_HITS);
@@ -895,18 +1042,8 @@ public class PubMedIndex extends MetaMapIndex {
     
     public SearchResult search (String text, Map<String, Object> facets,
                                 int maxHits) throws Exception {
-        Query query;
-        if (text != null) {
-            QueryParser parser = new QueryParser
-                (FIELD_TEXT, indexWriter.getAnalyzer());
-            query = parser.parse(text);
-        }
-        else {
-            //query = new MatchAllDocsQuery ();
-            query = new TermQuery
-                (new Term (FIELD_INDEXER, getClass().getName()));
-        }
-        SearchResult result = search (query, facets, maxHits);
+        PubMedTextQuery query = new PubMedTextQuery (text, facets);
+        SearchResult result = search (query, maxHits);
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
                      +result.size()+" hit(s)!");
         return result;
@@ -920,60 +1057,8 @@ public class PubMedIndex extends MetaMapIndex {
     public SearchResult search (String field, String term,
                                 Map<String, Object> facets, int maxHits)
         throws Exception {
-        if (field == null)
-            return search (term, facets, maxHits);
-
-        Query query = null;
-        switch (field) {
-        case FIELD_PMID:
-            try {
-                long pmid = Long.parseLong(term);
-                query = NumericRangeQuery.newLongRange
-                    (field, pmid, pmid, true, true);
-            }
-            catch (NumberFormatException ex) {
-                Logger.error("Bogus pmid: "+term, ex);
-            }
-            break;
-
-        case FIELD_YEAR:
-            try {
-                // syntax: (XXXX,YYYY) all years from XXXX to YYYY inclusive
-                //   (,YYYY) all years before YYYY inclusive
-                //   (XXXX,) all years after XXXX inclusive
-                //   ZZZZ only year ZZZZ
-                int min = Integer.MIN_VALUE, max = Integer.MAX_VALUE; 
-                Matcher m = RANGE_REGEX.matcher(term);
-                if (m.find()) {
-                    String m1 = m.group(1);
-                    if (!m1.equals(""))
-                        min = Integer.parseInt(m1);
-                    String m2 = m.group(2);
-                    if (!m2.equals(""))
-                        max = Integer.parseInt(m2);
-                    Logger.debug("### year range search: "
-                                 +" min="+m1+" max="+m2);
-                }
-                else {
-                    min = max = Integer.parseInt(term);
-                }
-                query = NumericRangeQuery.newIntRange
-                    (field, min, max, true, true);
-            }
-            catch (NumberFormatException ex) {
-                Logger.error("Bogus year format: "+term, ex);
-            }
-            break;
-            
-        default:
-            query = new QueryBuilder (indexWriter.getAnalyzer())
-                .createPhraseQuery(field, term, 3);
-        }
-
-        if (query == null)
-            query = new MatchNoDocsQuery ();
-        
-        SearchResult result = search (query, facets, maxHits);
+        PubMedTextQuery query = new PubMedTextQuery (field, term, facets);
+        SearchResult result = search (query, maxHits);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.size()+" hit(s)!");
         return result;

@@ -26,96 +26,15 @@ import akka.actor.PoisonPill;
 import akka.actor.Inbox;
 
 import blackboard.umls.UMLSKSource;
+import static blackboard.index.Index.*;
 import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.Util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import gov.nih.nlm.nls.metamap.Result;
 
 @Singleton
 public class PubMedIndexManager implements AutoCloseable {
-    static interface CacheableContent {
-        String cacheKey ();
-    }
-
-    public static class TextQuery implements CacheableContent {
-        public final String field;
-        public final String query;
-        public final Map<String, Object> facets = new TreeMap<>();
-        public int skip = 0;
-        public int top = 10;
-
-        TextQuery () {
-            this (null, null, null);
-            top = 0;
-        }
-        TextQuery (Map<String, Object> facets) {
-            this (null, null, facets);
-        }
-        TextQuery (String query) {
-            this (null, query, null);
-        }
-        TextQuery (String query, Map<String, Object> facets) {
-            this (null, query, facets);
-        }
-        TextQuery (String field, String query, Map<String, Object> facets) {
-            this.field = field;
-            this.query = query;
-            if (facets != null)
-                this.facets.putAll(facets);
-        }
-
-        public String cacheKey () {
-            List<String> values = new ArrayList<>();
-            if (field != null) values.add(field);
-            if (query != null) values.add(query);
-            for (Map.Entry<String, Object> me : facets.entrySet()) {
-                values.add(me.getKey());
-                Object v = me.getValue();
-                if (v instanceof String[]) {
-                    String[] vals = (String[])v;
-                    for (String s : vals)
-                        values.add(s);
-                }
-                else if (v instanceof Object[]) {
-                    Object[] vals = (Object[])v;
-                    for (Object val : vals) {
-                        if (val instanceof String[]) {
-                            for (String s : (String[])val)
-                                values.add(s);
-                        }
-                        else {
-                            values.add((String)val);
-                        }
-                    }
-                }
-                else {
-                    values.add((String)v);
-                }
-            }
-            return TextQuery.class.getName()
-                +"/"+Util.sha1(values.toArray(new String[0]));
-        }
-        
-        public String toString () {
-            return "TextQuery{key="+cacheKey()+",field="+field+",query="
-                +query+",skip="+skip+",top="+top+",facets="+facets+"}";
-        }
-    }
-
-    public static class PMIDQuery implements CacheableContent {
-        public final Long pmid;
-        PMIDQuery (Long pmid) {
-            this.pmid = pmid;
-        }
-
-        public String cacheKey () {
-            return PMIDQuery.class.getName()+"/"+pmid;
-        }
-        
-        public String toString () {
-            return "PmidQuery{pmid="+pmid+"}";
-        }
-    }
 
     static class MetaMapActor extends AbstractActor {
         static Props props (UMLSKSource umls) {
@@ -149,17 +68,19 @@ public class PubMedIndexManager implements AutoCloseable {
             Logger.debug(self()+": metamap "+q);
             try {
                 long start = System.currentTimeMillis();
-                List<Result> result = umls.getMetaMap().annotate(q.query);
+                JsonNode result = umls.getMetaMap().annotateAsJson(q.query);
                 Logger.debug(self()+": metamap executed in "+String.format
                              ("%1$.3fs",
                               1e-3*(System.currentTimeMillis()-start)));
-                
-                getSender().tell(result, getSelf ());
+
+                List<Concept> concepts =
+                    PubMedIndex.parseMetaMapConcepts(result);
+                getSender().tell(concepts, getSelf ());
             }
             catch (Exception ex) {
                 Logger.error("Can't execute MetaMap", ex);
             }
-        }        
+        }
     }
     
     static class PubMedIndexActor extends AbstractActor {
@@ -201,8 +122,7 @@ public class PubMedIndexManager implements AutoCloseable {
             Logger.debug(self()+": searching "+q);
 
             long start = System.currentTimeMillis();
-            SearchResult result = pmi.search
-                (q.field, q.query, q.facets, q.skip+q.top); 
+            SearchResult result = pmi.search(q, q.skip+q.top); 
             Logger.debug(self()+": search completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             
@@ -220,6 +140,7 @@ public class PubMedIndexManager implements AutoCloseable {
     }
     
     final List<ActorRef> indexes = new ArrayList<>();
+    final ActorRef metamap;
     final ActorSystem actorSystem;
     final int maxTimeout, maxTries, maxHits;
     final SyncCacheApi cache;
@@ -227,8 +148,8 @@ public class PubMedIndexManager implements AutoCloseable {
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
-                               UMLSKSource umls,
-                               ActorSystem actorSystem, SyncCacheApi cache,
+                               UMLSKSource umls, ActorSystem actorSystem,
+                               SyncCacheApi cache,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
         
@@ -260,6 +181,7 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
+        metamap = actorSystem.actorOf(MetaMapActor.props(umls));
         lifecycle.addStopHook(() -> {
                 close ();
                 return CompletableFuture.completedFuture(null);
@@ -277,6 +199,7 @@ public class PubMedIndexManager implements AutoCloseable {
     }
 
     public void close () throws Exception {
+        metamap.tell(PoisonPill.getInstance(), ActorRef.noSender());
         for (ActorRef actorRef : indexes) {
             actorRef.tell(PoisonPill.getInstance(), ActorRef.noSender());
         }
@@ -325,6 +248,21 @@ public class PubMedIndexManager implements AutoCloseable {
     protected SearchResult search (TextQuery tq) {
         Logger.debug("#### Query: "+tq);
         Inbox inbox = Inbox.create(actorSystem);
+
+        if (tq.query != null) {
+            // first pass this through metamap
+            inbox.send(metamap, tq);
+            try {
+                List<Concept> concepts = (List<Concept>)
+                    inbox.receive(Duration.ofSeconds(5));
+                Logger.debug("MetaMap ==> "+concepts);
+            }
+            catch (TimeoutException ex) {
+                Logger.warn("Unable to process query with MetMap: "+tq);
+            }
+        }
+        
+        // now do the search
         for (ActorRef actorRef : indexes)
             inbox.send(actorRef, tq);
         
@@ -334,7 +272,7 @@ public class PubMedIndexManager implements AutoCloseable {
             try {
                 SearchResult result = (SearchResult)inbox.receive
                     (Duration.ofSeconds(maxTimeout));
-                if (!result.isEmpty())
+                if (!result.isEmpty() || !result.facets.isEmpty())
                     results.add(result);
                 ++i;
             }

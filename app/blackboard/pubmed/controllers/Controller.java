@@ -164,12 +164,11 @@ public class Controller extends play.mvc.Controller {
                     SearchResult result =
                         indexManager.search(facets, skip, top);
                     ObjectNode json = Json.newObject();
-                    json.put("filters", toJson (facets));
-                    json.put("skip", skip);
-                    json.put("top", top);
+                    json.put("query", mapper.valueToTree(result.query));
                     json.put("count", result.size());
                     json.put("total", result.total);
                     ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("query");
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
@@ -192,15 +191,11 @@ public class Controller extends play.mvc.Controller {
                         (request().getQueryString("field"), q,
                          facets, skip, top);
                     ObjectNode json = Json.newObject();
-                    json.put("query", q);
-                    if (facets != null && !facets.isEmpty()) {
-                        json.put("filters", toJson (facets));
-                    }
-                    json.put("skip", skip);
-                    json.put("top", top);
+                    json.put("query", mapper.valueToTree(result.query));
                     json.put("count", result.size());
                     json.put("total", result.total);
                     ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("query");
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
