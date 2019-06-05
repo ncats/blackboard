@@ -529,29 +529,34 @@ public class PubMedIndex extends MetaMapIndex {
     public static SearchResult merge
         (int skip, int top, SearchResult... results) {
         
-        SearchResult merged = null;
         Map<String, List<Facet>> facets = new TreeMap<>();
         List<MatchedDoc> docs = new ArrayList<>();
-        for (SearchResult r : results) {
-            docs.addAll(r.docs);
-            if (merged == null) {
-                // this assumes that all SearchResults came from the same
-                // SearchQuery!
-                merged = new SearchResult (r.query);
-            }
-            merged.total += r.total;
+        SearchResult merged = null;
+        if (results.length > 0) {
+            for (SearchResult r : results) {
+                docs.addAll(r.docs);
+                if (merged == null) {
+                    // this assumes that all SearchResults came from the same
+                    // SearchQuery!
+                    merged = new SearchResult (r.query);
+                }
+                merged.total += r.total;
 
-            for (Facet f : r.facets) {
-                /*
-                Logger.debug("#### "+f.toString());
-                Facet c = clone (f);
-                Logger.debug("**** "+c.toString());
-                */
-                List<Facet> fs = facets.get(f.name);
-                if (fs == null)
-                    facets.put(f.name, fs = new ArrayList<>());
-                fs.add(f);
+                for (Facet f : r.facets) {
+                    /*
+                      Logger.debug("#### "+f.toString());
+                      Facet c = clone (f);
+                      Logger.debug("**** "+c.toString());
+                    */
+                    List<Facet> fs = facets.get(f.name);
+                    if (fs == null)
+                        facets.put(f.name, fs = new ArrayList<>());
+                    fs.add(f);
+                }
             }
+        }
+        else {
+            merged = new SearchResult ();
         }
 
         for (List<Facet> fs : facets.values()) {
@@ -591,9 +596,10 @@ public class PubMedIndex extends MetaMapIndex {
     }
 
     public static List<Concept> parseMetaMapConcepts (JsonNode result) {
-        Logger.debug("MetaMap ===> "+result);
+        //Logger.debug("MetaMap ===> "+result);
         JsonNode evList = result.at
-            ("/utteranceList/0/pcmlist/mappingList/0/evList/0");
+            ("/utteranceList/0/pcmlist/0/mappingList/0/evList");
+        //Logger.debug("evList ===> "+evList);
         if (evList.isMissingNode()) {
             return Collections.emptyList();
         }
@@ -638,6 +644,7 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setMultiValued(FACET_PUBTYPE, true);
         fc.setMultiValued(FACET_JOURNAL, true);
         fc.setMultiValued(FACET_KEYWORD, true);
+        fc.setMultiValued(FACET_LANG, true);
         fc.setMultiValued(FACET_REFERENCE, true);
         fc.setMultiValued(FACET_GRANTTYPE, true);
         fc.setHierarchical(FACET_GRANTAGENCY, true);
@@ -781,6 +788,10 @@ public class PubMedIndex extends MetaMapIndex {
         for (String abs : d.getAbstract()) {
             doc.add(new Field (FIELD_ABSTRACT, abs, tvFieldType));
             addTextField (doc, FIELD_ABSTRACT, abs);
+        }
+
+        if (d.lang != null && !"".equals(d.lang)) {
+            doc.add(new FacetField (FACET_LANG, d.lang));
         }
 
         // publication year

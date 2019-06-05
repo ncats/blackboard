@@ -208,6 +208,7 @@ public class PubMedDoc implements java.io.Serializable {
     public List<Grant> grants = new ArrayList<>();
     public String journal;
     public Date date;
+    public String lang; // other language for abstract
     public List<Entry> pubtypes = new ArrayList<>();
     public List<MeshHeading> headings = new ArrayList<>();
     public List<Entry> chemicals = new ArrayList<>();

@@ -29,7 +29,7 @@ public class PubMedSax extends DefaultHandler {
     StringBuilder abstext = new StringBuilder ();
     PubMedDoc doc;
     Calendar cal = Calendar.getInstance();
-    String idtype, ui, majorTopic;
+    String idtype, ui, majorTopic, lang;
     MeshHeading mh;
     final MeshDb mesh;
     Predicate<PubMedDoc> consumer;
@@ -237,6 +237,10 @@ public class PubMedSax extends DefaultHandler {
             abstext.setLength(0);
             break;
 
+        case "OtherAbstract":
+            lang = attrs.getValue("Language");
+            break;
+
         default:
             if (!stack.isEmpty() && "AbstractText".equals(stack.peek()))
                 abstext.append(content.toString());
@@ -417,10 +421,13 @@ public class PubMedSax extends DefaultHandler {
         case "Reference":
             doc.addReference(reference);
             break;
-
+            
+        case "OtherAbstract":
+            doc.lang = lang;
+            lang = null;
+            break;
+            
         default:
-            //            if ("AbstractText".equals(parent))
-            //  abstext.append(" "+value);
         }
     }
     

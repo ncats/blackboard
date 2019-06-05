@@ -255,7 +255,9 @@ public class PubMedIndexManager implements AutoCloseable {
             try {
                 List<Concept> concepts = (List<Concept>)
                     inbox.receive(Duration.ofSeconds(5));
-                Logger.debug("MetaMap ==> "+concepts);
+                Logger.debug("#### "+concepts.size()
+                             +" concept(s) found from query "+tq);
+                tq.concepts.addAll(concepts);
             }
             catch (TimeoutException ex) {
                 Logger.warn("Unable to process query with MetMap: "+tq);
@@ -272,8 +274,7 @@ public class PubMedIndexManager implements AutoCloseable {
             try {
                 SearchResult result = (SearchResult)inbox.receive
                     (Duration.ofSeconds(maxTimeout));
-                if (!result.isEmpty() || !result.facets.isEmpty())
-                    results.add(result);
+                results.add(result);
                 ++i;
             }
             catch (TimeoutException ex) {
