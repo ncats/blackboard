@@ -61,6 +61,8 @@ import javax.xml.transform.stream.StreamResult;
 import com.google.inject.assistedinject.Assisted;
 
 public class PubMedIndex extends MetaMapIndex {
+    public static final String VERSION = "PubMedIndex-v1";
+    
     /*
      * these are internal fields used for resolving concept cuis
      */
@@ -213,19 +215,21 @@ public class PubMedIndex extends MetaMapIndex {
             Query query = null;
             String term = (String) getQuery ();
             if (field == null) {
-                if (term != null) {
-                    try {
+                try {
+                    if (term != null) {
                         QueryParser parser = new QueryParser
                             (FIELD_TEXT, indexWriter.getAnalyzer());
                         query = parser.parse(term);
                     }
-                    catch (Exception ex) {
-                        Logger.error("Can't parse query: "+term, ex);
+                    else {
+                        //query = new TermQuery (new Term (FIELD_INDEXER, VERSION));
+                        query = NumericRangeQuery.newLongRange
+                            (FIELD_PMID, 0l, Long.MAX_VALUE, false, false);
                     }
                 }
-                else {
-                    query = new TermQuery
-                        (new Term (FIELD_INDEXER, PubMedIndex.class.getName()));
+                catch (Exception ex) {
+                    Logger.error("Can't parse query: "+term, ex);
+                    query = new MatchNoDocsQuery ();
                 }
             }
             else {
@@ -943,7 +947,7 @@ public class PubMedIndex extends MetaMapIndex {
     protected Document newDocument () {
         Document doc = new Document ();
         doc.add(new StringField
-                (FIELD_INDEXER, getClass().getName(), Field.Store.NO));
+                (FIELD_INDEXER, VERSION, Field.Store.NO));
         return doc;
     }
     
