@@ -157,6 +157,8 @@ public class PubMedIndex extends MetaMapIndex {
         public Long pmid;
         public String title;
         public Integer year;
+        public Date revised;
+        public String source;
         public List<MatchedFragment> fragments = new ArrayList<>();
         public List<String> abstracts = new ArrayList<>();        
         public List<Concept> concepts = new ArrayList<>();
@@ -222,9 +224,12 @@ public class PubMedIndex extends MetaMapIndex {
                         query = parser.parse(term);
                     }
                     else {
-                        //query = new TermQuery (new Term (FIELD_INDEXER, VERSION));
+                        query = new TermQuery
+                            (new Term (FIELD_INDEXER, VERSION));
+                        /*
                         query = NumericRangeQuery.newLongRange
                             (FIELD_PMID, 0l, Long.MAX_VALUE, false, false);
+                        */
                     }
                 }
                 catch (Exception ex) {
@@ -582,6 +587,10 @@ public class PubMedIndex extends MetaMapIndex {
                 if (d == 0) {
                     if (b.pmid > a.pmid) d = 1;
                     else if (b.pmid < a.pmid) d = -1;
+                    else if (b.revised != null)
+                        d = b.revised.compareTo(a.revised);
+                    else if (b.source != null)
+                        d = b.source.compareTo(a.source);
                     else if (a.title != null)
                         d = a.title.compareTo(b.title);
                 }
@@ -801,6 +810,11 @@ public class PubMedIndex extends MetaMapIndex {
         // publication year
         doc.add(new IntField (FIELD_YEAR, d.getYear(), Field.Store.YES));
         doc.add(new FacetField (FACET_YEAR, String.valueOf(d.getYear())));
+
+        if (d.revised != null) {
+            doc.add(new LongField
+                    (FIELD_REVISED, d.revised.getTime(), Field.Store.YES));
+        }
 
         // mesh headings
         for (MeshHeading mh : d.getMeshHeadings()) {
@@ -1022,6 +1036,11 @@ public class PubMedIndex extends MetaMapIndex {
             md.doc = getXmlDoc (doc, FIELD_XML);
             for (String txt : doc.getValues(FIELD_ABSTRACT))
                 md.abstracts.add(txt);
+            md.source = doc.get(FIELD_FILE);
+            IndexableField f = doc.getField(FIELD_REVISED);
+            if (f != null) {
+                md.revised = new Date (f.numericValue().longValue());
+            }
         }
         else {
             md = EMPTY_DOC;
@@ -1031,7 +1050,7 @@ public class PubMedIndex extends MetaMapIndex {
 
     public MatchedDoc getMatchedDoc (long pmid) throws Exception {
         PMIDQuery pq = new PMIDQuery (pmid);
-        SearchResult result = search (pq, 1);
+        SearchResult result = search (pq, 5);
         if (result.total == 0)
             return EMPTY_DOC;
         if (result.total > 1)

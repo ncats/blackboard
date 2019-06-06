@@ -208,6 +208,7 @@ public class PubMedDoc implements java.io.Serializable {
     public List<Grant> grants = new ArrayList<>();
     public String journal;
     public Date date;
+    public Date revised;
     public String lang; // other language for abstract
     public List<Entry> pubtypes = new ArrayList<>();
     public List<MeshHeading> headings = new ArrayList<>();
@@ -259,6 +260,17 @@ public class PubMedDoc implements java.io.Serializable {
             }
         }
 
+        nodes = doc.getElementsByTagName("OtherAbstract");
+        if (nodes.getLength() > 0) {
+            Element elm = (Element)nodes.item(0);
+            lang = elm.getAttribute("Language");
+        }
+
+        nodes = doc.getElementsByTagName("DateRevised");
+        if (nodes.getLength() > 0) {
+            revised = parseDate (nodes.item(0));
+        }
+        
         /*
          * journal 
          */
@@ -270,32 +282,7 @@ public class PubMedDoc implements java.io.Serializable {
                 ? ((Element)nodes.item(0)).getTextContent() : null;
             nodes = elm.getElementsByTagName("PubDate");
             if (nodes.getLength() > 0) {
-                elm = (Element)nodes.item(0);
-                
-                Calendar cal = Calendar.getInstance();
-                nodes = elm.getElementsByTagName("Year");
-                if (nodes.getLength() > 0) {
-                    cal.set(YEAR, Integer.parseInt
-                            (((Element)nodes.item(0)).getTextContent()));
-                }
-                
-                nodes = elm.getElementsByTagName("Month");
-                int month = 0;
-                if (nodes.getLength() > 0) {
-                    String mon = ((Element)nodes.item(0)).getTextContent();
-                    month = parseMonth (mon);
-                }
-                cal.set(MONTH, month);
-                
-                nodes = elm.getElementsByTagName("Day");
-                if (nodes.getLength() > 0) {
-                    cal.set(DAY_OF_MONTH, Integer.parseInt
-                            (((Element)nodes.item(0)).getTextContent()));
-                }
-                else {
-                    cal.set(DAY_OF_MONTH, 1);
-                }
-                date = cal.getTime();
+                date = parseDate (nodes.item(0));
             }
         }
 
@@ -418,6 +405,40 @@ public class PubMedDoc implements java.io.Serializable {
                 ex.printStackTrace();
             }
         }
+    }
+
+    static Date parseDate (Node node) {
+        Date date = null;
+        if (node instanceof Element) {
+            Element elm = (Element) node;
+            
+            Calendar cal = Calendar.getInstance();
+            NodeList nodes = elm.getElementsByTagName("Year");
+            if (nodes.getLength() > 0) {
+                cal.set(YEAR, Integer.parseInt
+                        (((Element)nodes.item(0)).getTextContent()));
+            }
+            
+            nodes = elm.getElementsByTagName("Month");
+            int month = 0;
+            if (nodes.getLength() > 0) {
+                String mon = ((Element)nodes.item(0)).getTextContent();
+                month = parseMonth (mon);
+            }
+            cal.set(MONTH, month);
+            
+            nodes = elm.getElementsByTagName("Day");
+            if (nodes.getLength() > 0) {
+                    cal.set(DAY_OF_MONTH, Integer.parseInt
+                            (((Element)nodes.item(0)).getTextContent()));
+            }
+            else {
+                cal.set(DAY_OF_MONTH, 1);
+            }
+            
+            date = cal.getTime();
+        }
+        return date;
     }
 
     public Long getPMID () { return pmid; }

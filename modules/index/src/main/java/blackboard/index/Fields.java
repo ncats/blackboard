@@ -8,6 +8,7 @@ public interface Fields {
     public static final String FIELD_FILE = "file";
     public static final String FACET_FILE = "@file";
     public static final String FIELD_TIMESTAMP = "timestamp";
+    public static final String FIELD_REVISED = "daterevised";
     public static final String FIELD_TEXT = "text";
     public static final String FIELD_YEAR = "year";
     public static final String FACET_YEAR = "@year";

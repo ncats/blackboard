@@ -200,6 +200,7 @@ public class PubMedSax extends DefaultHandler {
             //doc = new PubMedDoc ();
             break;
         case "PubDate":
+        case "DateRevised":
             cal.clear();
             break;
         case "ArticleId":
@@ -266,20 +267,24 @@ public class PubMedSax extends DefaultHandler {
             break;
             
         case "Year":
-            if ("PubDate".equals(parent))
+            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
                 cal.set(Calendar.YEAR, Integer.parseInt(value));
             break;
         case "Month":
-            if ("PubDate".equals(parent))
+            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
                 cal.set(Calendar.MONTH, PubMedDoc.parseMonth(value));
             break;
         case "Day":
-            if ("PubDate".equals(parent))
+            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
                 cal.set(Calendar.DAY_OF_MONTH, Integer.parseInt(value));
             break;
             
         case "PubDate":
             doc.date = cal.getTime();
+            break;
+
+        case "DateRevised":
+            doc.revised = cal.getTime();
             break;
             
         case "Title":
