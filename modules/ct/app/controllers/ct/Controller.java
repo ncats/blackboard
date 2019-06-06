@@ -106,32 +106,6 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    @BodyParser.Of(value = BodyParser.MultipartFormData.class)
-    public Result initialize () {
-        Http.MultipartFormData<File> body =
-            request().body().asMultipartFormData();
-        Http.MultipartFormData.FilePart<File> interv = body.getFile("interv");
-        File file = interv.getFile();
-        if (file != null) {
-            try (InputStream is = new GZIPInputStream
-                 (new FileInputStream (file))) {
-                Logger.debug("Initializing database "+ctdb.getDbFile()+"...");
-                ctdb.initialize(0, is);
-            }
-            catch (Exception ex) {
-                Logger.error("Can't map interventions", ex);
-                return internalServerError (ex.getMessage());
-            }
-        }
-        return redirect (routes.Controller.index());
-    }
-
-    public CompletionStage<Result> index () {
-        return supplyAsync (() -> {
-                return ok (views.html.ct.index.render(ctdb));
-            }, ec.current());
-    }
-
     public CompletionStage<Result> findStudiesForConcept
         (String ui, String concept, Integer skip, Integer top) {
         return supplyAsync (() -> {

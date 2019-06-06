@@ -1,0 +1,2 @@
+GET /index   blackboard.ct.controllers.Controller.index
+POST /initialize     blackboard.ct.controllers.Controller.initialize

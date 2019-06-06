@@ -46,10 +46,6 @@ public class Controller extends play.mvc.Controller {
             });
     }
     
-    public Result index (String query) {
-        return ok (views.html.umls.index.render(ks, query));
-    }
-
     public Result apiSemanticTypes () {
         return ok (Json.prettyPrint(Json.toJson(ks.semanticTypes)))
             .as("application/json");
@@ -62,22 +58,6 @@ public class Controller extends play.mvc.Controller {
                         +str);
     }
     
-    public CompletionStage<Result> cui (String cui) {
-        return supplyAsync (() -> {
-                try {
-                    Concept concept = ks.getConcept(cui);
-                    if (concept != null)
-                        return ok (views.html.umls.cui.render(concept, ks));
-                    return index (cui);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve concept for "+cui, ex);
-                    return ok (views.html.ui.error.render
-                               ("Can't retrieve concept for "+cui+": "
-                                +ex.getMessage(), 500));
-                }
-            }, ec.current());
-    }
 
     static ObjectNode toObject (JsonNode node) {
         Map<String, JsonNode> fields = new HashMap<>();
@@ -277,11 +257,10 @@ public class Controller extends play.mvc.Controller {
     
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
-                   ("umlsRoutes",
+                   ("ksUMLSRoutes",
                     routes.javascript.Controller.apiCui(),
                     routes.javascript.Controller.apiConcept(),
-                    routes.javascript.Controller.apiFindConcepts(),
-                    routes.javascript.Controller.cui()
+                    routes.javascript.Controller.apiFindConcepts()
                     )).as("text/javascript");
     }
 }

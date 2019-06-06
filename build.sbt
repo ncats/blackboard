@@ -39,6 +39,8 @@ lazy val root = (project in file("."))
   .settings(commonSettings: _*)
   .dependsOn(
     ui,
+    index,
+    utils,
     pharos,
     biothings,
     beacons,
@@ -52,6 +54,8 @@ lazy val root = (project in file("."))
   )
   .aggregate(
     ui,
+    index,
+    utils,
     pharos,
     biothings,
     beacons,
@@ -100,6 +104,14 @@ lazy val ui =  (project in file("modules/ui"))
     libraryDependencies += "org.webjars" % "webjars-play_2.11" % "2.6.3",
     libraryDependencies += "org.webjars" % "jquery" % "3.3.1-1",
     libraryDependencies += "org.webjars" % "font-awesome" % "4.7.0",
+    javacOptions ++= javaBuildOptions
+).dependsOn(buildinfo).aggregate(buildinfo)
+
+lazy val utils =  (project in file("modules/utils"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "utils",
+    libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 ).dependsOn(buildinfo).aggregate(buildinfo)
 
@@ -152,7 +164,7 @@ lazy val pubmed = (project in file("modules/pubmed"))
     libraryDependencies ++= commonDependencies,
     libraryDependencies +=   "org.json" % "json" % "20090211",
     javacOptions ++= javaBuildOptions
-).dependsOn(mesh, ui).aggregate(mesh, ui)
+  ).dependsOn(umls, ui).aggregate(umls, ui)
 
 lazy val umls = (project in file("modules/umls"))
   .enablePlugins(PlayJava)
@@ -170,7 +182,15 @@ lazy val semmed = (project in file("modules/semmed"))
   name := "semmed",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-  ).dependsOn(umls,pubmed).aggregate(umls,pubmed)
+  ).dependsOn(pubmed).aggregate(pubmed)
+
+lazy val index =  (project in file("modules/index"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "index",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(utils,umls,semmed).aggregate(utils,umls,semmed)
 
 lazy val ct = (project in file("modules/ct"))
   .enablePlugins(PlayJava)

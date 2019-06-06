@@ -1,10 +1,10 @@
 ->  /chembl  chembl.Routes
 ->  /pharos  pharos.Routes
-->  /umls    umls.Routes
-->  /semmed  semmed.Routes
+->  /umls    ksUMLS.Routes
+->  /semmed  ksSemmed.Routes
 ->  /pubmed  ksPubmed.Routes
 ->  /mesh    mesh.Routes
-->  /ct      ct.Routes
+->  /ct      ksCT.Routes
 ->  /aws     aws.Routes
 
 GET	/	controllers.ks.KnowledgeSource.index

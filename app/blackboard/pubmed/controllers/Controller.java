@@ -27,9 +27,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.apache.commons.lang3.StringUtils;
 
-import blackboard.pubmed.index.PubMedIndexManager;
-import blackboard.pubmed.index.PubMedIndex;
-import static blackboard.pubmed.index.PubMedIndex.*;
+import blackboard.index.pubmed.PubMedIndexManager;
+import blackboard.index.pubmed.PubMedIndex;
+import static blackboard.index.pubmed.PubMedIndex.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
@@ -214,11 +214,10 @@ public class Controller extends play.mvc.Controller {
                 try {
                     SearchResult result = indexManager.facets();
                     ObjectNode json = Json.newObject();
-                    json.put("skip", 0);
-                    json.put("top", 0);
                     json.put("count", 0);
                     json.put("total", result.total);
                     ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("query");
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
@@ -235,7 +234,7 @@ public class Controller extends play.mvc.Controller {
     public CompletionStage<Result> pmid (Long pmid, String format) {
         return supplyAsync (() -> {
                 try {
-                    MatchedDoc doc = indexManager.getDoc(pmid, format);
+                    MatchedDoc doc = indexManager.getDoc(pmid);
                     if (doc != null)
                         return ok(doc.toXmlString()).as("application/xml");
                     return notFound ("Can't find PMID "+pmid);

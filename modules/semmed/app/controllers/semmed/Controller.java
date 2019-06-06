@@ -32,26 +32,17 @@ import blackboard.umls.Concept;
 import blackboard.umls.SemanticType;
 import blackboard.pubmed.PubMedDoc;
 
+
 @Singleton
 public class Controller extends play.mvc.Controller {
     final SemMedDbKSource ks;
     final HttpExecutionContext ec;
-    final Environment env;
     
     @Inject
     public Controller (HttpExecutionContext ec,
-                       Environment env, SemMedDbKSource ks) {
+                       SemMedDbKSource ks) {
         this.ks = ks;
         this.ec = ec;
-        this.env = env;
-    }
-
-    public Result index (String query) {
-        return cui (query);
-    }
-
-    public Result cui (String cui) {
-        return ok (views.html.semmed.index.render(ks, cui));
     }
 
     public Result apiSemanticTypes () {
@@ -195,70 +186,10 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
-
-    public CompletionStage<Result> predicate (final String cui,
-                                              final String predicate) {
-        return supplyAsync (() -> {
-                Predication[] preds = filter
-                    (cui, p -> p.predicate.equals(predicate));
-                return ok (views.html.semmed.predication.render
-                           (ks, cui, preds));
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> semtype (final String cui,
-                                            final String semtype) {
-        return supplyAsync (() -> {
-                SemanticType st = ks.umls.getSemanticType(semtype);
-                if (st == null)
-                    return ok (views.html.ui.notfound.render
-                               ("Unknown semantic type <code>"
-                                +semtype+"</code>!"));
-                Predication[] preds =
-                    filter (cui, p -> st.abbr.equals(p.subtype)
-                            || st.abbr.equals(p.objtype));
-                return ok (views.html.semmed.predication.render
-                           (ks, cui, preds));
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> concept (final String sub,
-                                            final String obj) {
-        return supplyAsync (() -> {
-                Predication[] preds = filter
-                    (sub, p->obj.equalsIgnoreCase(p.objcui));
-                return ok (views.html.semmed.predication.render
-                           (ks, sub, preds));
-            }, ec.current());
-    }
-
-    public CompletionStage<Result> pmid (final Long pmid) {
-        return supplyAsync (() -> {
-                try {
-                    PubMedDoc doc = ks.pubmed.getPubMedDoc(pmid.toString());
-                    List<Predication> preds =
-                        ks.getPredicationsByPMID(doc.getPMID().toString());
-                    Logger.debug("Doc "+pmid+" has "
-                                 +preds.size()+" predicates!");
-                    return ok (views.html.semmed.pubmed.render
-                               (ks, doc, preds.toArray(new Predication[0])));
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve PubMed for "+pmid, ex);
-                    return internalServerError
-                        ("Can't retrieve PubMed for "+pmid);
-                }
-            }, ec.current());
-    }
     
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
-                   ("semmedRoutes",
-                    routes.javascript.Controller.cui(),
-                    routes.javascript.Controller.predicate(),
-                    routes.javascript.Controller.semtype(),
-                    routes.javascript.Controller.concept(),                    
-                    routes.javascript.Controller.pmid(),
+                   ("ksSemmedRoutes",
                     routes.javascript.Controller.apiSemanticTypeLookup(),
                     routes.javascript.Controller.apiSearch()
                     )).as("text/javascript");

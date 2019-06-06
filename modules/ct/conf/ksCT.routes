@@ -1,0 +1,5 @@
+GET /conditions/:name controllers.ct.Controller.getCondition(name: String)
+GET /conditions controllers.ct.Controller.conditions(skip: Integer ?= 0, top: Integer ?= 10)
+GET /search/:q  controllers.ct.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
+GET  /:ui/$concept<(mesh|umls)> controllers.ct.Controller.findStudiesForConcept(ui: String, concept: String, skip: Integer ?= 0, top: Integer ?= 10)
+GET /:id        controllers.ct.Controller.resolve(id: String)

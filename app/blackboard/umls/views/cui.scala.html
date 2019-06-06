@@ -1,0 +1,57 @@
+@** -*- engine:razor -*- **@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.umls.UMLSKSource
+@import _root_.blackboard.umls.Concept
+@(concept: Concept, ks: UMLSKSource)
+
+@views.html.ui.main(concept.name+" ("+concept.cui+")"){
+    <div class="container-fluid" style="margin-top:10px;">
+        @jumbotron(concept, ks)(HtmlFormat.empty)
+        <div class="card">
+            <h5 class="card-header">Synonyms</h5>
+            <div class="card-body">
+                <table class="table" id="table-synonym"
+                       data-page-length="5" width="100%">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for(syn <- concept.synonyms) {
+                            <tr>
+                                @if("MSH".equalsIgnoreCase(syn.source.name)) {
+                                    <td><a href="@controllers.mesh.routes.Controller.mesh(syn.source.conceptUI)">@syn.name</a></td>
+                                    } else {
+                                    <td>@syn.name</td>
+                                    }
+                                    <td><span data-toggle="tooltip"
+                                              title="@ks.getDataSources(syn.source.name)(0).description">@syn.source.name</span></td>
+                            </tr>
+                            }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <br>
+        <div class="card">
+            <h5 class="card-header">Relationships</h5>
+            <div class="card-body">
+            </div>
+        </div>
+        <br>
+    </div>
+    }(HtmlFormat.empty){
+        $(document).ready(function () {
+            $('[data-toggle="tooltip"]').tooltip();
+            $('#table-synonym').DataTable({
+                order: false,
+                dom: '<"pull-left"f>pit'
+            });
+            $('table[id|="table"]').on('draw.dt', function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+}
+

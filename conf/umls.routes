@@ -1,0 +1,3 @@
+GET /   blackboard.umls.controllers.Controller.index(q: String ?= null)
+GET /:cui    blackboard.umls.controllers.Controller.cui(cui: String)
+GET /assets/js/routes     blackboard.umls.controllers.Controller.jsRoutes

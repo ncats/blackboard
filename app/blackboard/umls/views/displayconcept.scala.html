@@ -1,0 +1,7 @@
+@* -*- engine:razor -*- *@
+@(concept: _root_.blackboard.umls.Concept, ks: _root_.blackboard.umls.UMLSKSource)
+@defining(ks.getDataSources(concept.source.name)){ ds =>
+  <a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(concept.cui)">@concept.name</a> @if(ds.isEmpty){[@concept.source.name]}else{
+    [<span data-toggle="tooltip"
+      title="@ds(0).description (@ds(0).version)">@concept.source.name</span>]}
+}

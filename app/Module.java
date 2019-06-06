@@ -12,8 +12,8 @@ import blackboard.ct.ClinicalTrialFactory;
 import blackboard.ct.ClinicalTrialDb;
 import blackboard.mesh.MeshFactory;
 import blackboard.mesh.MeshDb;
-import blackboard.pubmed.index.PubMedIndexFactory;
-import blackboard.pubmed.index.PubMedIndex;
+import blackboard.index.pubmed.PubMedIndexFactory;
+import blackboard.index.pubmed.PubMedIndex;
 
 /**
  * This class is a Guice module that tells Guice how to bind several

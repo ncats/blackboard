@@ -194,7 +194,7 @@ public class SemMedDbKSource implements KSource {
                 String object = rset.getString("object_name");
                 String objtype = rset.getString("object_semtype");
 
-                int pos = subject.indexOf('|');
+                int pos = subcui.indexOf('|');
                 if (pos > 0)
                     subcui = subcui.substring(0, pos);
                 pos = objcui.indexOf('|');

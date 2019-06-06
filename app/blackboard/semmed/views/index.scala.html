@@ -1,0 +1,257 @@
+@import _root_.blackboard.semmed.SemMedDbKSource
+@(ks: SemMedDbKSource, q: String)
+
+@views.html.ui.main("SemMedDb Knowledge Source"){
+<div class="container-fluid" style="margin-top:10px;">
+  <div class="jumbotron blue-grey lighten-5">
+    <h1 class="display-4">SemMed DB</h1>
+    <p class="lead">The <a href="https://skr3.nlm.nih.gov/SemMedDB/">Semantic
+      MEDLINE Database</a> is a resource of the National Library of Medicine.
+  </div>
+  <div class="row">
+    <div class="col-2"></div>
+    <div class="col">
+      <div class="md-form input-group">
+        <input id="search-input" type="text" class="form-control"
+               placeholder="Search for concepts (e.g., als, statin, angiogenesis, mapk)...">
+        <span class="input-group-btn">
+          <button id="search-concept"
+                  class="btn btn-default" type="button">Search</button>
+        </span>
+        <span class="input-group-btn">  
+          <button id="search-clear"
+                  class="btn btn-default" type="button">Clear</button>
+        </span>
+      </div><!-- /input-group -->
+    </div>
+    <div class="col-2"></div>
+  </div> <!-- row -->
+  <br>
+  <div class="row">
+    <div class="col">
+      <table id="output-table" class="table" data-page-length="1" width="100%">
+        <thead>
+          <tr>
+            <th>Score</th>
+            <th>CUI</th>
+            <th>Name</th>
+            <th>Predicates</th>
+            <th>Types</th>
+            <th>Related Concepts</th>
+            <th>Publications</th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div> <!-- row -->
+</div>
+
+<div class="modal fade" id="umls-concept-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="concept-title"></h5>        
+        <button type="button" class="close" data-dismiss="modal"
+                aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="col">
+          <pre id="concept-body" class="pre-scrollable"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+}{
+<script src="@_root_.blackboard.semmed.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
+<script src="@controllers.semmed.routes.Controller.jsRoutes" type="text/javascript"></script>
+<script src="@_root_.blackboard.umls.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
+}{
+    var table;
+    function search () {
+        var term = $('#search-input').val();
+        if (term == '') {
+        }
+        else {
+            console.log('searching for "'+term+'"');
+            $('#search-concept')
+                .html('Loading...<i class="fa fa-spinner fa-spin"></i>')
+                .prop('disabled', true);
+            
+            var route = ksSemmedRoutes.controllers
+                .semmed.Controller.apiSearch(term, 0, 20);
+            if (!table)
+                table = createOutputTable ();
+
+            table.ajax.url(route.url).load(function () {
+                $('#search-concept').html('Search')
+                    .prop('disabled', false);
+            });
+        }
+    }
+    
+    $(document).ready(function () {
+        $('#search-concept').on('click', function () {
+            search ();
+        });
+        
+        $('#search-clear').on('click', function () {
+            //$('#search-input').val('');
+            var url = window.location.href;
+            var pos = url.indexOf('?');
+            if (pos > 0) {
+                url = url.substring(0, pos);
+            }
+            window.location.href = url;
+        });
+        
+        $('#search-input').keypress(function (ev) {
+            var keycode = (ev.keyCode ? ev.keyCode : ev.which);
+            if (keycode == '13') { // enter pressed
+                search ();
+            }
+        });
+
+        $('[data-toggle="tooltip"]').tooltip();
+        @if(q != null) {
+            $('#search-input').val('@q');
+            search ();
+        }
+    });
+
+    function createOutputTable () {
+        return $('#output-table').DataTable({
+            ajax: {
+                // empty search 
+                url: '@controllers.semmed.routes.Controller.apiSearch("")'+'/',
+                dataSrc: ''
+            },
+            dom: '<"pull-left"f>pit',
+            destroy: true,
+            order: [[6,'desc'],[0,'desc']],
+            columnDefs: [{
+                targets: 0, // score
+                width: "5%",
+                render: function(data,type,full,meta) {
+                    return data.score ? data.score.toFixed(2): '';
+                }
+            },{
+                targets: 1, // cui
+                width: "10%",
+                render: function(data,type,full,meta) {
+                    var route = umlsRoutes.blackboard.umls.controllers
+                        .Controller.cui(data);
+                    return '<a href="'+route.url+'">'+data+'</a>';
+                }
+            },{
+                targets: 2, // name
+                render: function(data,type,full,meta) {
+                    return data.name+' ('+data.semtypes[0]+')';
+                }
+            },{
+                targets: 3, // predicates
+                orderable: false,
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    for (var p in data) {
+                        var route = semmedRoutes.blackboard.semmed.controllers
+                            .Controller.predicate(full.concept.cui, p);
+                        html += '<a class="btn btn-default" href="'+route.url
+                            +'">'+p+' <span class="badge badge-pill badge-secondary">'+data[p]+'</span></a>';
+                    }
+                    return html;
+                }
+            },{
+                targets: 4, // semtypes
+                orderable: false,
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    for (var p in data) {
+                        var route = ksSemmedRoutes.controllers
+                            .semmed.Controller.apiSemanticTypeLookup(p);
+                        var link = semmedRoutes.blackboard.semmed.controllers
+                            .Controller.semtype(full.concept.cui, p);
+                        route.ajax({
+                            async: false, // synchronous.. 
+                            success: function(st) {
+                                //console.log(p +' ==> '+JSON.stringify(st));
+                                html += '<a class="btn btn-default"'
+                                    +' data-toggle="tooltip" title="'
+                                    +st.name+'" href="'+link.url+'">'+p
+                                    +' <span class="badge badge-pill badge-secondary">'
+                                    +data[p]+'</span></a>';
+                            }
+                        }).fail(function () {
+                            console.log("can't resolve semantic type: "+p);
+                        });
+                    }
+                    return html;
+                }
+            },{
+                targets: 5, // concepts
+                orderable: false,
+                render: function(data,type,full,meta) {
+                    var html = '';
+                    var count = 0, total = 0;
+                    if (typeof data !== 'undefined') {
+                        for (var i = 0; i < data.length; ++i) {
+                            var p = data[i];
+                            if (true || count < 20) {
+                                var route = semmedRoutes.blackboard.semmed
+                                    .controllers.Controller
+                                    .concept(full.concept.cui, p.cui);
+                                //console.log(p.cui+' '+p.semtypes[0]);
+                                html += '<a class="btn btn-default" href="'
+                                    +route.url+'" data-toggle="tooltip" title="'
+                                    +p.semtypes[0]+'">'+p.name
+                                    +' <span class="badge badge-pill badge-secondary">'
+                                    +p.count+'</span></a>';
+                                ++count;
+                            }
+                            ++total;
+                        }
+                    }
+
+                    if (count < total) {
+                        var more = total - count;
+                        console.log(' there are '+more
+                                    +' concepts left to display!');
+                        html += ' <a class="btn btn-warning" href="#">MORE...'
+                            +'<span class="badge badge-pill badge-secondary">'
+                            +more+'</span></a>';
+                    }
+                    //console.log(html);
+                    return html;
+                }
+            },{
+                targets: 6, // publications
+                width: "5%",
+                render: function(data,type,full,meta) {
+                    if (typeof data == 'undefined')
+                        return 0;
+                    return data.length;
+                }
+            }],
+            columns: [
+                { data: 'concept'},
+                { data: 'concept.cui' },
+                { data: 'concept'},
+                { data: 'predicates' },
+                { data: 'semtypes'},
+                { data: 'concepts'},
+                { data: 'pmids' }
+            ]
+        });
+    }
+
+    $('#output-table').on('draw.dt', function() {
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+    
+    window.addEventListener("pageshow", function(e) {
+        search ();
+    });
+}

@@ -1,0 +1,8 @@
+GET /   blackboard.semmed.controllers.Controller.index
+GET /:pmid/pmid            blackboard.semmed.controllers.Controller.pmid(pmid: Long)
+GET /:cui    blackboard.semmed.controllers.Controller.cui(cui: String)
+GET /:cui/predicate/:pred   blackboard.semmed.controllers.Controller.predicate(cui: String, pred: String)
+GET /:cui/semtype/:semtype   blackboard.semmed.controllers.Controller.semtype(cui: String, semtype: String)
+GET /:sub/concept/:obj       blackboard.semmed.controllers.Controller.concept(sub: String, obj: String)
+
+GET /assets/js/routes        blackboard.semmed.controllers.Controller.jsRoutes
