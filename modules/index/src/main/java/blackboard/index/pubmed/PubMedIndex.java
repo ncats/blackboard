@@ -46,6 +46,8 @@ import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.suggest.document.*;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
 
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -192,25 +194,36 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
 
-    class PubMedTextQuery extends TextQuery {
-        PubMedTextQuery () {
+    static public class PubMedTextQuery extends TextQuery {
+        @JsonIgnore
+        Analyzer analyzer = new StandardAnalyzer ();
+        
+        protected PubMedTextQuery () {
         }
-        PubMedTextQuery (Map<String, Object> facets) {
+        public PubMedTextQuery (Map<String, Object> facets) {
             super (facets);
         }
-        PubMedTextQuery (String query) {
+        public PubMedTextQuery (String query) {
             super (query);
         }
-        PubMedTextQuery (String query, Map<String, Object> facets) {
+        public PubMedTextQuery (String query, Map<String, Object> facets) {
             super (query, facets);
         }
-        PubMedTextQuery (String field, String query,
-                         Map<String, Object> facets) {
+        public PubMedTextQuery (String field, String query,
+                                Map<String, Object> facets) {
             super (field, query, facets);
         }
-        PubMedTextQuery (TextQuery tq) {
+        public PubMedTextQuery (TextQuery tq) {
             super (tq);
+            if (tq instanceof PubMedTextQuery) {
+                setAnalyzer (((PubMedTextQuery)tq).analyzer);
+            }
         }
+
+        public void setAnalyzer (Analyzer analyzer) {
+            this.analyzer = analyzer;
+        }
+        public Analyzer getAnalyzer () { return analyzer; }
         
         @Override
         public Query rewrite () {
@@ -220,7 +233,7 @@ public class PubMedIndex extends MetaMapIndex {
                 try {
                     if (term != null) {
                         QueryParser parser = new QueryParser
-                            (FIELD_TEXT, indexWriter.getAnalyzer());
+                            (FIELD_TEXT, getAnalyzer ());
                         query = parser.parse(term);
                     }
                     else {
@@ -281,8 +294,8 @@ public class PubMedIndex extends MetaMapIndex {
                     break;
                     
                 default:
-                    query = new QueryBuilder (indexWriter.getAnalyzer())
-                        .createPhraseQuery(field, term, 3);
+                    query = new QueryBuilder (getAnalyzer ())
+                        .createPhraseQuery(field, term, slop);
                 }
             }
             
@@ -611,30 +624,35 @@ public class PubMedIndex extends MetaMapIndex {
     public static List<Concept> parseMetaMapConcepts (JsonNode result) {
         //Logger.debug("MetaMap ===> "+result);
         JsonNode pcmList = result.at("/utteranceList/0/pcmlist");
+        List<Concept> concepts = new ArrayList<>();
         for (int i = 0; i < pcmList.size(); ++i) {
-            JsonNode evList = pcmList.get(i).at("/mappingList/0/evList");
+            JsonNode pcm = pcmList.get(i);
+            JsonNode evList = pcm.at("/mappingList/0/evList");
             //Logger.debug("evList ===> "+evList);
             if (!evList.isMissingNode()) {
-                List<Concept> concepts = new ArrayList<>();
-                for (int j = 0; j < evList.size(); ++j) {
-                    JsonNode ev = evList.get(j);
-                    Concept c = new Concept (ev.get("conceptId").asText(),
-                                             ev.get("preferredName").asText(),
-                                             null);
-                    JsonNode score = ev.get("score");
-                    if (score != null)
-                        c.score = score.asInt();
-                    
-                    JsonNode types = ev.get("semanticTypes");
-                    for (int k = 0; k < types.size(); ++k)
-                        c.types.add(types.get(k).asText());
-                    c.context = result;
-                    concepts.add(c);
+                JsonNode ev = evList.get(0);
+                Concept c = new Concept (ev.get("conceptId").asText(),
+                                         ev.get("preferredName").asText(),
+                                         null);
+                JsonNode score = ev.get("score");
+                if (score != null)
+                    c.score = score.asInt();
+                
+                JsonNode types = ev.get("semanticTypes");
+                for (int k = 0; k < types.size(); ++k)
+                    c.types.add(types.get(k).asText());
+                ObjectNode ctx = Json.newObject();
+                JsonNode text = pcm.at("/phrase/phraseText");
+                if (!text.isMissingNode()) {
+                    ctx.put("phraseText", text.asText());
+                    ctx.put("matchedWords", ev.get("matchedWords"));
+                    ctx.put("sources", ev.get("sources"));
                 }
-                return concepts;
+                c.context = ctx;
+                concepts.add(c);
             }
         }
-        return Collections.emptyList();
+        return concepts;
     }
 
     @Inject public SemMedDbKSource semmed;

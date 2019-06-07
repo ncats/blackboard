@@ -290,6 +290,7 @@ public class Index implements AutoCloseable, Fields {
         public final String query;
         public final Map<String, Object> facets = new TreeMap<>();
         public final List<Concept> concepts = new ArrayList<>();
+        public int slop = 1; // phrase slop (see QueryBuilder.createPhraseQuery)
         public int skip = 0;
         public int top = 10;
 
@@ -316,6 +317,9 @@ public class Index implements AutoCloseable, Fields {
         public TextQuery (TextQuery tq) {
             this (tq.field, tq.query, tq.facets);
             concepts.addAll(tq.concepts);
+            slop = tq.slop;
+            skip = tq.skip;
+            top = tq.top;
         }
 
         public String getField () { return field; }
@@ -355,6 +359,8 @@ public class Index implements AutoCloseable, Fields {
                     values.add((String)v);
                 }
             }
+            values.add("slop="+slop);
+            
             return TextQuery.class.getName()
                 +"/"+Util.sha1(values.toArray(new String[0]));
         }

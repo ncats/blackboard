@@ -2,8 +2,9 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET     /	controllers.BlackboardApp.index
-GET	/kg/:id		controllers.BlackboardApp.kgraph(id: String)
+GET     /           blackboard.controllers.KnowledgeApp.index
+GET     /blackboard	controllers.BlackboardApp.index
+GET	/blackboard/kg/:id		controllers.BlackboardApp.kgraph(id: String)
 
 ->  /ui  ui.Routes
 ->	/ks  ks.Routes

@@ -181,25 +181,45 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
+
+    public Result _search (String q, int skip, int top) throws Exception {
+        Map<String, Object> facets = parseFacets ();
+        int slop = 1;
+        try {
+            String p = request().getQueryString("slop");
+            if (p != null)
+                slop = Integer.parseInt(p);
+        }
+        catch (NumberFormatException ex) {
+            Logger.error("Bogus slop parameter", ex);
+        }
+                    
+        SearchResult result = indexManager.search
+            (request().getQueryString("field"), q,
+             facets, skip, top, slop);
+        ObjectNode json = Json.newObject();
+        ObjectNode query =
+            (ObjectNode) mapper.valueToTree(result.query);
+        query.put("rewrite", result.query.rewrite().toString());
+        
+        json.put("query", query);
+        json.put("count", result.size());
+        json.put("total", result.total);
+        
+        ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+        content.remove("query");
+        content.remove("count");
+        content.remove("total");
+        json.put("content", content);
+        
+        return ok (json);
+    }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    Map<String, Object> facets = parseFacets ();
-                    SearchResult result = indexManager.search
-                        (request().getQueryString("field"), q,
-                         facets, skip, top);
-                    ObjectNode json = Json.newObject();
-                    json.put("query", mapper.valueToTree(result.query));
-                    json.put("count", result.size());
-                    json.put("total", result.total);
-                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
-                    content.remove("query");
-                    content.remove("count");
-                    content.remove("total");
-                    json.put("content", content);
-                    return ok (json);
+                    return _search (q, skip, top);
                 }
                 catch (Exception ex) {
                     Logger.error("Search failed", ex);
@@ -210,6 +230,7 @@ public class Controller extends play.mvc.Controller {
     }
 
     public CompletionStage<Result> facets () {
+        Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
                 try {
                     SearchResult result = indexManager.facets();
@@ -232,6 +253,7 @@ public class Controller extends play.mvc.Controller {
     }
     
     public CompletionStage<Result> pmid (Long pmid, String format) {
+        Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
                 try {
                     MatchedDoc doc = indexManager.getDoc(pmid);

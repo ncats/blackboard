@@ -144,6 +144,8 @@ public class PubMedIndexManager implements AutoCloseable {
     final int maxTimeout, maxTries, maxHits;
     final SyncCacheApi cache;
     final UMLSKSource umls;
+    final Inbox qanalInbox; // query analysis queue
+    final Inbox searchInbox; // search queue
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
@@ -189,6 +191,9 @@ public class PubMedIndexManager implements AutoCloseable {
         this.umls = umls;
         this.actorSystem = actorSystem;
         this.cache = cache;
+
+        qanalInbox = Inbox.create(actorSystem);
+        searchInbox = Inbox.create(actorSystem);
         
         Logger.debug("$$$$ "+getClass().getName()
                      +": base="+dir
@@ -215,15 +220,16 @@ public class PubMedIndexManager implements AutoCloseable {
 
     public SearchResult search (String query,
                                 Map<String, Object> facets, int skip, int top) {
-        return search (null, query, facets, skip, top);
+        return search (null, query, facets, skip, top, 1);
     }
     
     public SearchResult search (String field, String query,
                                 Map<String, Object> facets,
-                                int skip, int top) {
+                                int skip, int top, int slop) {
         final TextQuery tq = new TextQuery (field, query, facets);
         tq.skip = skip;
         tq.top = top;
+        tq.slop = slop;
         
         return cache.getOrElseUpdate
             (tq.cacheKey()+"/"+skip+"/"+top, new Callable<SearchResult>() {
@@ -246,14 +252,12 @@ public class PubMedIndexManager implements AutoCloseable {
 
     protected SearchResult search (TextQuery tq) {
         Logger.debug("#### Query: "+tq);
-        Inbox inbox = Inbox.create(actorSystem);
-
         if (tq.query != null) {
             // first pass this through metamap
-            inbox.send(metamap, tq);
+            qanalInbox.send(metamap, tq);
             try {
                 List<Concept> concepts = (List<Concept>)
-                    inbox.receive(Duration.ofSeconds(5));
+                    qanalInbox.receive(Duration.ofSeconds(5));
                 Logger.debug("#### "+concepts.size()
                              +" concept(s) found from query "+tq);
                 tq.concepts.addAll(concepts);
@@ -265,13 +269,13 @@ public class PubMedIndexManager implements AutoCloseable {
         
         // now do the search
         for (ActorRef actorRef : indexes)
-            inbox.send(actorRef, tq);
+            searchInbox.send(actorRef, tq);
         
         List<SearchResult> results = new ArrayList<>();
         for (int i = 0, ntries = 0; i < indexes.size()
                  && ntries < maxTries;) {
             try {
-                SearchResult result = (SearchResult)inbox.receive
+                SearchResult result = (SearchResult)searchInbox.receive
                     (Duration.ofSeconds(maxTimeout));
                 results.add(result);
                 ++i;
