@@ -10,7 +10,7 @@ POST /semrep        controllers.umls.Controller.apiSemRepPost
 GET /sources        controllers.umls.Controller.apiDatasources
 GET /sources/:name  controllers.umls.Controller.apiDatasource(name: String)
 GET /concepts/:term controllers.umls.Controller.apiFindConcepts(term: String, skip: Int ?= 0, top: Int ?= 10)
-POST /api/concepts      controllers.umls.Controller.apiFindConceptsPost(skip: Int ?= 0, top: Int ?= 10)
+POST /concepts      controllers.umls.Controller.apiFindConceptsPost(skip: Int ?= 0, top: Int ?= 10)
 GET /concepts/:src/:id controllers.umls.Controller.apiConcept(src: String, id: String)
 GET /:cui  controllers.umls.Controller.apiCui(cui: String)
 

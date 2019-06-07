@@ -246,6 +246,7 @@ public class Index implements AutoCloseable, Fields {
         public final String ui;
         public final String name;
         public final List<String> types = new ArrayList<>();
+        public Number score;
         public Object context; // optional context for the concept
 
         public Concept (String ui, String name) {
@@ -314,6 +315,7 @@ public class Index implements AutoCloseable, Fields {
         }
         public TextQuery (TextQuery tq) {
             this (tq.field, tq.query, tq.facets);
+            concepts.addAll(tq.concepts);
         }
 
         public String getField () { return field; }

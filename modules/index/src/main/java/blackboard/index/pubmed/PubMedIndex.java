@@ -610,25 +610,31 @@ public class PubMedIndex extends MetaMapIndex {
 
     public static List<Concept> parseMetaMapConcepts (JsonNode result) {
         //Logger.debug("MetaMap ===> "+result);
-        JsonNode evList = result.at
-            ("/utteranceList/0/pcmlist/0/mappingList/0/evList");
-        //Logger.debug("evList ===> "+evList);
-        if (evList.isMissingNode()) {
-            return Collections.emptyList();
+        JsonNode pcmList = result.at("/utteranceList/0/pcmlist");
+        for (int i = 0; i < pcmList.size(); ++i) {
+            JsonNode evList = pcmList.get(i).at("/mappingList/0/evList");
+            //Logger.debug("evList ===> "+evList);
+            if (!evList.isMissingNode()) {
+                List<Concept> concepts = new ArrayList<>();
+                for (int j = 0; j < evList.size(); ++j) {
+                    JsonNode ev = evList.get(j);
+                    Concept c = new Concept (ev.get("conceptId").asText(),
+                                             ev.get("preferredName").asText(),
+                                             null);
+                    JsonNode score = ev.get("score");
+                    if (score != null)
+                        c.score = score.asInt();
+                    
+                    JsonNode types = ev.get("semanticTypes");
+                    for (int k = 0; k < types.size(); ++k)
+                        c.types.add(types.get(k).asText());
+                    c.context = result;
+                    concepts.add(c);
+                }
+                return concepts;
+            }
         }
-
-        List<Concept> concepts = new ArrayList<>();
-        for (int i = 0; i < evList.size(); ++i) {
-            JsonNode ev = evList.get(i);
-            Concept c = new Concept (ev.get("conceptId").asText(),
-                                     ev.get("preferredName").asText(), null);
-            JsonNode types = ev.get("semanticTypes");
-            for (int j = 0; j < types.size(); ++j)
-                c.types.add(types.get(j).asText());
-            c.context = result;
-            concepts.add(c);
-        }
-        return concepts;
+        return Collections.emptyList();
     }
 
     @Inject public SemMedDbKSource semmed;
