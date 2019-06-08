@@ -15,7 +15,6 @@
             aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    
     <div class="collapse navbar-collapse" id="navbarTogglerDemo02">
       <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
         <li class="nav-item">
@@ -30,18 +29,30 @@
                 type="submit" style="border-radius:3rem">Search</button>
       </form>
     </div>
+    <span class="navbar-text">
+      @result.total documents
+    </span>
+
   </nav>  
   <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
     <div class="row">
       <div class="col-md-3">
         @** FILTERS **@
+        @facetcard("Year_Published", result.getFacet("@year"))
+        @facetcard("Author", result.getFacet("@author"))
+        @facetcard("Article_Type", result.getFacet("@pubtype"))
+        @facetcard("Journal", result.getFacet("@journal"))
+        @facetcard("Keyword", result.getFacet("@keyword"))
+        @facetcard("Concept", result.getFacet("@cui"), false)
+        @facetcard("MeSH", result.getFacet("@ui"), false)
       </div>
       <div class="col-md-6">
         @** SEARCH CONTENTS **@
         <div class="alert alert-warning fade show"
              role="alert" style="margin-top:10px">
-          Search terms: <h5><span class="badge badge-pill badge-light">
-          <strong>@result.query.getQuery</strong></span></h5>
+          <h5><span class="badge badge-pill badge-light">
+            <strong>@result.query.getQuery</strong></span>
+          </h5>
         </div>
         @for(d <- result.docs) {
           @articlecard(d)
@@ -49,8 +60,13 @@
       </div>
       <div class="col-md-3">
         @** CONTEXT **@
+        @contextcard(result.query)
       </div>
     </div>
   </div>
   }{
-  }(HtmlFormat.empty)
+  }{
+   $(document).ready(function() {
+     //$('[data-toggle="tooltip"]').tooltip();
+   });
+  }

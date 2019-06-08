@@ -59,6 +59,11 @@ public class Index implements AutoCloseable, Fields {
             children.add(node);
             return this;
         }
+
+        public String name () {
+            if (display != null) return display;
+            return label;
+        }
         
         public String[] toPath () {
             List<String> path = new ArrayList<>();
@@ -399,6 +404,14 @@ public class Index implements AutoCloseable, Fields {
         
         @JsonProperty(value="facets")
         public List<Facet> getFacets () { return facets; }
+
+        public Facet getFacet (String name) {
+            for (Facet f : facets)
+                if (name.equalsIgnoreCase(f.name)
+                    || name.equalsIgnoreCase(f.display))
+                    return f;
+            return null;
+        }
         
         @JsonIgnore
         public boolean isEmpty () {

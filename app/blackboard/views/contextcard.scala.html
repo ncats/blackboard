@@ -1,0 +1,17 @@
+@import _root_.blackboard.index.Index.SearchQuery
+@(q: SearchQuery)
+<div class="card" style="margin-top: 10px;">
+  <div class="card-header">
+    @if(q.getField != null){
+      <strong>@q.getField</strong>:
+      }
+      <code>@q.getQuery</code>
+  </div>
+  <div class="card-body" id="text-query-context">
+    @if(!q.getConcepts.isEmpty){
+      @for(c <- q.getConcepts){
+        <p class="card-text"><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> @c.types</p>
+      }
+    }
+  </div>
+</div>

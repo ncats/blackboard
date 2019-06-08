@@ -19,19 +19,26 @@
         </div>
       </div>
       <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>
-      <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> @if(doc.getDOI != null) {DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>} <a href='@Controller.pmid(doc.getPMID,"xml")'>XML</a> <a href='@Controller.pmid(doc.getPMID,"json")'>JSON</a></p>
+      <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> <span class="fa fa-external-link"></span>
+        @if(doc.getDOI != null) {
+          DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>
+          <span class="fa fa-external-link"></span>
+        }
+        <a href='@Controller.pmid(doc.getPMID,"xml")'>XML</a>
+        <span class="fa fa-download"></span>
+        @**<a href='@Controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
       <p class="lead">
         <a class="btn btn-primary" data-toggle="collapse"
            href="#abstract-card" role="button"
            aria-expanded="false" aria-controls="abstract-card">
           Abstract</a>
       </p>
-      <div class="collapse" id="abstract-card">
+      <div class="collapse show" id="abstract-card">
         <div class="card card-body">
           @for(t <- doc.getAbstract) {
-            @HtmlFormat.raw(t)
-            <br>
-            }
+              @HtmlFormat.raw(t)
+              <br>
+          }
         </div>
       </div>
     </div>
