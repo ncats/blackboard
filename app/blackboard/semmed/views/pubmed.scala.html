@@ -10,12 +10,12 @@
   <div class="container-fluid" style="margin-top:60px;">
     <div class="jumbotron">
       <div class="row">
-        <div class="col-11">
-          <h1 class="display-4">@doc.getTitle</h1>
-        </div>
-        <div class="col-1">
+        <div class="col-1" style="padding:10px">
           <span class="__dimensions_badge_embed__ pull-right"
                 data-pmid="@doc.getPMID" data-style="small_circle"></span>
+        </div>
+        <div class="col-11">
+          <h1 class="display-4">@doc.getTitle</h1>
         </div>
       </div>
       <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>

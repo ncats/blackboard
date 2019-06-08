@@ -3,6 +3,8 @@
 # ~~~~
 
 GET     /           blackboard.controllers.KnowledgeApp.index
+GET     /search        blackboard.controllers.KnowledgeApp.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
+
 GET     /blackboard	controllers.BlackboardApp.index
 GET	/blackboard/kg/:id		controllers.BlackboardApp.kgraph(id: String)
 

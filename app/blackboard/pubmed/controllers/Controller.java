@@ -33,16 +33,15 @@ import static blackboard.index.pubmed.PubMedIndex.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
-
 public class Controller extends play.mvc.Controller {
-    final HttpExecutionContext ec;
-    final PubMedIndexManager indexManager;
-    final ObjectMapper mapper = Json.mapper();
+    final protected HttpExecutionContext ec;
+    final protected PubMedIndexManager pubmed;
+    final protected ObjectMapper mapper = Json.mapper();
 
     @Inject
-    public Controller (HttpExecutionContext ec, PubMedIndexManager indexManager,
+    public Controller (HttpExecutionContext ec, PubMedIndexManager pubmed,
                        ApplicationLifecycle lifecycle) {
-        this.indexManager = indexManager;
+        this.pubmed = pubmed;
         this.ec = ec;
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
@@ -50,7 +49,7 @@ public class Controller extends play.mvc.Controller {
                 return CompletableFuture.completedFuture(null);
             });
         
-        Logger.debug("$$" +getClass().getName()+": "+indexManager);
+        Logger.debug("$$" +getClass().getName()+": "+pubmed);
     }
     
     public Result index () {
@@ -162,7 +161,7 @@ public class Controller extends play.mvc.Controller {
                         return badRequest ("No facets specified!");
                     
                     SearchResult result =
-                        indexManager.search(facets, skip, top);
+                        pubmed.search(facets, skip, top);
                     ObjectNode json = Json.newObject();
                     json.put("query", mapper.valueToTree(result.query));
                     json.put("count", result.size());
@@ -182,7 +181,8 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public Result _search (String q, int skip, int top) throws Exception {
+    public SearchResult doSearch (String q, int skip, int top)
+        throws Exception {
         Map<String, Object> facets = parseFacets ();
         int slop = 1;
         try {
@@ -194,10 +194,13 @@ public class Controller extends play.mvc.Controller {
             Logger.error("Bogus slop parameter", ex);
         }
                     
-        SearchResult result = indexManager.search
-            (request().getQueryString("field"), q,
-             facets, skip, top, slop);
+        return pubmed.search(request().getQueryString("field"), q,
+                             facets, skip, top, slop);
+    }
+    
+    public Result _search (String q, int skip, int top) throws Exception {
         ObjectNode json = Json.newObject();
+        SearchResult result = doSearch (q, skip, top);
         ObjectNode query =
             (ObjectNode) mapper.valueToTree(result.query);
         query.put("rewrite", result.query.rewrite().toString());
@@ -233,7 +236,7 @@ public class Controller extends play.mvc.Controller {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
                 try {
-                    SearchResult result = indexManager.facets();
+                    SearchResult result = pubmed.facets();
                     ObjectNode json = Json.newObject();
                     json.put("count", 0);
                     json.put("total", result.total);
@@ -256,7 +259,7 @@ public class Controller extends play.mvc.Controller {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
                 try {
-                    MatchedDoc doc = indexManager.getDoc(pmid);
+                    MatchedDoc doc = pubmed.getDoc(pmid);
                     if (doc != null)
                         return ok(doc.toXmlString()).as("application/xml");
                     return notFound ("Can't find PMID "+pmid);

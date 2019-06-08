@@ -1,0 +1,23 @@
+@import _root_.blackboard.index.pubmed.PubMedIndex.MatchedDoc
+@(doc: MatchedDoc)
+<div class="card" style="margin-top: 10px;">
+  <div class="card-header">
+    <table>
+      <th>
+        <td style="padding: 10px">
+          <span class="__dimensions_badge_embed__"
+                data-pmid="@doc.pmid" data-style="small_circle"></span>
+        </td>
+        <td>
+          <h5><a href="#" data-target="#text-@doc.pmid"
+                 data-toggle="collapse">@doc.title</a></h5>
+        </td>
+    </table>
+  </div>
+  <div class="card-body collapse" id="text-@doc.pmid">
+  </div>
+  <div class="card-footer">
+    <span class="badge badge-pill badge-info">@doc.year</span>
+    <a href="@_root_.blackboard.semmed.controllers.routes.Controller.pmid(doc.pmid)">@doc.pmid</a>
+  </div>
+</div>

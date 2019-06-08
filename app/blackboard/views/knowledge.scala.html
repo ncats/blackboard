@@ -1,1 +1,56 @@
-@views.html.ui.landingpage("NCATS Knowledge Base")
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.index.pubmed.PubMedIndex._
+@import _root_.blackboard.controllers.routes
+@(page: Integer, npages: Integer, result: SearchResult)
+
+@views.html.ui.main("Knowledge: "+result.query.getQuery){
+  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="https://ncats.nih.gov">
+      <img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")'
+           height="65%" width="65%">
+    </a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarTogglerDemo02"
+            aria-controls="navbarTogglerDemo02"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    
+    <div class="collapse navbar-collapse" id="navbarTogglerDemo02">
+      <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+        <li class="nav-item">
+          <a class="nav-link" href="@routes.KnowledgeApp.index">Home</a>
+        </li>
+      </ul>
+      <form class="form-inline my-2 my-lg-0" method="GET"
+            action="@_root_.blackboard.controllers.routes.KnowledgeApp.search(null)">
+        <input class="form-control mr-sm-2" type="search" name="q"
+               placeholder="Enter search terms..." style="width:20em">
+        <button class="btn btn-primary my-2 my-sm-0"
+                type="submit" style="border-radius:3rem">Search</button>
+      </form>
+    </div>
+  </nav>  
+  <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
+    <div class="row">
+      <div class="col-md-3">
+        @** FILTERS **@
+      </div>
+      <div class="col-md-6">
+        @** SEARCH CONTENTS **@
+        <div class="alert alert-warning fade show"
+             role="alert" style="margin-top:10px">
+          Search terms: <h5><span class="badge badge-pill badge-light">
+          <strong>@result.query.getQuery</strong></span></h5>
+        </div>
+        @for(d <- result.docs) {
+          @articlecard(d)
+        }
+      </div>
+      <div class="col-md-3">
+        @** CONTEXT **@
+      </div>
+    </div>
+  </div>
+  }{
+  }(HtmlFormat.empty)
