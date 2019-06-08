@@ -1,3 +1,4 @@
+@import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.pubmed.PubMedIndex.MatchedDoc
 @(doc: MatchedDoc)
 <div class="card" style="margin-top: 10px;">
@@ -10,14 +11,38 @@
         </td>
         <td>
           <h5><a href="#" data-target="#text-@doc.pmid"
-                 data-toggle="collapse">@doc.title</a></h5>
+                 data-toggle="collapse">
+            @defining(doc.getMatchedFragment("title")){ mf =>
+            @if(mf != null){
+              @HtmlFormat.raw(mf.fragment)
+              }else{
+              @doc.title
+              }
+            }
+          </a></h5>
         </td>
     </table>
   </div>
-  <div class="card-body collapse" id="text-@doc.pmid">
+  <div class="card-body collapse show" id="text-@doc.pmid">
+    @if(doc.fragments.size == 1){
+      @defining(doc.fragments(0)){ mf =>
+        @if(mf.field != null){
+          <span class="badge badge-pill badge-light">@mf.field</span>
+        }
+        @HtmlFormat.raw(mf.fragment)
+      }
+    }else{
+      @defining(doc.getBestMatchedFragment()){ mf =>
+        @if(mf.field != null){
+          <span class="badge badge-pill badge-light">@mf.field</span>
+        }
+        @HtmlFormat.raw(mf.fragment);
+      }
+    }
   </div>
   <div class="card-footer">
     <span class="badge badge-pill badge-info">@doc.year</span>
     <a href="@_root_.blackboard.semmed.controllers.routes.Controller.pmid(doc.pmid)">@doc.pmid</a>
+    <span class="float-right font-italic"><emph>@doc.journal</emph></span>
   </div>
 </div>

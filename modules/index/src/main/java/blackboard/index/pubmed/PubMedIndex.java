@@ -159,6 +159,7 @@ public class PubMedIndex extends MetaMapIndex {
         public Long pmid;
         public String title;
         public Integer year;
+        public String journal;
         public Date revised;
         public String source;
         public List<MatchedFragment> fragments = new ArrayList<>();
@@ -191,6 +192,26 @@ public class PubMedIndex extends MetaMapIndex {
                 }
             }
             return null;
+        }
+
+        public MatchedFragment getMatchedFragment (String... fields) {
+            for (MatchedFragment mf : fragments) {
+                for (String f : fields) {
+                    if (f.equalsIgnoreCase(mf.field))
+                        return mf;
+                }
+            }
+            return null;
+        }
+
+        public MatchedFragment getBestMatchedFragment () {
+            MatchedFragment best = null;
+            for (MatchedFragment mf : fragments) {
+                if (best == null
+                    || mf.fragment.length() > best.fragment.length())
+                    best = mf;
+            }
+            return best;
         }
     }
 
@@ -1057,6 +1078,7 @@ public class PubMedIndex extends MetaMapIndex {
             md.pmid = field.numericValue().longValue();
             md.title = doc.get(FIELD_TITLE);
             md.year = doc.getField(FIELD_YEAR).numericValue().intValue();
+            md.journal = doc.get(FIELD_JOURNAL);
             md.doc = getXmlDoc (doc, FIELD_XML);
             for (String txt : doc.getValues(FIELD_ABSTRACT))
                 md.abstracts.add(txt);
