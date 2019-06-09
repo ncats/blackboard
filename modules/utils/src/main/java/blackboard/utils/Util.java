@@ -74,4 +74,58 @@ public class Util {
         }
         return null;
     }
+
+    public static int[] paging (int rowsPerPage, int page, int total) {
+        //last page
+        int max = (total+ rowsPerPage-1)/rowsPerPage;
+        if (page < 0 || page > max) {
+            //throw new IllegalArgumentException ("Bogus page "+page);
+            return new int[0];
+        }
+        
+        int[] pages;
+        if (max <= 11) {
+            pages = new int[max];
+            for (int i = 0; i < pages.length; ++i)
+                pages[i] = i+1;
+        }
+        else if (page >= max-3) {
+            pages = new int[11];
+            pages[0] = 1;
+            pages[1] = 2;
+            pages[2] = 0;
+            for (int i = pages.length; --i > 2; )
+                pages[i] = max--;
+        }
+        else {
+            pages = new int[11];
+            if (page > 5) {
+                pages[0] = 1;
+                pages[1] = 2;
+                pages[2] = 0; // ...
+                pages[3] = page-2;
+                pages[4] = page-1;
+                pages[5] = page;
+                pages[6] = page+1;
+                pages[7] = page+2;
+                pages[8] = 0; // ...
+                pages[9] = max-1;
+                pages[10] = max;
+            }
+            else {
+                pages[0] = 1;
+                pages[1] = 2;
+                pages[2] = 3;
+                pages[3] = 4;
+                pages[4] = 5;
+                pages[5] = 6;
+                pages[6] = 7;
+                pages[7] = 8;
+                pages[8] = 0; // ...
+                pages[9] = max-1;
+                pages[10] = max;
+            }
+        }
+        return pages;
+    }
 }

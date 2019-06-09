@@ -4,26 +4,28 @@
 
 @display(text: String, min: Integer) = {
   @if(text.length() > min){
-    <span data-toggle="tooltip" title="@text" style="margin-right:0.5rem">@text.substring(0,min)...</span>
-    }else{
-    @text
-    }
-    }
+    <span data-toggle="tooltip"
+          title="@text" style="margin-right:0.5rem">
+      @text.substring(0,min)...</span>
+  }else{
+      @text
+  }
+}
 
-    @filteritem(fv: FV) = {
-      @defining(Util.sha1(facet.name, fv.label)){ id =>
-        <li class="list-group-item d-flex justify-content-between align-items-center"
-        style="padding-bottom:0px; border-bottom:0px;margin-right:0.5rem">
-        <div class="form-check form-check-inline" style="margin-right:0.5rem">
-        <input class="form-check-input position-static" type="checkbox"
-        id="@id" value="@fv.label" aria-label="item1"
-        style="margin-right:0.5rem">
-        <label class="form-check-label" for="@id"
-        style="margin-right:0.5rem">@display(fv.name,20)</label>
-        </div>
-        <span class="badge badge-primary badge-pill">@fv.count</span>
-        </li>
-      }
+@filteritem(fv: FV) = {
+  @defining(Util.sha1(facet.name, fv.label)){ id =>
+    <li class="list-group-item d-flex justify-content-between align-items-center"
+       style="padding-bottom:0px; border-bottom:0px;margin-right:0.5rem">
+       <div class="form-check form-check-inline" style="margin-right:0.5rem">
+          <input class="form-check-input position-static" type="checkbox"
+                 id="@id" value="@fv.label" aria-label="item1"
+                 style="margin-right:0.5rem">
+          <label class="form-check-label" for="@id"
+                 style="margin-right:0.5rem">@display(fv.name,20)</label>
+       </div>
+       <span class="badge badge-primary badge-pill">@fv.count</span>
+    </li>
+  }
 }
 
 @if(facet != null){

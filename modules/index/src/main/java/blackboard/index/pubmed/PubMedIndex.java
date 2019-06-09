@@ -651,13 +651,20 @@ public class PubMedIndex extends MetaMapIndex {
             JsonNode evList = pcm.at("/mappingList/0/evList");
             //Logger.debug("evList ===> "+evList);
             if (!evList.isMissingNode()) {
-                JsonNode ev = evList.get(0);
+                JsonNode ev = null;
+                int score = Integer.MIN_VALUE;
+                for (int j = 0; j < evList.size(); ++j) {
+                    int s = evList.get(j).get("score").asInt();
+                    if (ev == null || s < score) {
+                        score = s;
+                        ev = evList.get(j);
+                    }
+                }
+                
                 Concept c = new Concept (ev.get("conceptId").asText(),
                                          ev.get("preferredName").asText(),
                                          null);
-                JsonNode score = ev.get("score");
-                if (score != null)
-                    c.score = score.asInt();
+                c.score = score;
                 
                 JsonNode types = ev.get("semanticTypes");
                 for (int k = 0; k < types.size(); ++k)

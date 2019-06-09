@@ -1,5 +1,5 @@
 @import _root_.blackboard.index.Index.SearchQuery
-@(q: SearchQuery)
+@(q: SearchQuery)(footer: Html)
 <div class="card" style="margin-top: 10px;">
   <div class="card-header">
     @if(q.getField != null){
@@ -13,5 +13,8 @@
         <p class="card-text"><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> @c.types</p>
       }
     }
+  </div>
+  <div class="card-footer">
+    @footer
   </div>
 </div>

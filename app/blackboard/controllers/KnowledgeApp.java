@@ -22,6 +22,7 @@ import play.inject.ApplicationLifecycle;
 import blackboard.index.pubmed.PubMedIndexManager;
 import blackboard.index.pubmed.PubMedIndex;
 import static blackboard.index.pubmed.PubMedIndex.*;
+import blackboard.utils.Util;
 
 public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     @Inject
@@ -36,10 +37,10 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
 
     public Result _search (String q, int skip, int top) throws Exception {
         SearchResult result = doSearch (q, skip, top);
-        int npages = (result.total+(top-1)) / top;
         int page = skip / top + 1;
+        int[] pages = Util.paging(top, page, result.total);
         return ok (blackboard.views.html.knowledge.render
-                   (page, npages, result));
+                   (page, top, pages, result));
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
