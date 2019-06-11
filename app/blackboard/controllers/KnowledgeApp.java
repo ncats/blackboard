@@ -42,7 +42,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         Facet facet = result.getFacet("@reference");
         if (facet != null) {
             List<Long> pmids = new ArrayList<>();
-            for (int i = 0; i < Math.min(facet.size(), 10); ++i) {
+            for (int i = 0; i < Math.min(facet.size(), 50); ++i) {
                 String pmid = facet.values.get(i).label;
                 try {
                     pmids.add(Long.parseLong(pmid));
@@ -53,9 +53,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
             }
             
             if (!pmids.isEmpty()) {
-                Long[] ids = {
-                    28394330l,28394330l,29394237l,30857677l,30149377l,30236891l,31013637l,31026749l,30959348l,29704328l,30853207l,31028292l,31028190l,30447333l,30871211l,30688034l};
-                refs = pubmed.getDocs(ids);//pmids.toArray(new Long[0]));
+                refs = pubmed.getDocs(pmids.toArray(new Long[0]));
             }
         }
         return ok (blackboard.views.html.knowledge.render
