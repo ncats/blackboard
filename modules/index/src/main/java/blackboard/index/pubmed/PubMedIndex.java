@@ -132,6 +132,7 @@ public class PubMedIndex extends MetaMapIndex {
                     }
                     
                     if (t == null) {
+                        if (bgn < 0) bgn = 0;
                         if (text.charAt(bgn) == '>')
                             ++bgn;
                         t = text.substring(bgn);
