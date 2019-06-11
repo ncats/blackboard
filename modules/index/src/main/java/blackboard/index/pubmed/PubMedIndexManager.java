@@ -112,16 +112,16 @@ public class PubMedIndexManager implements AutoCloseable {
         @Override
         public Receive createReceive () {
             return receiveBuilder()
-                .match(TextQuery.class, this::doTextSearch)
+                .match(TextQuery.class, this::doSearch)
                 .match(PMIDQuery.class, this::doPMIDSearch)
+                .match(PMIDBatchQuery.class, this::doSearch)
                 .build();
         }
 
-        void doTextSearch (TextQuery q) throws Exception {
+        void doSearch (SearchQuery q) throws Exception {
             Logger.debug(self()+": searching "+q);
-
             long start = System.currentTimeMillis();
-            SearchResult result = pmi.search(q, q.skip+q.top); 
+            SearchResult result = pmi.search(q);
             Logger.debug(self()+": search completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             
@@ -144,8 +144,6 @@ public class PubMedIndexManager implements AutoCloseable {
     final int maxTimeout, maxTries, maxHits;
     final SyncCacheApi cache;
     final UMLSKSource umls;
-    final Inbox qanalInbox; // query analysis queue
-    final Inbox searchInbox; // search queue
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
@@ -191,9 +189,6 @@ public class PubMedIndexManager implements AutoCloseable {
         this.umls = umls;
         this.actorSystem = actorSystem;
         this.cache = cache;
-
-        qanalInbox = Inbox.create(actorSystem);
-        searchInbox = Inbox.create(actorSystem);
         
         Logger.debug("$$$$ "+getClass().getName()
                      +": base="+dir
@@ -250,32 +245,34 @@ public class PubMedIndexManager implements AutoCloseable {
                 });        
     }
 
-    protected SearchResult search (TextQuery tq) {
-        Logger.debug("#### Query: "+tq);
-        if (tq.query != null) {
+    public SearchResult search (SearchQuery q) {
+        Logger.debug("#### Query: "+q);
+        if (q.getQuery() != null) {
+            Inbox inbox = Inbox.create(actorSystem);
             // first pass this through metamap
-            qanalInbox.send(metamap, tq);
+            inbox.send(metamap, q);
             try {
                 List<Concept> concepts = (List<Concept>)
-                    qanalInbox.receive(Duration.ofSeconds(5));
+                    inbox.receive(Duration.ofSeconds(5));
                 Logger.debug("#### "+concepts.size()
-                             +" concept(s) found from query "+tq);
-                tq.concepts.addAll(concepts);
+                             +" concept(s) found from query "+q);
+                q.getConcepts().addAll(concepts);
             }
             catch (TimeoutException ex) {
-                Logger.warn("Unable to process query with MetMap: "+tq);
+                Logger.warn("Unable to process query with MetMap: "+q);
             }
         }
         
         // now do the search
+        Inbox inbox = Inbox.create(actorSystem);
         for (ActorRef actorRef : indexes)
-            searchInbox.send(actorRef, tq);
+            inbox.send(actorRef, q);
         
         List<SearchResult> results = new ArrayList<>();
         for (int i = 0, ntries = 0; i < indexes.size()
                  && ntries < maxTries;) {
             try {
-                SearchResult result = (SearchResult)searchInbox.receive
+                SearchResult result = (SearchResult)inbox.receive
                     (Duration.ofSeconds(maxTimeout));
                 results.add(result);
                 ++i;
@@ -288,9 +285,8 @@ public class PubMedIndexManager implements AutoCloseable {
         }
         
         return PubMedIndex.merge
-            (tq.skip, tq.top, results.toArray(new SearchResult[0]));
+            (q.skip(), q.top(), results.toArray(new SearchResult[0]));
     }
-    
 
     public MatchedDoc getDoc (Long pmid) {
         final PMIDQuery q = new PMIDQuery (pmid);
@@ -314,10 +310,41 @@ public class PubMedIndexManager implements AutoCloseable {
                             }
                         }
                         
-                        if (docs.size() > 1)
+                        if (docs.size() > 1) {
                             Logger.warn(pmid+" has multiple ("
                                         +docs.size()+") documents!");
+
+                            Collections.sort(docs);
+                        }
+                        
                         return docs.isEmpty() ? null : docs.get(0);
+                    }
+                });
+    }
+
+    public SearchResult getDocs (Long... pmids) {
+        final PMIDBatchQuery bq = new PMIDBatchQuery (pmids);
+        return cache.getOrElseUpdate
+            (bq.cacheKey(), new Callable<SearchResult>() {
+                    public SearchResult call () {
+                        Inbox inbox = Inbox.create(actorSystem);
+                        List<SearchResult> results = new ArrayList<>();
+                        for (ActorRef actorRef : indexes) {
+                            inbox.send(actorRef, bq);
+                            try {
+                                SearchResult result =
+                                    (SearchResult)inbox.receive
+                                    (Duration.ofSeconds(5l));
+                                results.add(result);
+                            }
+                            catch (TimeoutException ex) {
+                                Logger.error("Unable to receive result from "
+                                             +actorRef
+                                             +" within alloted time", ex);
+                            }
+                        }
+                        return PubMedIndex.merge
+                            (results.toArray(new SearchResult[0]));
                     }
                 });
     }

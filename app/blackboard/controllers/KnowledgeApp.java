@@ -36,11 +36,30 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     }
 
     public Result _search (String q, int skip, int top) throws Exception {
-        SearchResult result = doSearch (q, skip, top);
+        SearchResult result = doSearch (q, skip, top), refs = null;
         int page = skip / top + 1;
         int[] pages = Util.paging(top, page, result.total);
+        Facet facet = result.getFacet("@reference");
+        if (facet != null) {
+            List<Long> pmids = new ArrayList<>();
+            for (int i = 0; i < Math.min(facet.size(), 10); ++i) {
+                String pmid = facet.values.get(i).label;
+                try {
+                    pmids.add(Long.parseLong(pmid));
+                }
+                catch (NumberFormatException ex) {
+                    Logger.warn("Bogus PMID in facet @reference: "+pmid, ex);
+                }
+            }
+            
+            if (!pmids.isEmpty()) {
+                Long[] ids = {
+                    28394330l,28394330l,29394237l,30857677l,30149377l,30236891l,31013637l,31026749l,30959348l,29704328l,30853207l,31028292l,31028190l,30447333l,30871211l,30688034l};
+                refs = pubmed.getDocs(ids);//pmids.toArray(new Long[0]));
+            }
+        }
         return ok (blackboard.views.html.knowledge.render
-                   (page, top, pages, result));
+                   (page, top, pages, result, refs));
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {

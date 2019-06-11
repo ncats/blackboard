@@ -247,7 +247,7 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
-    static public class Concept {
+    static public class Concept implements Comparable<Concept> {
         public final String ui;
         public final String name;
         public final List<String> types = new ArrayList<>();
@@ -275,22 +275,35 @@ public class Index implements AutoCloseable, Fields {
             return false;
         }
 
+        public int compareTo (Concept c) {
+            return ui.compareTo(c.ui);
+        }
+
         public int hashCode () { return ui.hashCode(); }
-    }
-    
-    public interface SearchQuery {
-        String getField ();
-        Object getQuery ();
-        Map<String, Object> getFacets ();
-        List<Concept> getConcepts ();
-        Query rewrite (); // rewrite this SearchQuery into its native form
     }
 
     public interface CacheableContent {
         String cacheKey ();
     }
+    
+    public interface SearchQuery extends CacheableContent {
+        String getField ();
+        Object getQuery ();
+        default int skip () {
+            return 0;
+        }
+        default int top () {
+            return 10;
+        }
+        default int max () {
+            return 0;
+        }
+        Map<String, Object> getFacets ();
+        List<Concept> getConcepts ();
+        Query rewrite (); // rewrite this SearchQuery into its native form
+    }
 
-    public static class TextQuery implements SearchQuery, CacheableContent {
+    public static class TextQuery implements SearchQuery {
         public final String field;
         public final String query;
         public final Map<String, Object> facets = new TreeMap<>();
@@ -329,11 +342,27 @@ public class Index implements AutoCloseable, Fields {
 
         public String getField () { return field; }
         public Object getQuery () { return query; }
+        public int skip () { return skip; }
+        public int top () { return top; }
+        public int max () { return top + skip; }
         public Map<String, Object> getFacets () { return facets; }
         public List<Concept> getConcepts () { return concepts; }
         // subclass should override for specific implementation
         public Query rewrite () {
-            return new TermQuery (new Term (field, query));
+            if (query != null && field != null)
+                return new TermQuery (new Term (field, query));
+            else if (query != null) {
+                try {
+                    QueryParser qp = new QueryParser
+                        (FIELD_TEXT, new StandardAnalyzer ());
+                    return qp.parse(query);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't parse query: "+query, ex);
+                    return new MatchNoDocsQuery ();
+                }
+            }
+            return new MatchAllDocsQuery ();
         }
 
         public String cacheKey () {

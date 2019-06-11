@@ -61,6 +61,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.google.inject.assistedinject.Assisted;
+import blackboard.utils.Util;
 
 public class PubMedIndex extends MetaMapIndex {
     public static final String VERSION = "PubMedIndex-v1";
@@ -154,7 +155,7 @@ public class PubMedIndex extends MetaMapIndex {
         }
     }
     
-    public static class MatchedDoc {
+    public static class MatchedDoc implements Comparable<MatchedDoc> {
         public Float score;
         public Long pmid;
         public String title;
@@ -212,6 +213,24 @@ public class PubMedIndex extends MetaMapIndex {
                     best = mf;
             }
             return best;
+        }
+
+        public int compareTo (MatchedDoc d) {
+            float s = d.score - score;
+            if (s > 0) return 1;
+            else if (s < 0) return -1;
+            int dif = d.year - year;
+            if (dif == 0) {
+                if (d.pmid > pmid) dif = 1;
+                else if (d.pmid < pmid) dif = -1;
+                else if (d.revised != null)
+                    dif = d.revised.compareTo(revised);
+                else if (d.source != null)
+                    dif = d.source.compareTo(source);
+                else if (d.title != null)
+                    dif = title.compareTo(d.title);
+            }
+            return dif;
         }
     }
 
@@ -338,6 +357,7 @@ public class PubMedIndex extends MetaMapIndex {
         public Map<String, Object> getFacets () {
             return Collections.emptyMap();
         }
+        public int max () { return 5; }
         public List<Concept> getConcepts () {
             return Collections.emptyList();
         }
@@ -353,6 +373,49 @@ public class PubMedIndex extends MetaMapIndex {
 
         public String toString () {
             return "PMIDQuery{pmid="+pmid+"}";
+        }
+    }
+
+    public static class PMIDBatchQuery implements SearchQuery {
+        public final Set<Long> pmids = new LinkedHashSet<>();
+        public PMIDBatchQuery (long[] pmids) {
+            for (int i = 0; i < pmids.length; ++i)
+                this.pmids.add(pmids[i]);
+        }
+        public PMIDBatchQuery (Long... pmids) {
+            for (int i = 0; i < pmids.length; ++i)
+                this.pmids.add(pmids[i]);
+        }
+        public PMIDBatchQuery add (Long id) {
+            pmids.add(id);
+            return this;
+        }
+        public String getField () { return FIELD_PMID; }
+        public Object getQuery () {
+            return pmids.toArray(new Long[0]);
+        }
+        public int top () { return pmids.size(); }
+        public int max () { return pmids.size(); }
+        public Map<String, Object> getFacets () {
+            return Collections.emptyMap();
+        }
+        public List<Concept> getConcepts () {
+            return Collections.emptyList();
+        }
+        public String cacheKey () {
+            return PMIDBatchQuery.class.getName()
+                +"/"+Util.sha1(pmids.toArray(new Long[0]));
+        }
+        
+        @Override
+        public Query rewrite () {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (Long id : pmids) {
+                builder.add(NumericRangeQuery.newLongRange
+                            (getField (), id, id, true, true),
+                            BooleanClause.Occur.SHOULD);
+            }
+            return builder.build();
         }
     }
     
@@ -537,34 +600,44 @@ public class PubMedIndex extends MetaMapIndex {
         }
 
         public void exportXML (OutputStream os) throws Exception {
-            DocumentBuilder builder = DocumentBuilderFactory.newInstance()
-                .newDocumentBuilder();
-            org.w3c.dom.Document doc = builder.newDocument();
-            //doc.setXmlStandalone(true);
-            DocumentType doctype =
-                doc.getImplementation().createDocumentType
-                ("PubmedArticleSet",
-                 "-//NLM//DTD PubMedArticle, 1st January 2019//EN",
-                 "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd");
-            doc.appendChild(doctype);
-            
-            org.w3c.dom.Element container =
-                doc.createElement("PubmedArticleSet");
-            for (MatchedDoc md : docs) {
-                if (md.doc != null) {
-                    org.w3c.dom.Node node = doc.importNode
-                        (md.doc.getDocumentElement(), true);
-                    container.appendChild(node);
-                }
-                else {
-                    Logger.warn(md.pmid+": No XML doc");
-                }
-            }
-            TransformerFactory.newInstance().newTransformer()
-                .transform(new DOMSource (container), new StreamResult (os));
+            PubMedIndex.exportXML(docs, new StreamResult (os));
+        }
+        public String exportXML () throws Exception {
+            StringWriter writer = new StringWriter ();
+            PubMedIndex.exportXML(docs, new StreamResult (writer));
+            return writer.toString();
         }
     }
 
+    public static void exportXML (List<MatchedDoc> docs, StreamResult out)
+        throws Exception {
+        DocumentBuilder builder = DocumentBuilderFactory.newInstance()
+            .newDocumentBuilder();
+        org.w3c.dom.Document doc = builder.newDocument();
+        //doc.setXmlStandalone(true);
+        DocumentType doctype =
+            doc.getImplementation().createDocumentType
+            ("PubmedArticleSet",
+             "-//NLM//DTD PubMedArticle, 1st January 2019//EN",
+             "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd");
+        doc.appendChild(doctype);
+        
+        org.w3c.dom.Element container =
+            doc.createElement("PubmedArticleSet");
+        for (MatchedDoc md : docs) {
+            if (md.doc != null) {
+                org.w3c.dom.Node node = doc.importNode
+                    (md.doc.getDocumentElement(), true);
+                container.appendChild(node);
+            }
+            else {
+                Logger.warn(md.pmid+": No XML doc");
+            }
+        }
+        TransformerFactory.newInstance().newTransformer()
+            .transform(new DOMSource (container), out);
+    }
+    
     public static SearchResult merge (SearchResult... results) {
         return merge (0, 0, results);
     }
@@ -613,24 +686,7 @@ public class PubMedIndex extends MetaMapIndex {
             Logger.debug(f.toString());
         */
         
-        Collections.sort(docs, (a, b) -> {
-                float score = b.score - a.score;
-                if (score > 0) return 1;
-                else if (score < 0) return -1;
-                int d = b.year - a.year;
-                if (d == 0) {
-                    if (b.pmid > a.pmid) d = 1;
-                    else if (b.pmid < a.pmid) d = -1;
-                    else if (b.revised != null)
-                        d = b.revised.compareTo(a.revised);
-                    else if (b.source != null)
-                        d = b.source.compareTo(a.source);
-                    else if (a.title != null)
-                        d = a.title.compareTo(b.title);
-                }
-                return d;
-            });
-        
+        Collections.sort(docs);
         if (top <= 0) {
             merged.docs.addAll(docs);
         }
@@ -654,10 +710,14 @@ public class PubMedIndex extends MetaMapIndex {
                 JsonNode ev = null;
                 int score = Integer.MIN_VALUE;
                 for (int j = 0; j < evList.size(); ++j) {
-                    int s = evList.get(j).get("score").asInt();
-                    if (ev == null || s < score) {
+                    JsonNode n = evList.get(j);
+                    int s = n.get("score").asInt();
+                    if (ev == null
+                        // don't select this generic concept?
+                        || (s < score /*&& "syndrome".equalsIgoreCase
+                                        (n.get("conceptName").asText())*/)) {
                         score = s;
-                        ev = evList.get(j);
+                        ev = n;
                     }
                 }
                 
@@ -1103,7 +1163,7 @@ public class PubMedIndex extends MetaMapIndex {
 
     public MatchedDoc getMatchedDoc (long pmid) throws Exception {
         PMIDQuery pq = new PMIDQuery (pmid);
-        SearchResult result = search (pq, 5);
+        SearchResult result = search (pq);
         if (result.total == 0)
             return EMPTY_DOC;
         if (result.total > 1)
@@ -1111,14 +1171,13 @@ public class PubMedIndex extends MetaMapIndex {
         return result.docs.get(0);
     }
 
-    public SearchResult search (SearchQuery query, int maxHits)
-        throws Exception {
+    public SearchResult search (SearchQuery query) throws Exception {
         if (query instanceof TextQuery) {
             // we recast this to use PubMedTextQuery
             query = new PubMedTextQuery ((TextQuery)query);
         }
         SearchResult result = createSearchResult (query);
-        search (result, maxHits);
+        search (result, query.max());
         return result;
     }
     
@@ -1130,7 +1189,8 @@ public class PubMedIndex extends MetaMapIndex {
     public SearchResult search (String text, Map<String, Object> facets,
                                 int maxHits) throws Exception {
         PubMedTextQuery query = new PubMedTextQuery (text, facets);
-        SearchResult result = search (query, maxHits);
+        query.top = maxHits;
+        SearchResult result = search (query);
         Logger.debug("## searching for \""+text+"\" facets="+facets+"..."
                      +result.size()+" hit(s)!");
         return result;
@@ -1145,7 +1205,8 @@ public class PubMedIndex extends MetaMapIndex {
                                 Map<String, Object> facets, int maxHits)
         throws Exception {
         PubMedTextQuery query = new PubMedTextQuery (field, term, facets);
-        SearchResult result = search (query, maxHits);
+        query.top = maxHits;
+        SearchResult result = search (query);
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.size()+" hit(s)!");
         return result;

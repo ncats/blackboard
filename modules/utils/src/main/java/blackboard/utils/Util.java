@@ -75,6 +75,29 @@ public class Util {
         return null;
     }
 
+    public static String sha1 (Long... values) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA1");
+            byte[] buf = new byte[8];
+            for (Long v : values) {
+                buf[0] = (byte)((v >> 56) & 0xff);
+                buf[1] = (byte)((v >> 48) & 0xff);
+                buf[2] = (byte)((v >> 40) & 0xff);
+                buf[3] = (byte)((v >> 32) & 0xff);
+                buf[4] = (byte)((v >> 24) & 0xff);
+                buf[5] = (byte)((v >> 16) & 0xff);
+                buf[6] = (byte)((v >> 8) & 0xff);
+                buf[7] = (byte)(v & 0xff);
+                md.update(buf);
+            }
+            return toHex (md.digest());
+        }
+        catch (Exception ex) {
+            Logger.trace("Can't generate sha1 hash!", ex);
+        }
+        return null;
+    }
+
     public static int[] paging (int rowsPerPage, int page, int total) {
         //last page
         int max = (total+ rowsPerPage-1)/rowsPerPage;
@@ -84,13 +107,13 @@ public class Util {
         }
         
         int[] pages;
-        if (max <= 11) {
+        if (max <= 9) {
             pages = new int[max];
             for (int i = 0; i < pages.length; ++i)
                 pages[i] = i+1;
         }
         else if (page >= max-3) {
-            pages = new int[11];
+            pages = new int[9];
             pages[0] = 1;
             pages[1] = 2;
             pages[2] = 0;
@@ -98,19 +121,17 @@ public class Util {
                 pages[i] = max--;
         }
         else {
-            pages = new int[11];
-            if (page > 5) {
+            pages = new int[9];
+            if (page > 4) {
                 pages[0] = 1;
                 pages[1] = 2;
                 pages[2] = 0; // ...
-                pages[3] = page-2;
-                pages[4] = page-1;
-                pages[5] = page;
-                pages[6] = page+1;
-                pages[7] = page+2;
-                pages[8] = 0; // ...
-                pages[9] = max-1;
-                pages[10] = max;
+                pages[3] = page-1;
+                pages[4] = page;
+                pages[5] = page+1;
+                pages[6] = 0; // ...
+                pages[7] = max-1;
+                pages[8] = max;
             }
             else {
                 pages[0] = 1;
@@ -119,11 +140,9 @@ public class Util {
                 pages[3] = 4;
                 pages[4] = 5;
                 pages[5] = 6;
-                pages[6] = 7;
-                pages[7] = 8;
-                pages[8] = 0; // ...
-                pages[9] = max-1;
-                pages[10] = max;
+                pages[6] = 0;
+                pages[7] = max-1;
+                pages[8] = max;
             }
         }
         return pages;

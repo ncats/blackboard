@@ -1,6 +1,6 @@
 @import _root_.blackboard.index.Index._
 @import _root_.blackboard.utils.Util
-@(name: String, facet: Facet, expanded: Boolean = true)
+@(name: String, facet: Facet, expanded: Boolean = true, max: Int = 10)
 
 @display(text: String, min: Integer) = {
   @if(text.length() > min){
@@ -8,24 +8,27 @@
           title="@text" style="margin-right:0.5rem">
       @text.substring(0,min)...</span>
   }else{
-      @text
+    @text
   }
 }
 
 @filteritem(fv: FV) = {
-  @defining(Util.sha1(facet.name, fv.label)){ id =>
-    <li class="list-group-item d-flex justify-content-between align-items-center"
-       style="padding-bottom:0px; border-bottom:0px;margin-right:0.5rem">
-       <div class="form-check form-check-inline" style="margin-right:0.5rem">
-          <input class="form-check-input position-static" type="checkbox"
-                 id="@id" value="@fv.label" aria-label="item1"
+   @defining(Util.sha1(facet.name, fv.label).substring(0,5)){ id =>
+     <li class="list-group-item d-flex justify-content-between align-items-center"
+         style="padding-bottom:0px; border-bottom:0px;margin-right:0.5rem">
+         <div class="form-check form-check-inline"
                  style="margin-right:0.5rem">
-          <label class="form-check-label" for="@id"
-                 style="margin-right:0.5rem">@display(fv.name,20)</label>
-       </div>
-       <span class="badge badge-primary badge-pill">@fv.count</span>
-    </li>
-  }
+             <input class="facet-item form-check-input position-static"
+                    type="checkbox"
+                    id='@{id + "-" +facet.name}' value="@fv.label"
+                    aria-label="@fv.name" onclick="filterToggle(this)" 
+                    style="margin-right:0.5rem">
+             <label class="form-check-label" for="@id"
+                    style="margin-right:0.5rem">@display(fv.name,20)</label>
+          </div>
+          <span class="badge badge-primary badge-pill">@fv.count</span>
+     </li>
+   }
 }
 
 @if(facet != null){
@@ -40,7 +43,7 @@
     <div class="collapse @if(expanded){show}"
          id="facet-@name" aria-expanded="@expanded">
       <ul class="list-group list-group-flush">
-        @defining(Math.min(10, facet.values.length)){ size =>
+        @defining(Math.min(max, facet.values.length)){ size =>
           @for(i <- 0 until size){
             @filteritem(facet.values(i))
           }
@@ -52,3 +55,4 @@
   </div>
   }
 }
+

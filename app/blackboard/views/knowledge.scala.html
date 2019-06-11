@@ -1,7 +1,8 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.pubmed.PubMedIndex._
 @import _root_.blackboard.controllers.routes
-@(page: Integer, rows: Integer, pages: Array[Int], result: SearchResult)
+@(page: Integer, rows: Integer, pages: Array[Int], result: SearchResult,
+        refs: SearchResult)
 
 @paging() = {
   @if(pages.length > 0) {
@@ -37,12 +38,12 @@
            height="65%" width="65%">
     </a>
     <button class="navbar-toggler" type="button" data-toggle="collapse"
-            data-target="#navbarTogglerDemo02"
-            aria-controls="navbarTogglerDemo02"
+            data-target="#navbarTogglerMenu"
+            aria-controls="navbarTogglerMenu"
             aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    <div class="collapse navbar-collapse" id="navbarTogglerDemo02">
+    <div class="collapse navbar-collapse" id="navbarTogglerMenu">
       <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
         <li class="nav-item">
           <a class="nav-link" href="@routes.KnowledgeApp.index">Home</a>
@@ -66,8 +67,7 @@
         @facetcard("Article_Type", result.getFacet("@pubtype"))
         @facetcard("Journal", result.getFacet("@journal"))
         @facetcard("Keyword", result.getFacet("@keyword"))
-        @facetcard("Concept", result.getFacet("@cui"), false)
-        @facetcard("MeSH", result.getFacet("@ui"), false)
+        @facetcard("Concept", result.getFacet("@cui"))
       </div>
       <div class="col-md-6">
         @** SEARCH CONTENTS **@
@@ -82,13 +82,25 @@
         @** CONTEXT **@
         @contextcard(result.query){
           @result.total documents matched
-          }
+        }
+        @if(refs != null){
+          @refcard(refs)
+        }
       </div>
     </div>
   </div>
-  }{
-  }{
-   $(document).ready(function() {
-     //$('[data-toggle="tooltip"]').tooltip();
-   });
+}(HtmlFormat.empty){
+  var urlParams = new URLSearchParams (window.location.search);  
+  $(document).ready(function() {
+      console.log('@HtmlFormat.raw(request.uri)');
+      /*
+      $('.facet-item').each(function () {
+          console.log($(this).attr('id')+' '+$(this).attr('value')+' '+$(this).is(':checked'));
+      });
+      */
+  });
+  
+  function filterToggle (el) {    
+      console.log(location.href+' '+el.id+' '+el.value+' '+el.checked);
   }
+}

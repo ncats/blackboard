@@ -1,0 +1,34 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.index.pubmed.PubMedIndex._
+@import _root_.blackboard.controllers.routes
+@(result: SearchResult, max: Int = 5)
+@refitem(doc: MatchedDoc) = {
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <span class="font-bold">@doc.year
+      <a href="@_root_.blackboard.semmed.controllers.routes.Controller.pmid(doc.pmid)">@doc.title</a></span>
+  </li>
+}
+  
+  <div class="card" style="margin-top:10px;">
+    <div class="card-header" style="padding-bottom:0px">
+      <div class="alert alert-success" role="alert">
+        <a href="#" class="alert-link"
+           data-toggle="collapse" data-target='#references'>References</a>
+      </div>
+    </div>
+    <div class="collapse show"
+         id="references" aria-expanded="true">
+      <ul class="list-group list-group-flush">
+        @defining(Math.min(max, result.docs.size)){ size =>
+          @for(i <- 0 until size){
+            @refitem(result.docs(i))
+          }
+        }
+      </ul> <!-- list-group -->
+    </div>
+    <div class="card-footer">
+      @if(max < result.docs.size) {
+        <a href="#">See more...</a>
+      }
+  </div>
+</div>

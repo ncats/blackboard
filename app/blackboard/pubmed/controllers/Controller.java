@@ -14,6 +14,7 @@ import play.mvc.*;
 import play.libs.ws.WSResponse;
 import play.Logger;
 import play.Environment;
+import play.mvc.BodyParser;
 import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
@@ -266,6 +267,30 @@ public class Controller extends play.mvc.Controller {
                 }
                 catch (Exception ex) {
                     Logger.error("Can't retrieve doc: "+pmid, ex);
+                    return internalServerError
+                        ("Internal server error: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
+
+    @BodyParser.Of(value = BodyParser.Text.class)
+    public CompletionStage<Result> batch (String format) {
+        return supplyAsync (() -> {
+                List<Long> pmids = new ArrayList<>();
+                for (String t : request().body().asText().split("[,;\\s]+")) {
+                    try {
+                        pmids.add(Long.parseLong(t));
+                    }
+                    catch (NumberFormatException ex) {
+                        Logger.warn("Bogus PMID: "+t);
+                    }
+                }
+                try {
+                    SearchResult result =
+                        pubmed.getDocs(pmids.toArray(new Long[0]));
+                    return ok(result.exportXML()).as("application/xml");
+                }
+                catch (Exception ex) {
                     return internalServerError
                         ("Internal server error: "+ex.getMessage());
                 }
