@@ -139,11 +139,13 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
 
     public boolean isFacetSelected (Facet facet, FV fv) {
         String[] facets = request().queryString().get("facet");
-        for (String f : facets) {
-            if (f.startsWith(facet.name)) {
-                String value = f.substring(facet.name.length()+1);
-                if (value.equals(fv.label))
-                    return true;
+        if (facets != null) {
+            for (String f : facets) {
+                if (f.startsWith(facet.name)) {
+                    String value = f.substring(facet.name.length()+1);
+                    if (value.equals(fv.label))
+                        return true;
+                }
             }
         }
         return false;
