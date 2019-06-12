@@ -1,6 +1,8 @@
 @import _root_.blackboard.index.Index._
 @import _root_.blackboard.utils.Util
-@(name: String, facet: Facet, expanded: Boolean = true, max: Int = 10)
+@import _root_.blackboard.controllers.KnowledgeApp
+@(app: KnowledgeApp, name: String, facet: Facet,
+       expanded: Boolean = true, max: Int = 10)
 
 @display(text: String, min: Integer) = {
   @if(text.length() > min){
@@ -20,11 +22,21 @@
                  style="margin-right:0.5rem">
              <input class="facet-item form-check-input position-static"
                     type="checkbox"
-                    id='@{id + "-" +facet.name}' value="@fv.label"
+                    @if(app.isFacetSelected(facet, fv)){
+                    checked="true"
+                    }
+                    id='@id' value="@fv.label"
                     aria-label="@fv.name" onclick="filterToggle(this)" 
                     style="margin-right:0.5rem">
              <label class="form-check-label" for="@id"
                     style="margin-right:0.5rem">@display(fv.name,20)</label>
+             <script>
+                filters['@id'] = {
+                checked:  @app.isFacetSelected(facet, fv),
+                   name: '@facet.name',
+                  value: '@fv.label'
+                };
+             </script>
           </div>
           <span class="badge badge-primary badge-pill">@fv.count</span>
      </li>

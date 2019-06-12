@@ -51,6 +51,7 @@ import org.apache.lucene.analysis.Analyzer;
 
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.text.StringTokenizer;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -269,10 +270,26 @@ public class PubMedIndex extends MetaMapIndex {
         @Override
         public Query rewrite () {
             Query query = null;
-            String term = (String) getQuery ();
+            String term = (String) getQuery ();            
             if (field == null) {
                 try {
                     if (term != null) {
+                        /*
+                        org.apache.commons.text.StringTokenizer tokenizer =
+                            new org.apache.commons.text.StringTokenizer (term);
+                        tokenizer.setQuoteChar('"');
+                        
+                        StringBuilder q = new StringBuilder ();
+                        while (tokenizer.hasNext()) {
+                            String tok = tokenizer.next();
+                            if (q.length() > 0)
+                                q.append(" ");
+                            q.append("+\""+tok+"\"");
+                            //Logger.debug("TOKEN: <<"+tok+">>");
+                        }
+                        Logger.debug("** REWRITE: "+q);
+                        */
+                        
                         QueryParser parser = new QueryParser
                             (FIELD_TEXT, getAnalyzer ());
                         query = parser.parse(term);

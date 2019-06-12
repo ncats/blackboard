@@ -1,8 +1,9 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.pubmed.PubMedIndex._
 @import _root_.blackboard.controllers.routes
-@(page: Integer, pages: Array[Int], calls: Map[Integer, Call],
-        result: SearchResult, refs: SearchResult)
+@import _root_.blackboard.controllers.KnowledgeApp
+@(app: KnowledgeApp, page: Integer, pages: Array[Int],
+       calls: Map[Integer, Call], result: SearchResult, refs: SearchResult)
 
 @paging() = {
   @if(pages.length > 0) {
@@ -32,6 +33,10 @@
 }
 
 @views.html.ui.main("NCATS Knowledge: "+result.query.getQuery){
+  <script>
+  var filters = {}
+  </script>
+  
   <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
     <a class="navbar-brand" href="https://ncats.nih.gov">
       <img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")'
@@ -62,12 +67,12 @@
     <div class="row">
       <div class="col-md-3">
         @** FILTERS **@
-        @facetcard("Year_Published", result.getFacet("@year"))
-        @facetcard("Author", result.getFacet("@author"))
-        @facetcard("Article_Type", result.getFacet("@pubtype"))
-        @facetcard("Journal", result.getFacet("@journal"))
-        @facetcard("Keyword", result.getFacet("@keyword"))
-        @facetcard("Concept", result.getFacet("@cui"))
+        @facetcard(app, "Year_Published", result.getFacet("@year"))
+        @facetcard(app, "Author", result.getFacet("@author"))
+        @facetcard(app, "Article_Type", result.getFacet("@pubtype"))
+        @facetcard(app, "Journal", result.getFacet("@journal"))
+        @facetcard(app, "Keyword", result.getFacet("@keyword"))
+        @facetcard(app, "Concept", result.getFacet("@cui"))
       </div>
       <div class="col-md-6">
         @** SEARCH CONTENTS **@
@@ -90,6 +95,7 @@
     </div>
   </div>
 }(HtmlFormat.empty){
+
   var urlParams = new URLSearchParams (window.location.search);  
   $(document).ready(function() {
       console.log('@HtmlFormat.raw(request.uri)');
@@ -98,9 +104,43 @@
           console.log($(this).attr('id')+' '+$(this).attr('value')+' '+$(this).is(':checked'));
       });
       */
+      for(var id in filters) {
+         var f = filters[id];
+         if (f.checked) {
+            console.log(id+'='+f.name+'/'+f.value+' ');
+         }
+      }
   });
   
   function filterToggle (el) {    
       console.log(location.href+' '+el.id+' '+el.value+' '+el.checked);
+      filters[el.id].checked = el.checked;
+      applyFilter ();
+  }
+
+  function applyFilter () {
+      var facet = '';
+      for(var id in filters) {
+         var f = filters[id];
+         if (f.checked) {
+            if (facet.length > 0)
+               facet += '&';
+            facet += 'facet='+f.name+'/'+f.value;
+         }
+      }
+      var url = '@HtmlFormat.raw(app.uri("facet"))';
+      if (facet.length > 0) {
+         url += url.indexOf('?') < 0 ? '?' : '&';
+         url += facet;
+      }
+      console.log('=====> '+url);
+      $.ajax({
+         'url': url,
+         success: function () {
+            window.location.href = url;
+         }
+      }).done(function () {
+         
+      });
   }
 }

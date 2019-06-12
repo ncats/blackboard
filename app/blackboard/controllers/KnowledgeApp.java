@@ -23,6 +23,8 @@ import play.cache.SyncCacheApi;
 
 import blackboard.index.pubmed.PubMedIndexManager;
 import blackboard.index.pubmed.PubMedIndex;
+import blackboard.index.Index.FV;
+import blackboard.index.Index.Facet;
 import static blackboard.index.pubmed.PubMedIndex.*;
 import blackboard.utils.Util;
 
@@ -80,7 +82,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                       (q, (pages[i]-1)*top, top));
         }
         return ok (blackboard.views.html.knowledge.render
-                   (page, pages, calls, sref.result, sref.refs));
+                   (this, page, pages, calls, sref.result, sref.refs));
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
@@ -124,8 +126,8 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                     }
 
                     return ok (blackboard.views.html.knowledge.render
-                               (page, pages, calls, PubMedIndex.merge
-                                (skip, top, sref.refs), null));
+                               (KnowledgeApp.this, page, pages, calls,
+                                PubMedIndex.merge(skip, top, sref.refs), null));
                 }
                 catch (Exception ex) {
                     Logger.error("** "+request().uri()+" failed", ex);
@@ -133,5 +135,37 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                                (ex.getMessage(), 500));
                 }
             }, ec.current());
+    }
+
+    public boolean isFacetSelected (Facet facet, FV fv) {
+        String[] facets = request().queryString().get("facet");
+        for (String f : facets) {
+            if (f.startsWith(facet.name)) {
+                String value = f.substring(facet.name.length()+1);
+                if (value.equals(fv.label))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public String uri (String... exclude) {
+        StringBuilder uri = new StringBuilder (request().path());
+        Map<String, String[]> query = new TreeMap<>(request().queryString());
+        for (String p : exclude) {
+            query.remove(p);
+        }
+
+        if (!query.isEmpty()) {
+            int i = 0;
+            for (Map.Entry<String, String[]> me : query.entrySet()) {
+                for (String v : me.getValue()) {
+                    uri.append(i == 0 ? "?" : "&");
+                    uri.append(me.getKey()+"="+v);
+                    ++i;
+                }
+            }
+        }
+        return uri.toString();
     }
 }

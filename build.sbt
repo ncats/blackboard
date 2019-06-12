@@ -17,6 +17,7 @@ lazy val commonDependencies = Seq(
   "org.apache.lucene" % "lucene-suggest" % "5.5.5",
   "org.neo4j" % "neo4j" % "3.2.14",
   "org.apache.commons" % "commons-lang3" % "3.9",
+  "org.apache.commons" % "commons-text" % "1.6",
   "junit"             % "junit"           % "4.12"  % "test",
   "com.novocode"      % "junit-interface" % "0.11"  % "test"  
 )
