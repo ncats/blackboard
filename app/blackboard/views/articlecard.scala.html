@@ -34,10 +34,16 @@
       }
     }else{
       @defining(doc.getBestMatchedFragment()){ mf =>
-        @if(mf.field != null){
-          <span class="badge badge-pill badge-light">@mf.field</span>
+        @if(mf != null) {
+          @if(mf.field != null){
+            <span class="badge badge-pill badge-light">@mf.field</span>
+          }
+          @HtmlFormat.raw(mf.fragment)
+        } else {
+          @for(a <- doc.abstracts){
+            <p>@a</p>
+          }
         }
-        @HtmlFormat.raw(mf.fragment)
       }
     }
   </div>

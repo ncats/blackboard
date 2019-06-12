@@ -13,7 +13,7 @@
     <div class="card-header" style="padding-bottom:0px">
       <div class="alert alert-success" role="alert">
         <a href="#" class="alert-link"
-           data-toggle="collapse" data-target='#references'>References</a>
+           data-toggle="collapse" data-target='#references'>Most Cited</a>
       </div>
     </div>
     <div class="collapse show"
@@ -27,8 +27,6 @@
       </ul> <!-- list-group -->
     </div>
     <div class="card-footer">
-      @if(max < result.docs.size) {
-        <a href="#">See more...</a>
-      }
+      <a href='@routes.KnowledgeApp.references(request.getQueryString("q"))'>See more cited references...</a>
   </div>
 </div>
