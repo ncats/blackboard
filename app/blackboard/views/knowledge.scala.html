@@ -1,8 +1,8 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.pubmed.PubMedIndex._
 @import _root_.blackboard.controllers.routes
-@(page: Integer, rows: Integer, pages: Array[Int], result: SearchResult,
-        refs: SearchResult)
+@(page: Integer, pages: Array[Int], calls: Map[Integer, Call],
+        result: SearchResult, refs: SearchResult)
 
 @paging() = {
   @if(pages.length > 0) {
@@ -22,7 +22,7 @@
                 <span class="sr-only">(current)</span></a></li>
           }else{
             <li class="page-item">
-              <a class="page-link" href="@routes.KnowledgeApp.search(result.query.getQuery.toString,(i-1)*rows,rows)">@i</a></li>
+              <a class="page-link" href="@calls(i).url">@i</a></li>
           }
         }
       }

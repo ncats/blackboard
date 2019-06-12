@@ -5,6 +5,7 @@ import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
@@ -18,6 +19,7 @@ import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
 import play.inject.ApplicationLifecycle;
+import play.cache.SyncCacheApi;
 
 import blackboard.index.pubmed.PubMedIndexManager;
 import blackboard.index.pubmed.PubMedIndex;
@@ -37,8 +39,8 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         
     @Inject
     public KnowledgeApp (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                         ApplicationLifecycle lifecycle) {
-        super (ec, pubmed, lifecycle);
+                         SyncCacheApi cache, ApplicationLifecycle lifecycle) {
+        super (ec, pubmed, cache, lifecycle);
     }
 
     public Result index () {
@@ -72,8 +74,13 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         SearchReferences sref = searchAndFetchReferences (q, skip, top);
         int page = skip / top + 1;
         int[] pages = Util.paging(top, page, sref.result.total);
+        Map<Integer, Call> calls = new TreeMap<>();
+        for (int i = 0; i < pages.length; ++i) {
+            calls.put(pages[i], routes.KnowledgeApp.search
+                      (q, (pages[i]-1)*top, top));
+        }
         return ok (blackboard.views.html.knowledge.render
-                   (page, top, pages, sref.result, sref.refs));
+                   (page, pages, calls, sref.result, sref.refs));
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
@@ -109,9 +116,16 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                 try {
                     SearchReferences sref = searchAndFetchReferences (q, 0, 1);
                     int page = skip / top + 1;
-                    int[] pages = Util.paging(top, page, sref.result.size());
+                    int[] pages = Util.paging(top, page, sref.refs.size());
+                    Map<Integer, Call> calls = new TreeMap<>();
+                    for (int i = 0; i < pages.length; ++i) {
+                        calls.put(pages[i], routes.KnowledgeApp.references
+                                  (q, (pages[i]-1)*top, top));
+                    }
+
                     return ok (blackboard.views.html.knowledge.render
-                               (page, top, pages, sref.refs, null));
+                               (page, pages, calls, PubMedIndex.merge
+                                (skip, top, sref.refs), null));
                 }
                 catch (Exception ex) {
                     Logger.error("** "+request().uri()+" failed", ex);

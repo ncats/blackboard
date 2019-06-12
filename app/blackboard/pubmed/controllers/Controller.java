@@ -19,6 +19,7 @@ import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
 import play.inject.ApplicationLifecycle;
+import play.cache.SyncCacheApi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,12 +39,14 @@ public class Controller extends play.mvc.Controller {
     final protected HttpExecutionContext ec;
     final protected PubMedIndexManager pubmed;
     final protected ObjectMapper mapper = Json.mapper();
+    final protected SyncCacheApi cache;
 
     @Inject
     public Controller (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                       ApplicationLifecycle lifecycle) {
+                       SyncCacheApi cache, ApplicationLifecycle lifecycle) {
         this.pubmed = pubmed;
         this.ec = ec;
+        this.cache = cache;
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
         lifecycle.addStopHook(() -> {
