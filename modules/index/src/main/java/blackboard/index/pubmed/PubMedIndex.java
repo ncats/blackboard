@@ -274,7 +274,6 @@ public class PubMedIndex extends MetaMapIndex {
             if (field == null) {
                 try {
                     if (term != null) {
-                        /*
                         org.apache.commons.text.StringTokenizer tokenizer =
                             new org.apache.commons.text.StringTokenizer (term);
                         tokenizer.setQuoteChar('"');
@@ -284,15 +283,22 @@ public class PubMedIndex extends MetaMapIndex {
                             String tok = tokenizer.next();
                             if (q.length() > 0)
                                 q.append(" ");
-                            q.append("+\""+tok+"\"");
+                            char ch = tok.charAt(0);
+                            if (ch == '+' || ch == '-')
+                                q.append(tok); // as-is
+                            else if (ch == '~')
+                                q.append(tok.substring(1)); // optional token
+                            else if (tok.indexOf(' ') > 0)
+                                q.append("+\""+tok+"\"");
+                            else
+                                q.append("+"+tok);
                             //Logger.debug("TOKEN: <<"+tok+">>");
                         }
                         Logger.debug("** REWRITE: "+q);
-                        */
                         
                         QueryParser parser = new QueryParser
                             (FIELD_TEXT, getAnalyzer ());
-                        query = parser.parse(term);
+                        query = parser.parse(q.toString());
                     }
                     else {
                         query = new TermQuery
@@ -721,46 +727,35 @@ public class PubMedIndex extends MetaMapIndex {
     public static List<Concept> parseMetaMapConcepts (JsonNode result) {
         //Logger.debug("MetaMap ===> "+result);
         JsonNode pcmList = result.at("/utteranceList/0/pcmlist");
-        List<Concept> concepts = new ArrayList<>();
+        Set<Concept> concepts = new LinkedHashSet<>();
         for (int i = 0; i < pcmList.size(); ++i) {
             JsonNode pcm = pcmList.get(i);
             JsonNode evList = pcm.at("/mappingList/0/evList");
             //Logger.debug("evList ===> "+evList);
             if (!evList.isMissingNode()) {
-                JsonNode ev = null;
-                int score = Integer.MIN_VALUE;
+                JsonNode text = pcm.at("/phrase/phraseText");
                 for (int j = 0; j < evList.size(); ++j) {
                     JsonNode n = evList.get(j);
-                    int s = n.get("score").asInt();
-                    if (ev == null
-                        // don't select this generic concept?
-                        || (s < score /*&& "syndrome".equalsIgoreCase
-                                        (n.get("conceptName").asText())*/)) {
-                        score = s;
-                        ev = n;
-                    }
-                }
+                    Concept c = new Concept (n.get("conceptId").asText(),
+                                             n.get("preferredName").asText(),
+                                             null);
+                    c.score = n.get("score").asInt();
+                    concepts.add(c);
                 
-                Concept c = new Concept (ev.get("conceptId").asText(),
-                                         ev.get("preferredName").asText(),
-                                         null);
-                c.score = score;
-                
-                JsonNode types = ev.get("semanticTypes");
-                for (int k = 0; k < types.size(); ++k)
-                    c.types.add(types.get(k).asText());
-                ObjectNode ctx = Json.newObject();
-                JsonNode text = pcm.at("/phrase/phraseText");
-                if (!text.isMissingNode()) {
+                    JsonNode types = n.get("semanticTypes");
+                    for (int k = 0; k < types.size(); ++k)
+                        c.types.add(types.get(k).asText());
+
+                    ObjectNode ctx = Json.newObject();
                     ctx.put("phraseText", text.asText());
-                    ctx.put("matchedWords", ev.get("matchedWords"));
-                    ctx.put("sources", ev.get("sources"));
+                    ctx.put("matchedWords", n.get("matchedWords"));
+                    ctx.put("sources", n.get("sources"));
+                    c.context = ctx;
+                    concepts.add(c);
                 }
-                c.context = ctx;
-                concepts.add(c);
             }
         }
-        return concepts;
+        return new ArrayList<>(concepts);
     }
 
     @Inject public SemMedDbKSource semmed;
