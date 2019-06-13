@@ -190,8 +190,10 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
             int i = 0;
             for (Map.Entry<String, String[]> me : query.entrySet()) {
                 for (String v : me.getValue()) {
-                    if ("q".equals(me.getKey()))
-                        v = v.replaceAll("\\+", "%2B");
+                    if ("q".equals(me.getKey())) {
+                        v = v.replaceAll("\\+", "%2B")
+                            .replaceAll("'", "%27");
+                    }
                     uri.append(i == 0 ? "?" : "&");
                     uri.append(me.getKey()+"="+v);
                     ++i;
