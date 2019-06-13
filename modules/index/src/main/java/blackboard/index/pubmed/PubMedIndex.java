@@ -709,6 +709,8 @@ public class PubMedIndex extends MetaMapIndex {
             merged.docs.addAll(docs);
         }
         else {
+            if (skip > docs.size())
+                skip = 0;
             int max = Math.min(docs.size(), skip+top);
             merged.docs.addAll(docs.subList(skip, max));
         }

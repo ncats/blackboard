@@ -27,6 +27,7 @@ public class PubMedSax extends DefaultHandler {
     StringBuilder content = new StringBuilder ();
     LinkedList<String> stack = new LinkedList<>();
     StringBuilder abstext = new StringBuilder ();
+    StringBuilder title = new StringBuilder ();
     PubMedDoc doc;
     Calendar cal = Calendar.getInstance();
     String idtype, ui, majorTopic, lang;
@@ -238,13 +239,22 @@ public class PubMedSax extends DefaultHandler {
             abstext.setLength(0);
             break;
 
+        case "ArticleTitle":
+            title.setLength(0);
+            break;
+
         case "OtherAbstract":
             lang = attrs.getValue("Language");
             break;
 
         default:
-            if (!stack.isEmpty() && "AbstractText".equals(stack.peek()))
-                abstext.append(content.toString());
+            if (!stack.isEmpty()) {
+                String parent = stack.peek();
+                if ("AbstractText".equals(parent))
+                    abstext.append(content.toString());
+                else if ("ArticleTitle".equals(parent))
+                    title.append(content.toString());
+            }
         }
         stack.push(qName);
         content.setLength(0);
@@ -298,7 +308,8 @@ public class PubMedSax extends DefaultHandler {
             break;
             
         case "ArticleTitle":
-            doc.title = value;
+            title.append(value);
+            doc.title = title.toString();
             break;
 
         case "LastName":

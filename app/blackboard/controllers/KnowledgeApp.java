@@ -49,6 +49,21 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         return ok (blackboard.views.html.index.render());
     }
 
+    String getURL (Call call) {
+        StringBuilder url = new StringBuilder ();
+        for (Map.Entry<String, String[]> me
+                 : request().queryString().entrySet()) {
+            switch (me.getKey()) {
+            case "q": case "top": case "skip":
+                break; // use reverse routing
+            default:
+                for (String v : me.getValue())
+                    url.append("&" + me.getKey()+"="+v);
+            }
+        }
+        return call.url()+url;
+    }
+    
     SearchReferences searchAndFetchReferences (String q, int skip, int top)
         throws Exception {
         SearchResult result = doSearch (q, skip, top), refs = null;
@@ -74,15 +89,20 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     
     public Result _search (String q, int skip, int top) throws Exception {
         SearchReferences sref = searchAndFetchReferences (q, skip, top);
+        if (skip > sref.result.total)
+            return redirect (routes.KnowledgeApp.search(q, 0, top));
+        
         int page = skip / top + 1;
         int[] pages = Util.paging(top, page, sref.result.total);
-        Map<Integer, Call> calls = new TreeMap<>();
+        Map<Integer, String> urls = new TreeMap<>();
         for (int i = 0; i < pages.length; ++i) {
-            calls.put(pages[i], routes.KnowledgeApp.search
-                      (q, (pages[i]-1)*top, top));
+            Call call = routes.KnowledgeApp.search
+                (q, (pages[i]-1)*top, top);
+            urls.put(pages[i], getURL (call));
         }
+
         return ok (blackboard.views.html.knowledge.render
-                   (this, page, pages, calls, sref.result, sref.refs));
+                   (this, page, pages, urls, sref.result, sref.refs));
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
@@ -106,6 +126,25 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
             }, ec.current());
     }
 
+    public Result _references (String q, int skip, int top) throws Exception {
+        SearchReferences sref = searchAndFetchReferences (q, 0, 1);
+        if (skip > sref.refs.size())
+            return redirect (routes.KnowledgeApp.references(q, 0, top));
+        
+        int page = skip / top + 1;
+        int[] pages = Util.paging(top, page, sref.refs.size());
+        Map<Integer, String> urls = new TreeMap<>();
+        for (int i = 0; i < pages.length; ++i) {
+            Call call = routes.KnowledgeApp.references
+                (q, (pages[i]-1)*top, top);
+            urls.put(pages[i], getURL (call));
+        }
+        
+        return ok (blackboard.views.html.knowledge.render
+                   (KnowledgeApp.this, page, pages, urls,
+                    PubMedIndex.merge(skip, top, sref.refs), null));
+    }
+    
     public CompletionStage<Result> references (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
         if (q == null || "".equals(q)) {
@@ -116,18 +155,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
 
         return supplyAsync (() -> {
                 try {
-                    SearchReferences sref = searchAndFetchReferences (q, 0, 1);
-                    int page = skip / top + 1;
-                    int[] pages = Util.paging(top, page, sref.refs.size());
-                    Map<Integer, Call> calls = new TreeMap<>();
-                    for (int i = 0; i < pages.length; ++i) {
-                        calls.put(pages[i], routes.KnowledgeApp.references
-                                  (q, (pages[i]-1)*top, top));
-                    }
-
-                    return ok (blackboard.views.html.knowledge.render
-                               (KnowledgeApp.this, page, pages, calls,
-                                PubMedIndex.merge(skip, top, sref.refs), null));
+                    return _references (q, skip, top);
                 }
                 catch (Exception ex) {
                     Logger.error("** "+request().uri()+" failed", ex);
