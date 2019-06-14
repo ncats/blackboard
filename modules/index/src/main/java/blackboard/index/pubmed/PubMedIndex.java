@@ -274,31 +274,12 @@ public class PubMedIndex extends MetaMapIndex {
             if (field == null) {
                 try {
                     if (term != null) {
-                        org.apache.commons.text.StringTokenizer tokenizer =
-                            new org.apache.commons.text.StringTokenizer (term);
-                        tokenizer.setQuoteChar('"');
-                        
-                        StringBuilder q = new StringBuilder ();
-                        while (tokenizer.hasNext()) {
-                            String tok = tokenizer.next();
-                            if (q.length() > 0)
-                                q.append(" ");
-                            char ch = tok.charAt(0);
-                            if (ch == '+' || ch == '-')
-                                q.append(tok); // as-is
-                            else if (ch == '~')
-                                q.append(tok.substring(1)); // optional token
-                            else if (tok.indexOf(' ') > 0)
-                                q.append("+\""+tok+"\"");
-                            else
-                                q.append("+"+tok);
-                            //Logger.debug("TOKEN: <<"+tok+">>");
-                        }
+                        String q = Util.queryRewrite(term);
                         Logger.debug("** REWRITE: "+q);
                         
                         QueryParser parser = new QueryParser
                             (FIELD_TEXT, getAnalyzer ());
-                        query = parser.parse(q.toString());
+                        query = parser.parse(q);
                     }
                     else {
                         query = new TermQuery

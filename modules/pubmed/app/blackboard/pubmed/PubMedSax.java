@@ -23,6 +23,8 @@ public class PubMedSax extends DefaultHandler {
     static final byte[] TAG_START = "<PubmedArticle>".getBytes();
     static final byte[] TAG_STOP = "</PubmedArticle>".getBytes();
     static final byte[] TAG_XML = "<?xml version=\"1.0\"?>\n".getBytes();
+
+    static final long EPOCH = 18000000l;
     
     StringBuilder content = new StringBuilder ();
     LinkedList<String> stack = new LinkedList<>();
@@ -30,7 +32,7 @@ public class PubMedSax extends DefaultHandler {
     StringBuilder title = new StringBuilder ();
     PubMedDoc doc;
     Calendar cal = Calendar.getInstance();
-    String idtype, ui, majorTopic, lang;
+    String idtype, ui, majorTopic, lang, pubstatus;
     MeshHeading mh;
     final MeshDb mesh;
     Predicate<PubMedDoc> consumer;
@@ -200,10 +202,12 @@ public class PubMedSax extends DefaultHandler {
         case "PubmedArticle":
             //doc = new PubMedDoc ();
             break;
-        case "PubDate":
-        case "DateRevised":
+            
+        case "PubDate":  case "DateRevised": case "PubMedPubDate":
             cal.clear();
+            pubstatus = attrs.getValue("PubStatus");
             break;
+            
         case "ArticleId":
             idtype = attrs.getValue("IdType");
             break;
@@ -277,15 +281,20 @@ public class PubMedSax extends DefaultHandler {
             break;
             
         case "Year":
-            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
+            if ("PubDate".equals(parent)
+                || "DateRevised".equals(parent)
+                || "PubMedPubDate".equals(parent)) {
                 cal.set(Calendar.YEAR, Integer.parseInt(value));
+            }
             break;
         case "Month":
-            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
+            if ("PubDate".equals(parent) || "DateRevised".equals(parent)
+                || "PubMedPubDate".equals(parent))
                 cal.set(Calendar.MONTH, PubMedDoc.parseMonth(value));
             break;
         case "Day":
-            if ("PubDate".equals(parent) || "DateRevised".equals(parent))
+            if ("PubDate".equals(parent) || "DateRevised".equals(parent)
+                || "PubMedPubDate".equals(parent))
                 cal.set(Calendar.DAY_OF_MONTH, Integer.parseInt(value));
             break;
             
@@ -295,6 +304,12 @@ public class PubMedSax extends DefaultHandler {
 
         case "DateRevised":
             doc.revised = cal.getTime();
+            break;
+
+        case "PubMedPubDate":
+            if (doc.date.getTime() == EPOCH && "received".equals(pubstatus)) {
+                doc.date = cal.getTime();
+            }
             break;
             
         case "Title":
@@ -457,8 +472,11 @@ public class PubMedSax extends DefaultHandler {
             System.exit(1);
         }
 
+        Calendar cal = Calendar.getInstance();
         PubMedSax pms = new PubMedSax (d -> {
-                Logger.debug(d.getPMID()+": "+d.getTitle()+"\n"+d.abs);
+                cal.setTime(d.date);
+                Logger.debug(d.getPMID()+": ["+cal.get(Calendar.YEAR)+"] "
+                             +d.getTitle()+"\n"+d.abs);
                 //Logger.debug("-------\n\""+new String (d.xml)+"\"");
                 return true;
             });

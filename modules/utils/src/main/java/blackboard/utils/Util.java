@@ -1,11 +1,52 @@
 package blackboard.utils;
 
 import java.util.*;
+import java.util.regex.*;
 import play.Logger;
 import play.mvc.Http;
 import java.security.MessageDigest;
 
 public class Util {
+    static final Pattern SLOP = Pattern.compile("~([\\d+])$");
+    static final Pattern QUOTE =
+        Pattern.compile("([\\+~-])?\"([^\"]+)\"(~[\\d+])?");
+    static Pattern TOKEN = Pattern.compile("\\s*([^\\s]+|$)\\s*");
+
+    public static class QueryTokenizer {
+        public final List<String> tokens = new ArrayList<>();
+        public QueryTokenizer (String text) {
+            List<int[]> matches = new ArrayList<>();
+            Matcher m = QUOTE.matcher(text);
+            while (m.find()) {
+                int[] r = new int[]{m.start(), m.end()};
+                matches.add(r);
+            }
+            
+            m = TOKEN.matcher(text);
+            while (m.find()) {
+                int s = m.start();
+                int e = m.end();
+                boolean valid = true;
+                for (int[] r : matches) {
+                    if ((s >= r[0] && s < r[1])
+                        || (e > r[0] && e < r[1])) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (valid && s < e)
+                    matches.add(new int[]{s,e});
+            }
+
+            Collections.sort(matches, (a, b) -> a[0] - b[0]);
+            for (int[] r : matches) {
+                tokens.add(text.substring(r[0], r[1]).trim());
+            }
+        }
+        
+        public List<String> tokens () { return tokens; }
+    }
+    
     private Util () {
     }
 
@@ -146,5 +187,35 @@ public class Util {
             }
         }
         return pages;
+    }
+
+    public static String queryRewrite (String query) {
+        QueryTokenizer tokenizer = new QueryTokenizer (query);
+        StringBuilder q = new StringBuilder ();
+        for (String tok : tokenizer.tokens()) {
+            if (q.length() > 0)
+                q.append(" ");
+            char ch = tok.charAt(0);
+            if (ch == '+' || ch == '-')
+                q.append(tok); // as-is
+            else if (ch == '~')
+                q.append(tok.substring(1)); // optional token
+            else if (ch == '"') {
+                int slop = 0;
+                Matcher m = SLOP.matcher(tok);
+                if (m.find()) {
+                    slop = Integer.parseInt(tok.substring(m.start()+1));
+                    tok = tok.substring(0, m.start());
+                }
+                
+                q.append("+"+tok);
+                if (slop > 0)
+                    q.append("~"+slop);
+            }
+            else
+                q.append("+"+tok);
+            //Logger.debug("TOKEN: <<"+tok+">>");
+        }
+        return q.toString();
     }
 }
