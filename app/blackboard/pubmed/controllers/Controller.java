@@ -50,10 +50,14 @@ public class Controller extends play.mvc.Controller {
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
         lifecycle.addStopHook(() -> {
+                shutdown ();
                 return CompletableFuture.completedFuture(null);
             });
         
         Logger.debug("$$" +getClass().getName()+": "+pubmed);
+    }
+
+    public void shutdown () {
     }
     
     public Result index () {

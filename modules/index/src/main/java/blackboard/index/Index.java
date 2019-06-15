@@ -252,6 +252,7 @@ public class Index implements AutoCloseable, Fields {
         public final String name;
         public final List<String> types = new ArrayList<>();
         public Number score;
+        public String source;
         public Object context; // optional context for the concept
 
         public Concept (String ui, String name) {

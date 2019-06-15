@@ -12,7 +12,7 @@ import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import play.Configuration;
 import play.mvc.*;
-import play.libs.ws.WSResponse;
+
 import play.Logger;
 import play.Environment;
 import play.libs.Json;
@@ -38,10 +38,11 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
             this.refs = references;
         }
     }
-        
+
     @Inject
     public KnowledgeApp (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                         SyncCacheApi cache, ApplicationLifecycle lifecycle) {
+                         SyncCacheApi cache, Configuration config,
+                         ApplicationLifecycle lifecycle) {
         super (ec, pubmed, cache, lifecycle);
     }
 

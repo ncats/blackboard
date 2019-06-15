@@ -53,6 +53,9 @@
         <li class="nav-item">
           <a class="nav-link" href="@routes.KnowledgeApp.index">Home</a>
         </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="#">publications (@result.total)</a>
+        </li>
       </ul>
       <form class="form-inline my-2 my-lg-0" method="GET"
             action="@routes.KnowledgeApp.search(null)">
@@ -86,7 +89,7 @@
       <div class="col-md-3">
         @** CONTEXT **@
         @contextcard(result.query){
-          @result.total documents matched
+          @result.total document@if(result.total!=1){s} matched
         }
         @if(refs != null && refs.size > 0){
           @refcard(refs)

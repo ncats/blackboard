@@ -2,19 +2,25 @@
 @(q: SearchQuery)(footer: Html)
 <div class="card" style="margin-top: 10px;">
   @if(q.getQuery.isInstanceOf[String]) {
-  <div class="card-header">
-    @if(q.getField != null){
-      <strong>@q.getField</strong>:
-      }
-      <code>@q.getQuery</code>
-  </div>
-  <div class="card-body" id="text-query-context">
-    @if(!q.getConcepts.isEmpty){
-      @for(c <- q.getConcepts){
-        <p class="card-text"><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> @c.types</p>
-      }
-    }
-  </div>
+    <div class="card-header" style="padding-bottom:0px">
+      <div class="alert alert-success" role="alert">
+        @if(q.getField != null){
+          <strong>@q.getField</strong>:
+          }
+          <code>@q.getQuery</code>
+    </div>
+    </div>
+    <div class="collapse show" id="query-info" aria-expanded="true">
+      <ul class="list-group list-group-flush">
+        @if(!q.getConcepts.isEmpty){
+          @for(c <- q.getConcepts){
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <p class="card-text"><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> @c.types</p>
+            </li>
+          }
+        }
+      </ul>
+    </div>
   }
   <div class="card-footer">
     @footer

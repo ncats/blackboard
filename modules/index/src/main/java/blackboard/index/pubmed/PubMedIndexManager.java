@@ -15,6 +15,7 @@ import com.typesafe.config.Config;
 import play.api.Configuration;
 import play.inject.ApplicationLifecycle;
 import play.cache.SyncCacheApi;
+import play.libs.ws.*;
 
 import akka.actor.ActorSystem;
 import akka.actor.AbstractActor;
@@ -81,6 +82,58 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
     }
+
+    static class DiseaseActor extends AbstractActor {
+        static Props props (WSClient wsclient, String url) {
+            return Props.create
+                (DiseaseActor.class, () -> new DiseaseActor (wsclient, url));
+        }
+
+        final WSClient wsclient;
+        final String url;
+        public DiseaseActor (WSClient wsclient, String url) {
+            this.wsclient = wsclient;
+            this.url = url;
+        }
+
+        @Override
+        public void preStart () {
+            Logger.debug("### "+self ()+ "...initialized!");
+        }
+
+        @Override
+        public void postStop () {
+            Logger.debug("### "+self ()+"...stopped!");
+        }
+
+        @Override
+        public Receive createReceive () {
+            return receiveBuilder()
+                .match(SearchQuery.class, this::doQuery)
+                .build();
+        }
+
+        void doQuery (SearchQuery query) {
+            Logger.debug(self()+": query="+query);
+            try {
+                long start = System.currentTimeMillis();
+                WSRequest req = wsclient.url(url+query.getQuery());
+                WSResponse res = req.get().toCompletableFuture().get();
+                Logger.debug(self()+"  ++++ "+req.getUrl()
+                             +"..."+res.getStatus());
+                if (200 == res.getStatus()) {
+                    JsonNode json = res.asJson();
+                    getSender().tell(json, getSelf ());
+                }
+                Logger.debug(self()+": search executed in "+String.format
+                             ("%1$.3fs",
+                              1e-3*(System.currentTimeMillis()-start)));
+            }
+            catch (Exception ex) {
+                Logger.error(self()+": Can't execute search api", ex);
+            }
+        }
+    }
     
     static class PubMedIndexActor extends AbstractActor {
         static Props props (PubMedIndexFactory pmif, File db) {
@@ -139,23 +192,30 @@ public class PubMedIndexManager implements AutoCloseable {
     }
     
     final List<ActorRef> indexes = new ArrayList<>();
-    final ActorRef metamap;
+    final ActorRef metamap, disease;
     final ActorSystem actorSystem;
     final int maxTimeout, maxTries, maxHits;
+    final String diseaseApi;
     final SyncCacheApi cache;
     final UMLSKSource umls;
+    final WSClient wsclient;
     
     @Inject
     public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
                                UMLSKSource umls, ActorSystem actorSystem,
-                               SyncCacheApi cache,
+                               SyncCacheApi cache, WSClient wsclient,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
         
         if (!conf.hasPath("indexes"))
             throw new IllegalArgumentException
                 ("No app.pubmed.indexes property defined!");
-
+        
+        if (!conf.hasPath("disease-api"))
+            Logger.warn("No disease-api property defined!");
+        diseaseApi = conf.hasPath("disease-api")
+            ? conf.getString("disease-api") : null;
+            
         File dir = new File
             (conf.hasPath("base") ? conf.getString("base") : ".");
         if (!dir.exists())
@@ -181,6 +241,10 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         metamap = actorSystem.actorOf(MetaMapActor.props(umls));
+        disease = diseaseApi != null ?
+            actorSystem.actorOf(DiseaseActor.props(wsclient, diseaseApi))
+            : null;
+        
         lifecycle.addStopHook(() -> {
                 close ();
                 return CompletableFuture.completedFuture(null);
@@ -189,15 +253,20 @@ public class PubMedIndexManager implements AutoCloseable {
         this.umls = umls;
         this.actorSystem = actorSystem;
         this.cache = cache;
+        this.wsclient = wsclient;
         
         Logger.debug("$$$$ "+getClass().getName()
                      +": base="+dir
                      +" max-hits="+maxHits
                      +" max-timeout="+maxTimeout
-                     +" indexes="+indexes);
+                     +" indexes="+indexes
+                     +" disease="+diseaseApi);
     }
 
     public void close () throws Exception {
+        wsclient.close();
+        if (disease != null)
+            disease.tell(PoisonPill.getInstance(), ActorRef.noSender());
         metamap.tell(PoisonPill.getInstance(), ActorRef.noSender());
         for (ActorRef actorRef : indexes) {
             actorRef.tell(PoisonPill.getInstance(), ActorRef.noSender());
@@ -260,6 +329,19 @@ public class PubMedIndexManager implements AutoCloseable {
             }
             catch (TimeoutException ex) {
                 Logger.warn("Unable to process query with MetMap: "+q);
+            }
+
+            if (disease != null) {
+                inbox.send(disease, q);
+                try {
+                    JsonNode json = (JsonNode) inbox.receive
+                        (Duration.ofSeconds(5));
+                    Logger.debug("####### q="+json.get("query").asText()
+                                 +" total="+json.get("total").asInt());
+                }
+                catch (TimeoutException ex) {
+                    Logger.warn("Unable to process query with disease api: "+q);
+                }
             }
         }
         
