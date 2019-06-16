@@ -42,6 +42,7 @@ lazy val root = (project in file("."))
     ui,
     index,
     utils,
+    disease,
     pharos,
     biothings,
     beacons,
@@ -57,6 +58,7 @@ lazy val root = (project in file("."))
     ui,
     index,
     utils,
+    disease,
     pharos,
     biothings,
     beacons,
@@ -115,6 +117,14 @@ lazy val utils =  (project in file("modules/utils"))
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
 ).dependsOn(buildinfo).aggregate(buildinfo)
+
+lazy val disease =  (project in file("modules/disease"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "disease",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(core).aggregate(core)
 
 lazy val pharos = (project in file("modules/pharos"))
   .enablePlugins(PlayJava)

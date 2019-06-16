@@ -1,0 +1,1 @@
+GET /   blackboard.disease.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)

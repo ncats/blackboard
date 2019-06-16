@@ -307,7 +307,8 @@ public class PubMedSax extends DefaultHandler {
             break;
 
         case "PubMedPubDate":
-            if (doc.date.getTime() == EPOCH && "received".equals(pubstatus)) {
+            if (doc.date.getTime() == EPOCH
+                || cal.getTime().compareTo(doc.date) < 0) {
                 doc.date = cal.getTime();
             }
             break;
