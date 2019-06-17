@@ -6,6 +6,13 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.databind.JsonNode;
 
 public class Disease {
+    // different fields to retrieve disease name
+    static final String[] FIELDS = {
+        "name",
+        "NAME",
+        "label"
+    };
+    
     public final String name;
     public String source;
     public final List<String> labels = new ArrayList<>();
@@ -22,13 +29,19 @@ public class Disease {
         JsonNode payload = json.at("/payload/0");
         if (payload.isMissingNode())
             throw new IllegalArgumentException ("Not a valid disease json!");
-        JsonNode n = payload.get("name");
-        if (n == null)
-            n = payload.get("label");
+
+        JsonNode n = null;
+        for (String s : FIELDS) {
+            n = payload.get(s);
+            if (n != null)
+                break;
+        }
+        
         if (n == null)
             throw new IllegalArgumentException
                 ("Disease json has neither \"name\" nor \"label\"!\n"
                  +payload);
+        
         Disease d = new Disease (n.asText());
         for (Iterator<Map.Entry<String, JsonNode>> it = payload.fields();
              it.hasNext(); ) {
