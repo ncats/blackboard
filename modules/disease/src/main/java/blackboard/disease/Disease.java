@@ -41,6 +41,9 @@ public class Disease {
                      || "created".equals(me.getKey())) {
                 d.properties.put(me.getKey(), value.asLong());
             }
+            else if ("is_rare".equals(me.getKey())) {
+                d.properties.put(me.getKey(), value.asBoolean());
+            }
             else if (value.isArray()) {
                 String[] vals = new String[value.size()];
                 for (int i = 0; i < vals.length; ++i)

@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import blackboard.disease.*;
+import blackboard.utils.Util;
 
 public class Controller extends play.mvc.Controller {
     final protected HttpExecutionContext ec;
@@ -48,15 +49,23 @@ public class Controller extends play.mvc.Controller {
         Logger.debug("$$" +getClass().getName());
     }
 
+    String getURL (Call call) {
+        StringBuilder url = new StringBuilder ();
+        for (Map.Entry<String, String[]> me
+                 : request().queryString().entrySet()) {
+            switch (me.getKey()) {
+            case "q": case "top": case "skip":
+                break; // use reverse routing
+            default:
+                for (String v : me.getValue())
+                    url.append("&" + me.getKey()+"="+v);
+            }
+        }
+        return call.url()+url;
+    }
+    
     public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
-        if (q == null || "".equals(q)) {
-            return supplyAsync (() -> {
-                    return redirect
-                        (blackboard.controllers.routes.KnowledgeApp.index());
-                }, ec.current());
-        }
-
         return supplyAsync (() -> {
                 try {
                     return _search (q, skip, top);
@@ -72,5 +81,33 @@ public class Controller extends play.mvc.Controller {
     public Result _search (String q, int skip, int top) {
         DiseaseResult result = disease.search(q, skip, top);
         return ok ((JsonNode)mapper.valueToTree(result));
+    }
+
+    public Result _diseases (String q, int skip, int top) {
+        DiseaseResult result = disease.search(q, skip, top);
+        int page = skip / top + 1;
+        int[] pages = Util.paging(top, page, result.size());
+        Map<Integer, String> urls = new TreeMap<>();
+        for (int i = 0; i < pages.length; ++i) {
+            Call call = routes.Controller.diseases
+                (q, (pages[i]-1)*top, top);
+            urls.put(pages[i], getURL (call));
+        }
+        
+        return ok (blackboard.disease.views.html.diseases.render
+                   (page, pages, urls, result));
+    }
+    
+    public CompletionStage<Result> diseases (String q, int skip, int top) {
+        Logger.debug(">> "+request().uri());
+        if (q == null || "".equals(q)) {
+            return supplyAsync (() -> {
+                    return redirect
+                        (blackboard.controllers.routes.KnowledgeApp.index());
+                }, ec.current());
+        }
+        return supplyAsync (() -> {
+                return _diseases (q, skip, top);
+            }, ec.current());
     }
 }

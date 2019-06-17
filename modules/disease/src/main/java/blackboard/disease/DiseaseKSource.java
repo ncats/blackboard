@@ -115,13 +115,11 @@ public class DiseaseKSource implements KSource, KType {
         }
     }
     
-
-    final ObjectMapper mapper = Json.mapper();
     final SyncCacheApi cache;
     final WSClient wsclient;
     final ActorSystem actorSystem;
     final String api;
-    final ActorRef diseaseActor;
+    final ActorRef apiActor;
     final KSourceProvider ksp;
     
     @Inject
@@ -139,9 +137,8 @@ public class DiseaseKSource implements KSource, KType {
         if (api == null)
             throw new IllegalArgumentException
                 (ksp.getId()+": No api property defined for diseases!");
-        diseaseActor = actorSystem.actorOf(DiseaseActor.props(wsclient, api));
+        apiActor = actorSystem.actorOf(DiseaseActor.props(wsclient, api));
             
-        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
         lifecycle.addStopHook(() -> {
                 wsclient.close();
                 return CompletableFuture.completedFuture(null);
@@ -157,24 +154,29 @@ public class DiseaseKSource implements KSource, KType {
                      +" \""+kgraph.getName()+"\"");
     }
 
-    public DiseaseResult search (String q, int skip, int top) {
+    public DiseaseResult _search (String q, int skip, int top) {
+        DiseaseQuery dq = new DiseaseQuery (q, skip, top);
+        Inbox inbox = Inbox.create(actorSystem);
+        inbox.send(apiActor, dq);
+        try {
+            DiseaseResult result = (DiseaseResult)
+                inbox.receive(Duration.ofSeconds(5));
+            return result;
+        }
+        catch (TimeoutException ex) {
+            Logger.error("Unable to process query "
+                         +"with disease api: "+q);
+        }
+        
+        return DiseaseResult.EMPTY;
+    }
+    
+    public DiseaseResult search (final String q, final int skip,
+                                 final int top) {
         return cache.getOrElseUpdate
             (Util.sha1(q)+"/"+skip+"/"+top, new Callable<DiseaseResult>() {
                     public DiseaseResult call () throws Exception {
-                        DiseaseQuery dq = new DiseaseQuery (q, skip, top);
-                        Inbox inbox = Inbox.create(actorSystem);
-                        inbox.send(diseaseActor, dq);
-                        try {
-                            DiseaseResult result = (DiseaseResult)
-                                inbox.receive(Duration.ofSeconds(5));
-                            return result;
-                        }
-                        catch (TimeoutException ex) {
-                            Logger.error("Unable to process query "
-                                         +"with disease api: "+q);
-                        }
-                        
-                        return DiseaseResult.EMPTY;
+                        return _search (q, skip, top);
                     }
                 });
     }

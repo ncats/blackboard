@@ -3,9 +3,9 @@
 @import _root_.blackboard.index.pubmed.PubMedIndex.SearchResult
 @import _root_.blackboard.disease.controllers.routes
 @(page: Integer, pages: Array[Int], urls: Map[Integer, String],
-  disease: DiseaseResult, result: SearchResult)
+  disease: DiseaseResult)
 
-@_root_.views.html.ui.main("NCATS Disease: "+result.query.getQuery){
+@_root_.views.html.ui.main("NCATS Disease: "+disease.query.getQuery){
   <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
     <a class="navbar-brand" href="https://ncats.nih.gov">
       <img src='@_root_.controllers.routes.Assets.versioned("images/ncats-logo.png")'
@@ -24,14 +24,14 @@
              href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#">publications (@result.total)</a>
+          <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.search(disease.query.getQuery)">publications (<span id="pub-count"></span>)</a>
         </li>
         <li class="nav-item active">
           <a class="nav-link" href="#">diseases (@disease.total)</a>
         </li>        
       </ul>
       <form class="form-inline my-2 my-lg-0" method="GET"
-            action="@routes.Controller.search(null)">
+            action="@routes.Controller.diseases(null)">
         <input class="form-control mr-sm-2" type="search" name="q"
                placeholder="ENTER SEARCH TERMS..." style="width:20em">
         <button class="btn btn-primary my-2 my-sm-0"
@@ -44,6 +44,19 @@
     </div>
   </div>
   }(HtmlFormat.empty){
+      $(document).ready(function() {
+          console.log('>>>>> @HtmlFormat.raw(request.uri)');
+          $.ajax({
+              url: '@_root_.blackboard.pubmed.controllers.routes.Controller.search(disease.query.getQuery)',
+              success: function(data) {
+                  $('#pub-count').html(''+data.total);
+              },
+              error: function(){
+                  $('#pub-count').html('?');
+                  console.log('failed to retrieve publication count!');
+              }
+          });
+      });
   }
 
   @paging() = {

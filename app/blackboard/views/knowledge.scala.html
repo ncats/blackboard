@@ -56,6 +56,9 @@
         <li class="nav-item active">
           <a class="nav-link" href="#">publications (@result.total)</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="@_root_.blackboard.disease.controllers.routes.Controller.diseases(result.query.getQuery.toString)">diseases (<span id="disease-count"></span>)</a>
+        </li>
       </ul>
       <form class="form-inline my-2 my-lg-0" method="GET"
             action="@routes.KnowledgeApp.search(null)">
@@ -113,6 +116,17 @@
             console.log(id+'='+f.name+'/'+f.value+' ');
          }
       }
+
+      $.ajax({
+          url: '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)',
+          success: function(data) {
+              $('#disease-count').html(''+data.total);
+          },
+          error: function(){
+              $('#disease-count').html('?');
+              console.log('failed to retrieve disease count!');
+          }
+      });
   });
   
   function filterToggle (el) {    
