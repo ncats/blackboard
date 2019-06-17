@@ -241,29 +241,43 @@ public class PubMedIndexManager implements AutoCloseable {
             (PubMedIndexManager.class.getName()+"/facets",
              new Callable<SearchResult>() {
                  public SearchResult call () {
-                        return search (tq);
-                    }
-                });        
+                     return search (tq);
+                 }
+             });        
     }
 
-    public SearchResult search (SearchQuery q) {
-        Logger.debug("#### Query: "+q);
-        if (q.getQuery() != null) {
-            Inbox inbox = Inbox.create(actorSystem);
-            // first pass this through metamap
-            inbox.send(metamap, q);
-            try {
-                List<Concept> concepts = (List<Concept>)
-                    inbox.receive(Duration.ofSeconds(5));
-                Logger.debug("#### "+concepts.size()
-                             +" concept(s) found from query "+q);
-                q.getConcepts().addAll(concepts);
-            }
-            catch (TimeoutException ex) {
-                Logger.warn("Unable to process query with MetMap: "+q);
-            }
+    public List<Concept> _getConcepts (SearchQuery q) {
+        Inbox inbox = Inbox.create(actorSystem);
+        // first pass this through metamap
+        inbox.send(metamap, q);
+        List<Concept> concepts = new ArrayList<>();
+        try {
+            List<Concept> c = (List<Concept>)
+                inbox.receive(Duration.ofSeconds(5));
+            concepts.addAll(c);
         }
-        
+        catch (TimeoutException ex) {
+            Logger.warn("Unable to process query with MetMap: "+q);
+        }
+        return concepts;
+    }
+    
+    public List<Concept> getConcepts (SearchQuery q) {
+        List<Concept> concepts = new ArrayList<>();
+        if (q.getQuery() != null) {
+            concepts = cache.getOrElseUpdate
+                (q.cacheKey()+"/concepts", new Callable<List<Concept>> () {
+                        public List<Concept> call () {
+                            return _getConcepts (q);
+                        }
+                    });
+            Logger.debug("#### "+concepts.size()
+                         +" concept(s) found from query "+q);
+        }
+        return concepts;
+    }
+
+    public SearchResult[] getResults (SearchQuery q) {
         // now do the search
         Inbox inbox = Inbox.create(actorSystem);
         for (ActorRef actorRef : indexes)
@@ -284,9 +298,15 @@ public class PubMedIndexManager implements AutoCloseable {
                             +" within alloted time; retrying "+ntries);
             }
         }
-        
-        return PubMedIndex.merge
-            (q.skip(), q.top(), results.toArray(new SearchResult[0]));
+        return results.toArray(new SearchResult[0]);
+    }
+    
+    public SearchResult search (SearchQuery q) {
+        Logger.debug("#### Query: "+q);
+        q.getConcepts().addAll(getConcepts (q));
+        SearchResult result = PubMedIndex.merge(getResults (q));
+        //Logger.debug("#### SearchResult: "+result.size()+" "+result);
+        return result.page(q.skip(), q.top());
     }
 
     public MatchedDoc getDoc (Long pmid) {

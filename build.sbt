@@ -124,7 +124,7 @@ lazy val disease =  (project in file("modules/disease"))
     name := "disease",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
+).dependsOn(core,utils).aggregate(core,utils)
 
 lazy val pharos = (project in file("modules/pharos"))
   .enablePlugins(PlayJava)

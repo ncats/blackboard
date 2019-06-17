@@ -6,6 +6,7 @@ import javax.inject.Named;
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 
 import blackboard.*;
 import static blackboard.KEntity.*;
@@ -36,6 +37,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
+
+import blackboard.utils.Util;
 
 public class DiseaseKSource implements KSource, KType {
     static class DiseaseActor extends AbstractActor {
@@ -102,7 +105,14 @@ public class DiseaseKSource implements KSource, KType {
     static void parseDiseaseResult (DiseaseResult result, JsonNode json) {
         Logger.debug("####### q="+json.get("query").asText()
                      +" total="+json.get("total").asInt());
-
+        result.total = json.get("total").asInt();
+        JsonNode contents = json.get("contents");
+        if (contents != null) {
+            for (int i = 0; i < contents.size(); ++i) {
+                Disease d = Disease.getInstance(contents.get(i));
+                result.add(d);
+            }
+        }
     }
     
 
@@ -148,18 +158,24 @@ public class DiseaseKSource implements KSource, KType {
     }
 
     public DiseaseResult search (String q, int skip, int top) {
-        DiseaseQuery dq = new DiseaseQuery (q, skip, top);
-        Inbox inbox = Inbox.create(actorSystem);
-        inbox.send(diseaseActor, dq);
-        try {
-            DiseaseResult result = (DiseaseResult) inbox.receive
-                (Duration.ofSeconds(5));
-            return result;
-        }
-        catch (TimeoutException ex) {
-            Logger.error("Unable to process query with disease api: "+q);
-        }
-        
-        return DiseaseResult.EMPTY;
+        return cache.getOrElseUpdate
+            (Util.sha1(q)+"/"+skip+"/"+top, new Callable<DiseaseResult>() {
+                    public DiseaseResult call () throws Exception {
+                        DiseaseQuery dq = new DiseaseQuery (q, skip, top);
+                        Inbox inbox = Inbox.create(actorSystem);
+                        inbox.send(diseaseActor, dq);
+                        try {
+                            DiseaseResult result = (DiseaseResult)
+                                inbox.receive(Duration.ofSeconds(5));
+                            return result;
+                        }
+                        catch (TimeoutException ex) {
+                            Logger.error("Unable to process query "
+                                         +"with disease api: "+q);
+                        }
+                        
+                        return DiseaseResult.EMPTY;
+                    }
+                });
     }
 }

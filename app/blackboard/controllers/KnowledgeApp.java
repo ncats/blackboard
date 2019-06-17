@@ -143,7 +143,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         
         return ok (blackboard.views.html.knowledge.render
                    (KnowledgeApp.this, page, pages, urls,
-                    PubMedIndex.merge(skip, top, sref.refs), null));
+                    sref.refs.page(skip, top), null));
     }
     
     public CompletionStage<Result> references (String q, int skip, int top) {

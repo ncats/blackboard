@@ -425,6 +425,13 @@ public class Index implements AutoCloseable, Fields {
             this.query = query;
             this.fdim = fdim;
         }
+
+        protected SearchResult (SearchResult result) {
+            this.query = result.query;
+            this.fdim = result.fdim;
+            this.total = result.total;
+            this.facets.addAll(result.facets);
+        }
         
         protected abstract boolean process
             (IndexSearcher searcher, ResultDoc doc);

@@ -431,13 +431,20 @@ public class PubMedIndex extends MetaMapIndex {
         final MeshDb mesh;
         final UMLSKSource umls;
         final SyncCacheApi cache;
-
+        
         protected SearchResult () {
             this (null, null, null, null);
         }
 
         protected SearchResult (SearchQuery query) {
             this (query, null, null, null);
+        }
+
+        protected SearchResult (SearchResult result) {
+            super (result);
+            mesh = result.mesh;
+            umls = result.umls;
+            cache = result.cache;
         }
         
         protected SearchResult (SearchQuery query, SyncCacheApi cache,
@@ -446,6 +453,16 @@ public class PubMedIndex extends MetaMapIndex {
             this.mesh = mesh != null ? mesh.getMeshDb() : null;
             this.umls = umls;
             this.cache = cache;
+        }
+
+        public SearchResult page (int skip, int top) {
+            if (skip > docs.size())
+                throw new IllegalArgumentException
+                    ("Can't skip beyond total number documents!");
+            int max = Math.min(docs.size(), skip+top);
+            SearchResult result = new SearchResult (this);
+            result.docs.addAll(docs.subList(skip, max));
+            return result;
         }
         
         @Override
@@ -644,12 +661,6 @@ public class PubMedIndex extends MetaMapIndex {
     }
     
     public static SearchResult merge (SearchResult... results) {
-        return merge (0, 0, results);
-    }
-    
-    public static SearchResult merge
-        (int skip, int top, SearchResult... results) {
-        
         Map<String, List<Facet>> facets = new TreeMap<>();
         List<MatchedDoc> docs = new ArrayList<>();
         SearchResult merged = null;
@@ -692,16 +703,7 @@ public class PubMedIndex extends MetaMapIndex {
         */
         
         Collections.sort(docs);
-        if (top <= 0) {
-            merged.docs.addAll(docs);
-        }
-        else {
-            if (skip > docs.size())
-                skip = 0;
-            int max = Math.min(docs.size(), skip+top);
-            merged.docs.addAll(docs.subList(skip, max));
-        }
-        
+        merged.docs.addAll(docs);
         return merged;
     }
 

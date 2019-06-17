@@ -1,0 +1,75 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.disease._
+@import _root_.blackboard.index.pubmed.PubMedIndex.SearchResult
+@import _root_.blackboard.disease.controllers.routes
+@(page: Integer, pages: Array[Int], urls: Map[Integer, String],
+  disease: DiseaseResult, result: SearchResult)
+
+@_root_.views.html.ui.main("NCATS Disease: "+result.query.getQuery){
+  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="https://ncats.nih.gov">
+      <img src='@_root_.controllers.routes.Assets.versioned("images/ncats-logo.png")'
+           height="65%" width="65%">
+    </a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarTogglerMenu"
+            aria-controls="navbarTogglerMenu"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarTogglerMenu">
+      <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+        <li class="nav-item">
+          <a class="nav-link"
+             href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">publications (@result.total)</a>
+        </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="#">diseases (@disease.total)</a>
+        </li>        
+      </ul>
+      <form class="form-inline my-2 my-lg-0" method="GET"
+            action="@routes.Controller.search(null)">
+        <input class="form-control mr-sm-2" type="search" name="q"
+               placeholder="ENTER SEARCH TERMS..." style="width:20em">
+        <button class="btn btn-primary my-2 my-sm-0"
+                type="submit" style="border-radius:3rem">Search</button>
+      </form>
+    </div>
+  </nav>  
+  <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
+    <div class="row">
+    </div>
+  </div>
+  }(HtmlFormat.empty){
+  }
+
+  @paging() = {
+    @if(pages.length > 0) {
+      <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+          @for(i <- pages) {
+            @if(i == 0) {
+              <li class="page-item disabled">
+                <a class="page-link" href="#" tabindex="-1">
+                  <span><i class="fa fa-ellipsis-h"></i></span>
+                </a>
+              </li>
+              }else{
+              @if(i == page) {
+                <li class="page-item active">
+                  <a class="page-link" tabindex="-1" href="#">@i
+                    <span class="sr-only">(current)</span></a></li>
+                }else{
+                <li class="page-item">
+                  <a class="page-link" href="@urls(i)">@i</a></li>
+                }
+                }
+                }
+        </ul>
+      </nav>
+      }
+      }
+      
