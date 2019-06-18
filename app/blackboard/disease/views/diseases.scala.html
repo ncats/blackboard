@@ -127,7 +127,11 @@
             }
           }
           <div class="card-footer">
-            <span class="badge badge-pill badge-light">@d.properties.get("id")</span>
+            <span class="badge badge-pill badge-light">
+              @if(d.getUrl != null){<a href="@d.getUrl">}
+                @d.getId
+                @if(d.getUrl != null){</a>}
+            </span>
             @for(l <- d.labels) {
               <span class="badge badge-pill badge-light">@l</span>
             }

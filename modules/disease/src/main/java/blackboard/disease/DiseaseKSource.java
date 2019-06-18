@@ -109,8 +109,13 @@ public class DiseaseKSource implements KSource, KType {
         JsonNode contents = json.get("contents");
         if (contents != null) {
             for (int i = 0; i < contents.size(); ++i) {
-                Disease d = Disease.getInstance(contents.get(i));
-                result.add(d);
+                try {
+                    Disease d = Disease.getInstance(contents.get(i));
+                    result.add(d);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't parse disease: "+contents.get(i), ex);
+                }
             }
         }
     }

@@ -13,10 +13,22 @@ public class Disease {
         "label"
     };
 
+    static final String[] ID_FIELDS = {
+        "notation",
+        "gard_id",
+        "id"
+    };
+
+    static final String[] URL_FIELDS = {
+        "uri",
+        "ghr-page"
+    };
+
     static final String[] DESC_FIELDS = {
         "Cause",
         "Diagnosis",
         "Inheritance",
+        "Symptoms",
         "definition",
         "description",
         "IAO_0000115",
@@ -87,7 +99,8 @@ public class Disease {
             if (label.startsWith("S_"))
                 d.source = label.substring(2);
             else if ("ENTITY".equalsIgnoreCase(label)
-                     || "COMPONENT".equalsIgnoreCase(label)) {
+                     || "COMPONENT".equalsIgnoreCase(label)
+                     || "Class".equalsIgnoreCase(label)) {
             }
             else {
                 d.labels.add(label);
@@ -113,6 +126,41 @@ public class Disease {
                 }
                 else {
                     return (String)desc;
+                }
+            }
+        }
+        return null;
+    }
+
+    @JsonIgnore
+    public String getId() {
+        for (String f : ID_FIELDS) {
+            Object value = properties.get(f);
+            if (value != null) {
+                String id = (String)value;
+                if (id.startsWith("http")) {
+                    int p = id.indexOf('#');
+                    if (p < 0)
+                        p = id.lastIndexOf('/');
+                    id = id.substring(p+1);
+                }
+                return id;
+            }
+        }
+        return null;
+    }
+
+    @JsonIgnore
+    public String getUrl () {
+        for (String f : URL_FIELDS) {
+            Object value = properties.get(f);
+            if (value != null) {
+                if ("GARD".equalsIgnoreCase(source)) {
+                    return "https://rarediseases.info.nih.gov/diseases/"
+                        +properties.get("id")+"/"+name.replaceAll("\\s","-");
+                }
+                else {
+                    return (String)value;
                 }
             }
         }
