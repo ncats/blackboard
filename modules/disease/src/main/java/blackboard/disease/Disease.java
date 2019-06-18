@@ -21,6 +21,7 @@ public class Disease {
 
     static final String[] URL_FIELDS = {
         "uri",
+        "url",
         "ghr-page"
     };
 
@@ -31,6 +32,7 @@ public class Disease {
         "Symptoms",
         "definition",
         "description",
+        "general-discussion",
         "IAO_0000115",
         "DEF",
         "SOS"
@@ -158,6 +160,10 @@ public class Disease {
                 if ("GARD".equalsIgnoreCase(source)) {
                     return "https://rarediseases.info.nih.gov/diseases/"
                         +properties.get("id")+"/"+name.replaceAll("\\s","-");
+                }
+                else if ("MEDGEN".equalsIgnoreCase(source)) {
+                    return "https://www.ncbi.nlm.nih.gov/medgen/?term="
+                        +properties.get("id");
                 }
                 else {
                     return (String)value;
