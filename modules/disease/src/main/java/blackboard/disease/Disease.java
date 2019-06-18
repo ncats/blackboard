@@ -154,20 +154,19 @@ public class Disease {
 
     @JsonIgnore
     public String getUrl () {
+        if ("GARD".equalsIgnoreCase(source)) {
+            return "https://rarediseases.info.nih.gov/diseases/"
+                +properties.get("id")+"/"+name.replaceAll("\\s","-");
+        }
+        else if ("MEDGEN".equalsIgnoreCase(source)) {
+            return "https://www.ncbi.nlm.nih.gov/medgen/?term="
+                +properties.get("id");
+        }
+
         for (String f : URL_FIELDS) {
             Object value = properties.get(f);
             if (value != null) {
-                if ("GARD".equalsIgnoreCase(source)) {
-                    return "https://rarediseases.info.nih.gov/diseases/"
-                        +properties.get("id")+"/"+name.replaceAll("\\s","-");
-                }
-                else if ("MEDGEN".equalsIgnoreCase(source)) {
-                    return "https://www.ncbi.nlm.nih.gov/medgen/?term="
-                        +properties.get("id");
-                }
-                else {
-                    return (String)value;
-                }
+                return (String)value;
             }
         }
         return null;
