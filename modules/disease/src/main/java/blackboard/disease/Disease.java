@@ -7,12 +7,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public class Disease {
     // different fields to retrieve disease name
-    static final String[] FIELDS = {
+    static final String[] NAME_FIELDS = {
         "name",
         "NAME",
         "label"
     };
-    
+
+    static final String[] DESC_FIELDS = {
+        "Cause",
+        "Diagnosis",
+        "Inheritance",
+        "definition",
+        "description",
+        "IAO_0000115",
+        "DEF",
+        "SOS"
+    };
+
+    public final Long id; // internal id
     public final String name;
     public String source;
     public final List<String> labels = new ArrayList<>();
@@ -21,7 +33,8 @@ public class Disease {
     @JsonIgnore public final List<Disease> parents = new ArrayList<>();
     @JsonIgnore public final List<Disease> children = new ArrayList<>();
 
-    protected Disease (String name) {
+    protected Disease (Long id, String name) {
+        this.id = id;
         this.name = name;
     }
 
@@ -31,7 +44,7 @@ public class Disease {
             throw new IllegalArgumentException ("Not a valid disease json!");
 
         JsonNode n = null;
-        for (String s : FIELDS) {
+        for (String s : NAME_FIELDS) {
             n = payload.get(s);
             if (n != null)
                 break;
@@ -42,7 +55,7 @@ public class Disease {
                 ("Disease json has neither \"name\" nor \"label\"!\n"
                  +payload);
         
-        Disease d = new Disease (n.asText());
+        Disease d = new Disease (payload.get("node").asLong(), n.asText());
         for (Iterator<Map.Entry<String, JsonNode>> it = payload.fields();
              it.hasNext(); ) {
             Map.Entry<String, JsonNode> me = it.next();
@@ -67,6 +80,7 @@ public class Disease {
                 d.properties.put(me.getKey(), value.asText());
             }
         }
+        
         JsonNode labels = json.at("/labels");
         for (int i = 0; i < labels.size(); ++i) {
             String label = labels.get(i).asText();
@@ -84,4 +98,24 @@ public class Disease {
 
     @JsonAnyGetter
     public Map<String, Object> getProperties () {  return properties;  }
+
+    @JsonIgnore
+    public String getSummary () {
+        for (String f : DESC_FIELDS) {
+            Object desc = properties.get(f);
+            if (desc != null) {
+                if (desc instanceof String[]) {
+                    String[] text = (String[])desc;
+                    StringBuilder sb = new StringBuilder (text[0]);
+                    for (int i = 1; i < text.length; ++i)
+                        sb.append("<br>"+text[i]);
+                    return sb.toString();
+                }
+                else {
+                    return (String)desc;
+                }
+            }
+        }
+        return null;
+    }
 }

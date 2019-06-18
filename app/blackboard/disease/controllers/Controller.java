@@ -86,7 +86,7 @@ public class Controller extends play.mvc.Controller {
     public Result _diseases (String q, int skip, int top) {
         DiseaseResult result = disease.search(q, skip, top);
         int page = skip / top + 1;
-        int[] pages = Util.paging(top, page, result.size());
+        int[] pages = Util.paging(top, page, result.total);
         Map<Integer, String> urls = new TreeMap<>();
         for (int i = 0; i < pages.length; ++i) {
             Call call = routes.Controller.diseases
