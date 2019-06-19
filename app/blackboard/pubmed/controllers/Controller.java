@@ -5,6 +5,7 @@ import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
@@ -209,21 +210,27 @@ public class Controller extends play.mvc.Controller {
     public Result _search (String q, int skip, int top) throws Exception {
         ObjectNode json = Json.newObject();
         SearchResult result = doSearch (q, skip, top);
-        ObjectNode query =
-            (ObjectNode) mapper.valueToTree(result.query);
-        query.put("rewrite", result.query.rewrite().toString());
+        final String key = result.query.cacheKey()+"/_search";
+        return cache.getOrElseUpdate(key, new Callable<Result>() {
+                public Result call () {
+                    Logger.debug("Cache missed: "+key);
+                    ObjectNode query =
+                        (ObjectNode) mapper.valueToTree(result.query);
+                    query.put("rewrite", result.query.rewrite().toString());
+                    
+                    json.put("query", query);
+                    json.put("count", result.size());
+                    json.put("total", result.total);
+                    
+                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    content.remove("query");
+                    content.remove("count");
+                    content.remove("total");
+                    json.put("content", content);
         
-        json.put("query", query);
-        json.put("count", result.size());
-        json.put("total", result.total);
-        
-        ObjectNode content = (ObjectNode)mapper.valueToTree(result);
-        content.remove("query");
-        content.remove("count");
-        content.remove("total");
-        json.put("content", content);
-        
-        return ok (json);
+                    return ok (json);
+                }
+            });
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
