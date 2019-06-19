@@ -123,8 +123,9 @@
             @defining(d.getSynonyms()){ synonyms =>
               @if(synonyms != null){
                 <ul>
+                  <li><a href='@_root_.blackboard.controllers.routes.KnowledgeApp.search("\""+d.name.trim+"\"~2")'>@d.name.trim</a></li>
                 @for(s <- synonyms){
-                  <li><a href='@_root_.blackboard.controllers.routes.KnowledgeApp.search("\""+s.trim+"\"")'>@s.trim</a></li>
+                  <li><a href='@_root_.blackboard.controllers.routes.KnowledgeApp.search("\""+s.trim+"\"~2")'>@s.trim</a></li>
                 }
                 </ul>
               }

@@ -304,9 +304,15 @@ public class PubMedIndexManager implements AutoCloseable {
     public SearchResult search (SearchQuery q) {
         Logger.debug("#### Query: "+q);
         q.getConcepts().addAll(getConcepts (q));
-        SearchResult result = PubMedIndex.merge(getResults (q));
-        //Logger.debug("#### SearchResult: "+result.size()+" "+result);
-        return result.page(q.skip(), q.top());
+        final String key = q.cacheKey()+"/"+q.skip()+"/"+q.top();
+        return cache.getOrElseUpdate
+            (key, new Callable<SearchResult>() {
+                 public SearchResult call () {
+                     Logger.debug("Cache missed: "+key);
+                     SearchResult result = PubMedIndex.merge(getResults (q));
+                     return result.page(q.skip(), q.top());
+                 }
+             });
     }
 
     public MatchedDoc getDoc (Long pmid) {
