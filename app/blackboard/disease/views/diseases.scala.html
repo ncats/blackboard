@@ -119,13 +119,22 @@
                  data-toggle="collapse">@d.name</a>
             </h5>
           </div>
-          @defining(d.getSummary){ summary =>
-            @if(summary != null){
-              <div class="card-body collapse show" id="disease-@d.id">
-              @HtmlFormat.raw(summary)
-              </div>
+          <div class="card-body collapse show" id="disease-@d.id">
+            @defining(d.getSynonyms()){ synonyms =>
+              @if(synonyms != null){
+                <ul>
+                @for(s <- synonyms){
+                  <li><a href='@_root_.blackboard.controllers.routes.KnowledgeApp.search("\""+s.trim+"\"")'>@s.trim</a></li>
+                }
+                </ul>
+              }
             }
-          }
+            @defining(d.getSummary){ summary =>
+              @if(summary != null){
+                @HtmlFormat.raw(summary)
+              }
+            }
+          </div>
           <div class="card-footer">
             <span class="badge badge-pill badge-light">
               @if(d.getUrl != null){<a href="@d.getUrl">}

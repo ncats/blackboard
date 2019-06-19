@@ -35,7 +35,18 @@ public class Disease {
         "general-discussion",
         "IAO_0000115",
         "DEF",
-        "SOS"
+        "SOS",
+        "P97"
+    };
+
+    static final String[] SYNONYM_FIELDS = {
+        "synonyms",
+        "SYNONYMS",
+        "altLabel",
+        "P90",
+        "alternative_term",
+        "hasExactSynonym",
+        "hasRelatedSynonym"
     };
 
     public final Long id; // internal id
@@ -167,6 +178,19 @@ public class Disease {
             Object value = properties.get(f);
             if (value != null) {
                 return (String)value;
+            }
+        }
+        return null;
+    }
+
+    @JsonIgnore
+    public String[] getSynonyms () {
+        for (String f : SYNONYM_FIELDS) {
+            Object value = properties.get(f);
+            if (value != null) {
+                if (value instanceof String[])
+                    return (String[])value;
+                return new String[]{value.toString()};
             }
         }
         return null;
