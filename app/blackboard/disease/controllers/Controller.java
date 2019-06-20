@@ -29,6 +29,7 @@ import blackboard.disease.*;
 import blackboard.utils.Util;
 
 public class Controller extends play.mvc.Controller {
+    static final JsonNode EMPTY_JSON = Json.newObject();
     final protected HttpExecutionContext ec;
     final protected ObjectMapper mapper = Json.mapper();
     final protected SyncCacheApi cache;
@@ -80,7 +81,11 @@ public class Controller extends play.mvc.Controller {
 
     public Result _search (String q, int skip, int top) {
         DiseaseResult result = disease.search(q, skip, top);
-        return ok ((JsonNode)mapper.valueToTree(result));
+        JsonNode json = mapper.valueToTree(result);
+        String path = request().getQueryString("path");
+        if (path != null)
+            json = json.at(path);
+        return ok (json.isMissingNode() ? EMPTY_JSON : json);
     }
 
     public Result _diseases (String q, int skip, int top) {

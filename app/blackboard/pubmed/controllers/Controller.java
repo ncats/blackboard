@@ -37,6 +37,7 @@ import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 
 public class Controller extends play.mvc.Controller {
+    public static final JsonNode EMPTY_JSON = Json.newObject();
     final protected HttpExecutionContext ec;
     final protected PubMedIndexManager pubmed;
     final protected ObjectMapper mapper = Json.mapper();
@@ -208,16 +209,15 @@ public class Controller extends play.mvc.Controller {
     }
     
     public Result _search (String q, int skip, int top) throws Exception {
-        ObjectNode json = Json.newObject();
         SearchResult result = doSearch (q, skip, top);
         final String key = result.query.cacheKey()+"/_search";
-        return cache.getOrElseUpdate(key, new Callable<Result>() {
-                public Result call () {
+        JsonNode json =  cache.getOrElseUpdate(key, new Callable<JsonNode>() {
+                public JsonNode call () {
                     Logger.debug("Cache missed: "+key);
                     ObjectNode query =
                         (ObjectNode) mapper.valueToTree(result.query);
                     query.put("rewrite", result.query.rewrite().toString());
-                    
+                    ObjectNode json = Json.newObject();                    
                     json.put("query", query);
                     json.put("count", result.size());
                     json.put("total", result.total);
@@ -228,9 +228,14 @@ public class Controller extends play.mvc.Controller {
                     content.remove("total");
                     json.put("content", content);
         
-                    return ok (json);
+                    return json;
                 }
             });
+        String path = request().getQueryString("path");
+        if (path != null) {
+            json = json.at(path);
+        }
+        return ok (json.isMissingNode() ? EMPTY_JSON : json);
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
@@ -260,7 +265,11 @@ public class Controller extends play.mvc.Controller {
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
-                    return ok (json);
+                    String path = request().getQueryString("path");
+                    JsonNode n = json;
+                    if (path != null)
+                        n = n.at(path);
+                    return ok (n.isMissingNode() ? EMPTY_JSON : n);
                 }
                 catch (Exception ex) {
                     Logger.error("Search failed", ex);

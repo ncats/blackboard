@@ -71,10 +71,13 @@
   }(HtmlFormat.empty){
       $(document).ready(function() {
           console.log('>>>>> @HtmlFormat.raw(request.uri)');
+          var url = '@_root_.blackboard.pubmed.controllers.routes.Controller.search(result.query.getQuery)';
+          url += (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
           $.ajax({
-              url: '@_root_.blackboard.pubmed.controllers.routes.Controller.search(result.query.getQuery)',
+              url: url,
               success: function(data) {
-                  $('#pub-count').html(''+data.total);
+                  console.log('***** '+url+' '+data);
+                  $('#pub-count').html(''+data);
               },
               error: function(){
                   $('#pub-count').html('?');

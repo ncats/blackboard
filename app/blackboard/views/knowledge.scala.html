@@ -117,10 +117,13 @@
          }
       }
 
+      var url = '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)';
+      url +=  (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
       $.ajax({
-          url: '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)',
+          url: url,
           success: function(data) {
-              $('#disease-count').html(''+data.total);
+              console.log('***** '+url+' '+data);
+              $('#disease-count').html(''+data);
           },
           error: function(){
               $('#disease-count').html('?');
