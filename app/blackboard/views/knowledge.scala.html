@@ -32,7 +32,7 @@
   }
 }
 
-@views.html.ui.main("NCATS Knowledge: "+result.query.getQuery){
+@views.html.ui.main("NCATS Knowledge Base"){
   <script>
   var filters = {}
   </script>
@@ -56,12 +56,14 @@
         <li class="nav-item active">
           <a class="nav-link" href="#">publications (@result.total)</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="@_root_.blackboard.disease.controllers.routes.Controller.diseases(result.query.getQuery.toString)">diseases (<span id="disease-count">...</span>)</a>
-        </li>
+        @if(result.query.getQuery != null) {
+          <li class="nav-item">
+            <a class="nav-link" href="@_root_.blackboard.disease.controllers.routes.Controller.diseases(result.query.getQuery.toString)">diseases (<span id="disease-count">...</span>)</a>
+          </li>
+        }
       </ul>
       <form class="form-inline my-2 my-lg-0" method="GET"
-            action="@routes.KnowledgeApp.search(null)">
+            action="@routes.KnowledgeApp.ksearch(null)">
         <input class="form-control mr-sm-2" type="search" name="q"
                placeholder="ENTER SEARCH TERMS..." style="width:20em">
         <button class="btn btn-primary my-2 my-sm-0"
@@ -117,9 +119,10 @@
          }
       }
 
-      var url = '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)';
-      url +=  (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
-      $.ajax({
+      @if(result.query.getQuery != null) {
+        var url = '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)';
+        url +=  (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
+        $.ajax({
           url: url,
           success: function(data) {
               console.log('***** '+url+' '+data);
@@ -129,7 +132,8 @@
               $('#disease-count').html('?');
               console.log('failed to retrieve disease count!');
           }
-      });
+        });
+      }
   });
   
   function filterToggle (el) {    

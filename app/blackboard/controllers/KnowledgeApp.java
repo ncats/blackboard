@@ -88,16 +88,16 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         return new SearchReferences (result, refs);
     }
     
-    public Result _search (String q, int skip, int top) throws Exception {
+    public Result _ksearch (String q, int skip, int top) throws Exception {
         SearchReferences sref = searchAndFetchReferences (q, skip, top);
         if (skip > sref.result.total)
-            return redirect (routes.KnowledgeApp.search(q, 0, top));
+            return redirect (routes.KnowledgeApp.ksearch(q, 0, top));
         
         int page = skip / top + 1;
         int[] pages = Util.paging(top, page, sref.result.total);
         Map<Integer, String> urls = new TreeMap<>();
         for (int i = 0; i < pages.length; ++i) {
-            Call call = routes.KnowledgeApp.search
+            Call call = routes.KnowledgeApp.ksearch
                 (q, (pages[i]-1)*top, top);
             urls.put(pages[i], getURL (call));
         }
@@ -106,9 +106,10 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                    (this, page, pages, urls, sref.result, sref.refs));
     }
     
-    public CompletionStage<Result> search (String q, int skip, int top) {
+    public CompletionStage<Result> ksearch (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
-        if (q == null || "".equals(q)) {
+        if ((q == null || "".equals(q))
+            && null == request().getQueryString("facet")) {
             return supplyAsync (() -> {
                     return redirect (routes.KnowledgeApp.index());
                 }, ec.current());
@@ -116,7 +117,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
 
         return supplyAsync (() -> {
                 try {
-                    return _search (q, skip, top);
+                    return _ksearch (q, skip, top);
                 }
                 catch (Exception ex) {
                     Logger.error("** "+request().uri()+" failed", ex);

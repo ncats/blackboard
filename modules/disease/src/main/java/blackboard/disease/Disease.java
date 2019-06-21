@@ -185,14 +185,20 @@ public class Disease {
 
     @JsonIgnore
     public String[] getSynonyms () {
+        Set<String> syns = new LinkedHashSet<>();
+        syns.add(name);
         for (String f : SYNONYM_FIELDS) {
             Object value = properties.get(f);
             if (value != null) {
-                if (value instanceof String[])
-                    return (String[])value;
-                return new String[]{value.toString()};
+                if (value instanceof String[]) {
+                    for (String v : (String[])value)
+                        syns.add(v);
+                }
+                else {
+                    syns.add(value.toString());
+                }
             }
         }
-        return null;
+        return syns.toArray(new String[0]);
     }
 }

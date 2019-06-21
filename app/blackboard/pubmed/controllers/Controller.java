@@ -162,16 +162,12 @@ public class Controller extends play.mvc.Controller {
         return mapper.valueToTree(fmap);
     }
 
-    public CompletionStage<Result> filter (int skip, int top) {
-        Logger.debug(">> "+request().uri());
-        return supplyAsync (() -> {
-                try {
-                    Map<String, Object> facets = parseFacets ();
-                    if (facets == null || facets.isEmpty())
-                        return badRequest ("No facets specified!");
-                    
-                    SearchResult result =
-                        pubmed.search(facets, skip, top);
+    public JsonNode _filter (Map<String, Object> facets, int skip, int top) {
+        SearchResult result = pubmed.search(facets, skip, top);
+        final String key = result.query.cacheKey()+"/_filter";
+        return cache.getOrElseUpdate(key, new Callable<JsonNode>() {
+                public JsonNode call () {
+                    Logger.debug("Cache missed: "+key);
                     ObjectNode json = Json.newObject();
                     json.put("query", mapper.valueToTree(result.query));
                     json.put("count", result.size());
@@ -181,7 +177,24 @@ public class Controller extends play.mvc.Controller {
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
-                    return ok (json);
+                    return json;
+                }
+            });
+    }
+
+    public CompletionStage<Result> filter (int skip, int top) {
+        Logger.debug(">> "+request().uri());
+        return supplyAsync (() -> {
+                try {
+                    Map<String, Object> facets = parseFacets ();
+                    if (facets == null || facets.isEmpty())
+                        return badRequest ("No facets specified!");
+                    JsonNode json = _filter (facets, skip, top);
+                    String path = request().getQueryString("path");
+                    if (path != null)
+                        json = json.at(path);
+                    
+                    return ok (json.isMissingNode() ? EMPTY_JSON : json);
                 }
                 catch (Exception ex) {
                     Logger.error("Search failed", ex);
@@ -208,10 +221,10 @@ public class Controller extends play.mvc.Controller {
                              facets, skip, top, slop);
     }
     
-    public Result _search (String q, int skip, int top) throws Exception {
+    public JsonNode _search (String q, int skip, int top) throws Exception {
         SearchResult result = doSearch (q, skip, top);
         final String key = result.query.cacheKey()+"/_search";
-        JsonNode json =  cache.getOrElseUpdate(key, new Callable<JsonNode>() {
+        return cache.getOrElseUpdate(key, new Callable<JsonNode>() {
                 public JsonNode call () {
                     Logger.debug("Cache missed: "+key);
                     ObjectNode query =
@@ -231,18 +244,18 @@ public class Controller extends play.mvc.Controller {
                     return json;
                 }
             });
-        String path = request().getQueryString("path");
-        if (path != null) {
-            json = json.at(path);
-        }
-        return ok (json.isMissingNode() ? EMPTY_JSON : json);
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
         return supplyAsync (() -> {
                 try {
-                    return _search (q, skip, top);
+                    JsonNode json = _search (q, skip, top);
+                    String path = request().getQueryString("path");
+                    if (path != null) {
+                        json = json.at(path);
+                    }
+                    return ok (json.isMissingNode() ? EMPTY_JSON : json);
                 }
                 catch (Exception ex) {
                     Logger.error("Search failed", ex);

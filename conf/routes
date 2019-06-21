@@ -3,7 +3,7 @@
 # ~~~~
 
 GET     /           blackboard.controllers.KnowledgeApp.index
-GET     /search        blackboard.controllers.KnowledgeApp.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
+GET     /search        blackboard.controllers.KnowledgeApp.ksearch(q: String ?= null, skip: Integer ?= 0, top: Integer ?= 10)
 GET     /references    blackboard.controllers.KnowledgeApp.references(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 
 GET     /blackboard	controllers.BlackboardApp.index

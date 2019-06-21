@@ -115,6 +115,7 @@ public class DiseaseKSource implements KSource, KType {
                 }
                 catch (Exception ex) {
                     Logger.error("Can't parse disease: "+contents.get(i), ex);
+                    --result.total;
                 }
             }
         }
