@@ -35,13 +35,18 @@ import blackboard.index.pubmed.PubMedIndex;
 import static blackboard.index.pubmed.PubMedIndex.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
+import blackboard.semmed.SemMedDbKSource;
+import blackboard.pubmed.PubMedDoc;
 
 public class Controller extends play.mvc.Controller {
     public static final JsonNode EMPTY_JSON = Json.newObject();
     final protected HttpExecutionContext ec;
-    final protected PubMedIndexManager pubmed;
     final protected ObjectMapper mapper = Json.mapper();
     final protected SyncCacheApi cache;
+    
+    final public PubMedIndexManager pubmed;
+    @Inject public SemMedDbKSource semmed;
+    @Inject public MeshKSource mesh;
 
     @Inject
     public Controller (HttpExecutionContext ec, PubMedIndexManager pubmed,
@@ -309,6 +314,28 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> article (Long pmid) {
+        Logger.debug(">> "+request().uri());        
+        return supplyAsync (() -> {
+                try {
+                    MatchedDoc doc = pubmed.getDoc(pmid);
+                    if (doc != null) {
+                        PubMedDoc pmdoc = PubMedDoc.getInstance
+                            (doc.doc, mesh.getMeshDb());
+                        return ok (blackboard.pubmed.views
+                                   .html.article.render(this, pmdoc));
+                    }
+                    return ok (views.html.ui.error.render
+                               ("Unknown PubMed article: "+pmid, 400));
+                }
+                catch (Exception ex) {
+                    Logger.error("** "+request().uri()+" failed", ex);
+                    return ok (views.html.ui.error.render
+                               (ex.getMessage(), 500));
+                }
+            }, ec.current());
+    }
+    
     @BodyParser.Of(value = BodyParser.Text.class)
     public CompletionStage<Result> batch (String format) {
         return supplyAsync (() -> {
@@ -332,4 +359,6 @@ public class Controller extends play.mvc.Controller {
                 }
             }, ec.current());
     }
+
+    
 }

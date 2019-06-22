@@ -1,0 +1,133 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.semmed.SemMedDbKSource
+@import _root_.blackboard.semmed.Predication
+@import _root_.blackboard.pubmed.PubMedDoc
+
+@(controller: _root_.blackboard.pubmed.controllers.Controller,
+  doc: PubMedDoc)
+
+@views.html.ui.main(doc.getPMID+": "+doc.getTitle){
+  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light"
+       style="z-index:9999">
+    <a class="navbar-brand" href="https://ncats.nih.gov">
+      <img src="/assets/images/ncats-logo.png" height="65%" width="65%"></a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
+          </li>
+        </ul>
+        <form class="form-inline my-2 my-lg-0"
+              action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
+            method="GET">
+        <input class="form-control mr-sm-2" type="search" name="q"
+               placeholder="ENTER SEARCH TERMS..."
+               aria-label="Search concepts" style="width:20em">
+        <button class="btn btn-primary my-2 my-sm-0"
+                type="submit" style="border-radius:3rem">Search</button>
+        </form>
+      </div>
+  </nav>
+  <div class="container-fluid" style="margin-top:60px;">
+    <div class="jumbotron">
+      <div class="row">
+        <div class="col-1" style="padding:10px">
+          <span class="__dimensions_badge_embed__ pull-right"
+                data-pmid="@doc.getPMID" data-style="small_circle"></span>
+        </div>
+        <div class="col-11">
+          <h1 class="display-4">@doc.getTitle</h1>
+        </div>
+      </div>
+      <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>
+      <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> <span class="fa fa-external-link"></span>
+        @if(doc.getDOI != null) {
+          DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>
+          <span class="fa fa-external-link"></span>
+        }
+        <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a>
+        <span class="fa fa-download"></span>
+        @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
+        <p class="lead">
+          <a class="btn btn-primary" data-toggle="collapse"
+             href="#abstract-card" role="button"
+             aria-expanded="false" aria-controls="abstract-card">
+            Abstract</a>
+        </p>
+        <div class="collapse show" id="abstract-card">
+          <div class="card card-body">
+            @for(t <- doc.getAbstract) {
+              @HtmlFormat.raw(t)
+              <br>
+              }
+          </div>
+        </div>
+        <br>
+        <p class="lead">
+          <a class="btn btn-primary" data-toggle="collapse"
+             href="#author-card" role="button"
+             aria-expanded="false" aria-controls="author-card">
+            Authors</a>
+        </p>
+        <div class="collapse show" id="author-card">
+          <div class="card">
+            <div class=" card-body">
+              <ul class="list-unstyled">
+                 @for(a <- doc.authors){
+                   <li><span class="badge badge-pill badge-light">
+                     <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
+                   </span>
+                     @if(a.identifier != null){
+                       (<a href="@a.identifier">@a.identifier</a> <span class="fa fa-external-link"></span>)
+                     }
+                     @for(affl <- a.affiliations){
+                       <br>&nbsp;&nbsp;<span class="font-italic">
+                         <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
+                       </span>
+                     }
+                   </li>
+                   }
+              </ul>
+            </div>
+          </div>
+        </div>
+    </div>
+    <div class="row">
+      <div class="col-md-6">
+        @for(p <- controller.semmed.getPredicationsByPMID(doc.getPMID.toString)) {
+          @defining(controller.semmed.umls.getConcept(p.subcui)){ sub =>
+            @if(sub != null) {
+              @defining(controller.semmed.umls.getConcept(p.`objcui`)){ obj =>
+                @if(obj != null) {
+                  <div class="card"> 
+                  <div class="card-header">
+                  <a href="#">@sub.name</a> <b>@p.predicate</b>
+                  <a href="#">@obj.name</a>
+                  </div>
+                  <div class="card-body">
+                  @for(e <- p.evidence) {
+                    @e.context<br>
+                  }
+                  </div>
+                  </div>
+                  <br>
+                }
+              }
+            }
+          }
+        }
+      </div>
+      <div class="col-md-6">
+        
+      </div>
+    </div>
+  </div>
+  }(HtmlFormat.empty){
+  $(document).ready(function () {
+  $('[data-toggle="tooltip"]').tooltip();
+  });
+  }

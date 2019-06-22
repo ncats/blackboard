@@ -1,6 +1,6 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.pubmed.PubMedIndex.MatchedDoc
-@import _root_.blackboard.semmed.controllers.routes
+@import _root_.blackboard.pubmed.controllers.routes
 @(doc: MatchedDoc)
 <div class="card" style="margin-top: 10px;">
   <div class="card-header">
@@ -11,13 +11,12 @@
                 data-pmid="@doc.pmid" data-style="small_circle"></span>
         </td>
         <td>
-          <h5><a href="#" data-target="#text-@doc.pmid"
-                 data-toggle="collapse">
+          <h5><a href="@routes.Controller.article(doc.pmid)">
             @defining(doc.getMatchedFragment("title")){ mf =>
-            @if(mf != null){
-              @HtmlFormat.raw(mf.fragment)
+              @if(mf != null){
+                @HtmlFormat.raw(mf.fragment)
               }else{
-              @doc.title
+                @doc.title
               }
             }
           </a></h5>
@@ -32,7 +31,7 @@
         }
         @HtmlFormat.raw(mf.fragment)
       }
-    }else{
+      }else{
       @defining(doc.getBestMatchedFragment()){ mf =>
         @if(mf != null) {
           @if(mf.field != null){
@@ -45,11 +44,11 @@
           }
         }
       }
-    }
+      }
   </div>
   <div class="card-footer">
     <span class="badge badge-pill badge-info">@doc.year</span>
-    <a href="@routes.Controller.pmid(doc.pmid)">
+    <a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.pmid">
        <span class="badge badge-pill badge-primary">@doc.pmid</span></a>
     <span class="float-right font-italic">@doc.journal</span>
   </div>

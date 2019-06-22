@@ -75,7 +75,7 @@ public class PubMedDoc implements java.io.Serializable {
             else
                 collectiveName = null;
             lastname = getText (nodes.item(0));
-            nodes = elm.getElementsByTagName("Forename");
+            nodes = elm.getElementsByTagName("ForeName");
             forename = nodes == null || nodes.getLength() == 0
                 ? null : getText (nodes.item(0));
             nodes = elm.getElementsByTagName("Initials");

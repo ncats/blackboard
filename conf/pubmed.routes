@@ -1,5 +1,6 @@
 
 GET /   blackboard.pubmed.controllers.Controller.index
+GET /:pmid  blackboard.pubmed.controllers.Controller.article(pmid: Long)
 GET /api/facets blackboard.pubmed.controllers.Controller.facets
 GET /api/search/:q blackboard.pubmed.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/search blackboard.pubmed.controllers.Controller.filter(skip: Integer ?= 0, top: Integer ?= 10)
