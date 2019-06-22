@@ -105,8 +105,8 @@
                 @if(obj != null) {
                   <div class="card"> 
                   <div class="card-header">
-                  <a href="#">@sub.name</a> <b>@p.predicate</b>
-                  <a href="#">@obj.name</a>
+                  <a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)">@sub.name</a> <b>@p.predicate</b>
+                  <a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)">@obj.name</a>
                   </div>
                   <div class="card-body">
                   @for(e <- p.evidence) {
