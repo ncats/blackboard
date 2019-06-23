@@ -51,7 +51,11 @@
         }
         <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a>
         <span class="fa fa-download"></span>
-        @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
+      </p>
+    </div>
+    <div class="row">
+      <div class="col-md-12"
+      @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
         <p class="lead">
           <a class="btn btn-primary" data-toggle="collapse"
              href="#abstract-card" role="button"
@@ -66,65 +70,78 @@
               }
           </div>
         </div>
-        <br>
+      </div>
+    </div>
+    <div class="row" style="margin-top:1em">
+      <div class="col-md-12">
         <p class="lead">
           <a class="btn btn-primary" data-toggle="collapse"
              href="#author-card" role="button"
              aria-expanded="false" aria-controls="author-card">
-            Authors</a>
+            Authors (@doc.authors.size)</a>
         </p>
         <div class="collapse show" id="author-card">
-          <div class="card">
-            <div class=" card-body">
-              <ul class="list-unstyled">
-                 @for(a <- doc.authors){
-                   <li><span class="badge badge-pill badge-light">
-                     <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
-                   </span>
-                     @if(a.identifier != null){
-                       (<a href="@a.identifier">@a.identifier</a> <span class="fa fa-external-link"></span>)
-                     }
-                     @for(affl <- a.affiliations){
-                       <br>&nbsp;&nbsp;<span class="font-italic">
-                         <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
-                       </span>
-                     }
-                   </li>
-                   }
-              </ul>
+          @for(a <- doc.authors){
+            <div class="card">
+              <div class="card-header">
+                <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
+                @if(a.identifier != null){
+                  (<a href="@a.identifier">@a.identifier</a> <span class="fa fa-external-link"></span>)
+                }
+              </div>
+              <div class="card-body">
+                <ul>
+                  @for(affl <- a.affiliations){
+                    <li>
+                      <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
+                    </li>
+                    }
+                </ul>
+              </div>
+            </div>
+            <br>
+            }
+        </div>
+      </div>
+    </div>
+    @defining(controller.semmed.getPredicationsByPMID(doc.getPMID.toString)){preds =>
+      @if(preds.length > 0) {
+        <div class="row" style="margin-top:1em">
+          <div class="col-md-12">
+            <p class="lead">
+              <a class="btn btn-primary" data-toggle="collapse"
+                 href="#concept-card" role="button"
+                 aria-expanded="false" aria-controls="concept-card">
+                Concepts (@preds.length)</a>
+            </p>
+            <div class="collapse show" id="concept-card">
+              @for(p <- preds) {
+                @defining(controller.semmed.umls.getConcept(p.subcui)){ sub =>
+                  @if(sub != null) {
+                    @defining(controller.semmed.umls.getConcept(p.`objcui`)){ obj =>
+                      @if(obj != null) {
+                        <div class="card"> 
+                        <div class="card-header">
+                        <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.subcui}'>@sub.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)'><i class="fa fa-info-circle"></i></a> <b><span class="font-italic">@p.predicate</span></b>
+                      <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.objcui}'>@obj.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)'><i class="fa fa-info-circle"></i></a>
+                    </div>
+                    <div class="card-body">
+                    @for(e <- p.evidence) {
+                      @e.context<br>
+                    }
+                    </div>
+                    </div>
+                    <br>
+                      }
+                    }
+                  }
+                }
+              }
             </div>
           </div>
         </div>
-    </div>
-    <div class="row">
-      <div class="col-md-6">
-        @for(p <- controller.semmed.getPredicationsByPMID(doc.getPMID.toString)) {
-          @defining(controller.semmed.umls.getConcept(p.subcui)){ sub =>
-            @if(sub != null) {
-              @defining(controller.semmed.umls.getConcept(p.`objcui`)){ obj =>
-                @if(obj != null) {
-                  <div class="card"> 
-                  <div class="card-header">
-                  <a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)">@sub.name</a> <b>@p.predicate</b>
-                  <a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)">@obj.name</a>
-                  </div>
-                  <div class="card-body">
-                  @for(e <- p.evidence) {
-                    @e.context<br>
-                  }
-                  </div>
-                  </div>
-                  <br>
-                }
-              }
-            }
-          }
-        }
-      </div>
-      <div class="col-md-6">
-        
-      </div>
-    </div>
+      }
+    }
   </div>
   }(HtmlFormat.empty){
   $(document).ready(function () {

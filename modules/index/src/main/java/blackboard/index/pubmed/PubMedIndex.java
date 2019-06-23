@@ -86,7 +86,8 @@ public class PubMedIndex extends MetaMapIndex {
         FIELD_MESH,
         FIELD_KEYWORD,
         FIELD_JOURNAL,
-        FIELD_GRANTID
+        FIELD_GRANTID,
+        FIELD_AFFILIATION
     };
 
     public static final Map<String, Object> EMPTY_FACETS = new HashMap<>();
