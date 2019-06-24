@@ -301,6 +301,15 @@ public class PubMedDoc implements java.io.Serializable {
         }
 
         /*
+         * keywords
+         */
+        nodes = doc.getElementsByTagName("Keyword");
+        for (int i = 0; i < nodes.getLength(); ++i) {
+            Element elm = (Element)nodes.item(i);
+            keywords.add(elm.getTextContent());
+        }
+        
+        /*
          * grant
          */
         nodes = doc.getElementsByTagName("Grant");

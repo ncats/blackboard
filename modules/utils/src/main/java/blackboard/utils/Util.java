@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.regex.*;
 import play.Logger;
 import play.mvc.Http;
+import play.mvc.Call;
 import java.security.MessageDigest;
 
 public class Util {
@@ -217,5 +218,23 @@ public class Util {
             //Logger.debug("TOKEN: <<"+tok+">>");
         }
         return q.toString();
+    }
+
+    public static String getURL (Call call, Http.Request request) {
+        StringBuilder url = new StringBuilder ();
+        for (Map.Entry<String, String[]> me
+                 : request.queryString().entrySet()) {
+            switch (me.getKey()) {
+            case "q": case "top": case "skip":
+                break; // use reverse routing
+            default:
+                for (String v : me.getValue())
+                    url.append("&" + me.getKey()+"="+v);
+            }
+        }
+        if (call.url().indexOf('?') < 0) {
+            url.setCharAt(0, '?');
+        }
+        return call.url()+url;
     }
 }

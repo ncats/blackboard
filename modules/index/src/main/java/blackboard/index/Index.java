@@ -46,12 +46,17 @@ public class Index implements AutoCloseable, Fields {
         public Integer total;
         public String display;
         public final String label;
+        public final boolean specified;
         public Integer count;
         public final List<FV> children = new ArrayList<>();
 
         protected FV (String label, Integer count) {
+            this (label, count, false);
+        }
+        protected FV (String label, Integer count, boolean specified) {
             this.label = label;
             this.count = count;
+            this.specified = specified;
         }
 
         public FV add (FV node) {
@@ -122,12 +127,25 @@ public class Index implements AutoCloseable, Fields {
             return sb.toString();
         }
 
+        public boolean hasValue (String value) {
+            for (FV fv : values)
+                if (fv.label.equals(value))
+                    return true;
+            return false;
+        }
+
         @JsonProperty(value="count")
         public int size () { return values.size(); }
 
         void sort () {
             Collections.sort(values, (fa, fb) -> {
-                    int d = fb.count - fa.count;
+                    int d = 0;
+                    if (fa.specified == fb.specified)
+                        d = fb.count - fa.count;
+                    else if (fa.specified)
+                        d = -1;
+                    else if (fb.specified)
+                        d = 1;
                     if (d == 0)
                         d = fa.label.compareTo(fb.label);
                     return d;
@@ -174,7 +192,7 @@ public class Index implements AutoCloseable, Fields {
     }
     
     static FV _clone (FV fv) {
-        FV clone = new FV (fv.label, fv.count);
+        FV clone = new FV (fv.label, fv.count, fv.specified);
         clone.total = fv.total;
         clone.display = fv.display;
         return clone;
@@ -555,6 +573,33 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    void adjustFacets (Map<String, Object> fmap,
+                       List<Facet> lf, Facets facets) throws IOException {
+        for (Map.Entry<String, Object> me : fmap.entrySet()) {
+            FacetsConfig.DimConfig conf =
+                facetConfig.getDimConfig(me.getKey());
+            // for now just handle simple facets
+            if (conf != null && !conf.hierarchical) {
+                Object value = me.getValue();
+                if (value instanceof String) {
+                    String v = (String)value;
+                    for (Facet f : lf) {
+                        if (f.name.equals(me.getKey()) && !f.hasValue(v)) {
+                            // make sure selected facets show up
+                            Number count = facets.getSpecificValue
+                                (me.getKey(), v);
+                            Logger.debug("!!!! "+me.getKey()+"/"+v
+                                         +" => "+count);
+                            if (count != null && count.intValue() > 0)
+                                f.values.add
+                                    (0, new FV (v, count.intValue(), true));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     protected List<Facet> toFacets (Facets facets, int topN)
         throws IOException {
         List<Facet> lf = new ArrayList<>();
@@ -598,12 +643,12 @@ public class Index implements AutoCloseable, Fields {
             FastVectorHighlighter fvh = new FastVectorHighlighter ();
             FieldQuery fq = fvh.getFieldQuery(query, reader);
             IndexSearcher searcher = new IndexSearcher (reader);
-            FacetsCollector fc = new FacetsCollector ();
 
             int max = Math.max(1, Math.min(maxHits, reader.maxDoc()));
             Facets facets;
             TopDocs docs;
             if (fmap == null || fmap.isEmpty()) {
+                FacetsCollector fc = new FacetsCollector ();
                 docs = FacetsCollector.search(searcher, query, max, fc);
                 facets = new FastTaxonomyFacetCounts
                     (taxonReader, facetConfig, fc);
@@ -647,8 +692,6 @@ public class Index implements AutoCloseable, Fields {
                 DrillSideways.DrillSidewaysResult swresults = 
                     sideway.search(ddq, max);
 
-                // collector
-                FacetsCollector.search(searcher, ddq, max, fc);
                 facets = swresults.facets;
                 docs = swresults.hits;
             }
@@ -668,6 +711,8 @@ public class Index implements AutoCloseable, Fields {
                 }
                 
                 result.facets.addAll(toFacets (facets, result.fdim));
+                // ensure selected facets show up in the results
+                adjustFacets (fmap, result.facets, facets);
                 result.postProcessing(searcher);
             }
 

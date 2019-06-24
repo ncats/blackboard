@@ -49,21 +49,6 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     public Result index () {
         return ok (blackboard.views.html.index.render());
     }
-
-    String getURL (Call call) {
-        StringBuilder url = new StringBuilder ();
-        for (Map.Entry<String, String[]> me
-                 : request().queryString().entrySet()) {
-            switch (me.getKey()) {
-            case "q": case "top": case "skip":
-                break; // use reverse routing
-            default:
-                for (String v : me.getValue())
-                    url.append("&" + me.getKey()+"="+v);
-            }
-        }
-        return call.url()+url;
-    }
     
     SearchReferences searchAndFetchReferences (String q, int skip, int top)
         throws Exception {
@@ -99,7 +84,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         for (int i = 0; i < pages.length; ++i) {
             Call call = routes.KnowledgeApp.ksearch
                 (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], getURL (call));
+            urls.put(pages[i], Util.getURL(call, request ()));
         }
 
         return ok (blackboard.views.html.knowledge.render
@@ -139,7 +124,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         for (int i = 0; i < pages.length; ++i) {
             Call call = routes.KnowledgeApp.references
                 (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], getURL (call));
+            urls.put(pages[i], Util.getURL(call, request ()));
         }
         
         return ok (blackboard.views.html.knowledge.render

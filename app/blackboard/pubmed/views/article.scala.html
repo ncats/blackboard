@@ -2,6 +2,7 @@
 @import _root_.blackboard.semmed.SemMedDbKSource
 @import _root_.blackboard.semmed.Predication
 @import _root_.blackboard.pubmed.PubMedDoc
+@import org.apache.commons.lang3.text.WordUtils
 
 @(controller: _root_.blackboard.pubmed.controllers.Controller,
   doc: PubMedDoc)
@@ -23,12 +24,12 @@
         </ul>
         <form class="form-inline my-2 my-lg-0"
               action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
-            method="GET">
-        <input class="form-control mr-sm-2" type="search" name="q"
-               placeholder="ENTER SEARCH TERMS..."
-               aria-label="Search concepts" style="width:20em">
-        <button class="btn btn-primary my-2 my-sm-0"
-                type="submit" style="border-radius:3rem">Search</button>
+              method="GET">
+          <input class="form-control mr-sm-2" type="search" name="q"
+                 placeholder="ENTER SEARCH TERMS..."
+                 aria-label="Search concepts" style="width:20em">
+          <button class="btn btn-primary my-2 my-sm-0"
+                  type="submit" style="border-radius:3rem">Search</button>
         </form>
       </div>
   </nav>
@@ -55,7 +56,7 @@
     </div>
     <div class="row">
       <div class="col-md-12"
-      @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
+           @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
         <p class="lead">
           <a class="btn btn-primary" data-toggle="collapse"
              href="#abstract-card" role="button"
@@ -72,6 +73,27 @@
         </div>
       </div>
     </div>
+    @if(doc.keywords.size > 0){
+      <div class="row" style="margin-top:1em">
+        <div class="col-md-12">
+          <p class="lead">
+            <a class="btn btn-primary" data-toggle="collapse"
+               href="#keyword-card" role="button"
+               aria-expanded="false" aria-controls="keyword-card">
+              Keywords (@doc.keywords.size)</a>
+          </p>
+          <div class="collapse show" id="keyword-card">
+            <div class="card">
+              <div class="card-footer">
+                @for(k <- doc.keywords){
+                  <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@keyword/"+WordUtils.capitalize(k)}'>@k</a></span>
+                  }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      }
     <div class="row" style="margin-top:1em">
       <div class="col-md-12">
         <p class="lead">
@@ -86,7 +108,7 @@
               <div class="card-header">
                 <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
                 @if(a.identifier != null){
-                  (<a href="@a.identifier">@a.identifier</a> <span class="fa fa-external-link"></span>)
+                  (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
                 }
               </div>
               <div class="card-body">

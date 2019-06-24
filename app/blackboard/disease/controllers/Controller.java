@@ -49,21 +49,6 @@ public class Controller extends play.mvc.Controller {
         
         Logger.debug("$$" +getClass().getName());
     }
-
-    String getURL (Call call) {
-        StringBuilder url = new StringBuilder ();
-        for (Map.Entry<String, String[]> me
-                 : request().queryString().entrySet()) {
-            switch (me.getKey()) {
-            case "q": case "top": case "skip":
-                break; // use reverse routing
-            default:
-                for (String v : me.getValue())
-                    url.append("&" + me.getKey()+"="+v);
-            }
-        }
-        return call.url()+url;
-    }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
         Logger.debug(">> "+request().uri());
@@ -96,7 +81,7 @@ public class Controller extends play.mvc.Controller {
         for (int i = 0; i < pages.length; ++i) {
             Call call = routes.Controller.diseases
                 (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], getURL (call));
+            urls.put(pages[i], Util.getURL(call, request ()));
         }
         
         return ok (blackboard.disease.views.html.diseases.render
