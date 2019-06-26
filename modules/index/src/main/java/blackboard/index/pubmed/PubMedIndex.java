@@ -124,6 +124,7 @@ public class PubMedIndex extends MetaMapIndex {
                 pos = text.indexOf("</b>", pos);
                 if (pos > 0) {
                     pos += 4;
+                    bgn = Math.max(0, bgn);
                     for (int i = pos; i < text.length(); ++i) {
                         if (text.startsWith("</fld", i)) {
                             if (text.charAt(bgn) == '>')
