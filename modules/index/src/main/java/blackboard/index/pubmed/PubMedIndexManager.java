@@ -116,6 +116,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 .match(TextQuery.class, this::doSearch)
                 .match(PMIDQuery.class, this::doPMIDSearch)
                 .match(PMIDBatchQuery.class, this::doSearch)
+                .match(FacetQuery.class, this::doFacetSearch)
                 .build();
         }
 
@@ -125,7 +126,6 @@ public class PubMedIndexManager implements AutoCloseable {
             SearchResult result = pmi.search(q);
             Logger.debug(self()+": search completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-            
             getSender().tell(result, getSelf ());
         }
 
@@ -136,6 +136,15 @@ public class PubMedIndexManager implements AutoCloseable {
             Logger.debug(self()+": fetch completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             getSender().tell(doc, getSelf ());
+        }
+
+        void doFacetSearch (FacetQuery fq) throws Exception {
+            Logger.debug(self()+": facets "+fq);
+            long start = System.currentTimeMillis();
+            SearchResult result = pmi.facets(fq);
+            Logger.debug(self()+": facets search completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+            getSender().tell(result, getSelf ());
         }
     }
     
@@ -236,16 +245,32 @@ public class PubMedIndexManager implements AutoCloseable {
     }
 
     public SearchResult facets () {
-        final TextQuery tq = new TextQuery ();
-        return cache.getOrElseUpdate
-            (PubMedIndexManager.class.getName()+"/facets",
-             new Callable<SearchResult>() {
-                 public SearchResult call () {
-                     return search (tq);
-                 }
-             });        
+        return facets (100);
     }
 
+    public SearchResult facets (String facet, String value) {
+        return facets (new FacetQuery (facet, value));
+    }
+    
+    public SearchResult facets (int fdim) {
+        return facets (new FacetQuery (fdim));
+    }
+
+    public SearchResult facets (Map<String, Object> facets) {
+        return facets (new FacetQuery (facets));
+    }
+
+    public SearchResult facets (SearchQuery q) {
+        Logger.debug("#### Facets: "+q);
+        final String key = q.cacheKey();
+        return cache.getOrElseUpdate(key, new Callable<SearchResult>() {
+                public SearchResult call () {
+                    Logger.debug("Cache missed: "+key);
+                    return PubMedIndex.merge(getResults (q));
+                }
+            });
+    }
+    
     public List<Concept> _getConcepts (SearchQuery q) {
         Inbox inbox = Inbox.create(actorSystem);
         // first pass this through metamap
@@ -300,7 +325,7 @@ public class PubMedIndexManager implements AutoCloseable {
         }
         return results.toArray(new SearchResult[0]);
     }
-    
+
     public SearchResult search (SearchQuery q) {
         Logger.debug("#### Query: "+q);
         q.getConcepts().addAll(getConcepts (q));
@@ -314,7 +339,7 @@ public class PubMedIndexManager implements AutoCloseable {
                  }
              });
     }
-
+    
     public MatchedDoc getDoc (Long pmid) {
         final PMIDQuery q = new PMIDQuery (pmid);
         return cache.getOrElseUpdate

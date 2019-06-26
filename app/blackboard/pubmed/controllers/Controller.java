@@ -270,11 +270,14 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    public CompletionStage<Result> facets () {
+    public CompletionStage<Result> facets (int fdim) {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
                 try {
-                    SearchResult result = pubmed.facets();
+                    Map<String, Object> facets = parseFacets ();
+                    SearchResult result = facets == null || facets.isEmpty()
+                        ? pubmed.facets(fdim) : pubmed.facets(facets);
+                    
                     ObjectNode json = Json.newObject();
                     json.put("count", 0);
                     json.put("total", result.total);

@@ -46,7 +46,7 @@ public class Index implements AutoCloseable, Fields {
         public Integer total;
         public String display;
         public final String label;
-        public final boolean specified;
+        public boolean specified;
         public Integer count;
         public final List<FV> children = new ArrayList<>();
 
@@ -128,15 +128,27 @@ public class Index implements AutoCloseable, Fields {
         }
 
         public boolean hasValue (String value) {
+            return null != getValue (value);
+        }
+
+        public FV getValue (String value) {
             for (FV fv : values)
                 if (fv.label.equals(value))
-                    return true;
-            return false;
+                    return fv;
+            return null;
         }
 
         @JsonProperty(value="count")
         public int size () { return values.size(); }
 
+        void trim (int size) {
+            if (size > 0 && values.size() > size) {
+                List<FV> sub = new ArrayList<>(values.subList(0, size));
+                values.clear();
+                values.addAll(sub);
+            }
+        }
+        
         void sort () {
             Collections.sort(values, (fa, fb) -> {
                     int d = 0;
@@ -159,6 +171,10 @@ public class Index implements AutoCloseable, Fields {
      * merge facets; facet names must be the same 
      */
     public static Facet merge (Facet... facets) {
+        return merge (0, facets);
+    }
+    
+    public static Facet merge (int max, Facet... facets) {
         Facet merged = null;
         for (Facet f : facets) {
             if (merged == null) {
@@ -172,7 +188,10 @@ public class Index implements AutoCloseable, Fields {
                 Logger.warn("Facet \""+f.name+"\" not merged!");
             }
         }
+        
         merged.sort();
+        merged.trim(max);
+        
         return merged;
     }
 
@@ -306,8 +325,12 @@ public class Index implements AutoCloseable, Fields {
     }
     
     public interface SearchQuery extends CacheableContent {
-        String getField ();
-        Object getQuery ();
+        default String getField () {
+            return null;
+        }
+        default Object getQuery () {
+            return null;
+        }
         default int skip () {
             return 0;
         }
@@ -317,15 +340,78 @@ public class Index implements AutoCloseable, Fields {
         default int max () {
             return 0;
         }
-        Map<String, Object> getFacets ();
-        List<Concept> getConcepts ();
-        Query rewrite (); // rewrite this SearchQuery into its native form
+        default int fdim () {
+            return 10;
+        }
+        default Map<String, Object> getFacets () {
+            return Collections.emptyMap();
+        }
+        default List<Concept> getConcepts () {
+            return Collections.emptyList();
+        }
+        // rewrite this SearchQuery into its native form
+        default Query rewrite () {
+            return new MatchNoDocsQuery ();
+        }
     }
 
-    public static class TextQuery implements SearchQuery {
+    public static class FacetQuery implements SearchQuery {
+        public final Map<String, Object> facets = new TreeMap<>();
+        public int fdim = 100; // facet dimension
+
+        public FacetQuery () {
+            this (100);
+        }
+        public FacetQuery (int fdim) {
+            this.fdim = fdim;
+        }
+        public FacetQuery (String facet, Object value) {
+            facets.put(facet, value);
+        }
+        public FacetQuery (Map<String, Object> facets) {
+            this.facets.putAll(facets);
+        }
+
+        public String cacheKey () {
+            List<String> values = new ArrayList<>();
+            for (Map.Entry<String, Object> me : getFacets().entrySet()) {
+                values.add(me.getKey());
+                Object v = me.getValue();
+                if (v instanceof String[]) {
+                    String[] vals = (String[])v;
+                    for (String s : vals)
+                        values.add(s);
+                }
+                else if (v instanceof Object[]) {
+                    Object[] vals = (Object[])v;
+                    for (Object val : vals) {
+                        if (val instanceof String[]) {
+                            for (String s : (String[])val)
+                                values.add(s);
+                        }
+                        else {
+                            values.add((String)val);
+                        }
+                    }
+                }
+                else {
+                    values.add((String)v);
+                }
+            }
+            values.add(String.valueOf(fdim));
+            return FacetQuery.class.getName()
+                +"/"+Util.sha1(values.toArray(new String[0]));
+        }
+        public Map<String, Object> getFacets () { return facets; }
+        public int fdim () { return fdim; }
+        public Query rewrite () {
+            return new MatchAllDocsQuery ();
+        }
+    }
+
+    public static class TextQuery extends FacetQuery {
         public final String field;
         public final String query;
-        public final Map<String, Object> facets = new TreeMap<>();
         public final List<Concept> concepts = new ArrayList<>();
         public int slop = 1; // phrase slop (see QueryBuilder.createPhraseQuery)
         public int skip = 0;
@@ -364,7 +450,6 @@ public class Index implements AutoCloseable, Fields {
         public int skip () { return skip; }
         public int top () { return top; }
         public int max () { return top + skip; }
-        public Map<String, Object> getFacets () { return facets; }
         public List<Concept> getConcepts () { return concepts; }
         // subclass should override for specific implementation
         public Query rewrite () {
@@ -388,32 +473,8 @@ public class Index implements AutoCloseable, Fields {
             List<String> values = new ArrayList<>();
             if (field != null) values.add(field);
             if (query != null) values.add(query);
-            for (Map.Entry<String, Object> me : facets.entrySet()) {
-                values.add(me.getKey());
-                Object v = me.getValue();
-                if (v instanceof String[]) {
-                    String[] vals = (String[])v;
-                    for (String s : vals)
-                        values.add(s);
-                }
-                else if (v instanceof Object[]) {
-                    Object[] vals = (Object[])v;
-                    for (Object val : vals) {
-                        if (val instanceof String[]) {
-                            for (String s : (String[])val)
-                                values.add(s);
-                        }
-                        else {
-                            values.add((String)val);
-                        }
-                    }
-                }
-                else {
-                    values.add((String)v);
-                }
-            }
+            values.add(super.cacheKey());
             values.add("slop="+slop);
-            
             return TextQuery.class.getName()
                 +"/"+Util.sha1(values.toArray(new String[0]));
         }
@@ -426,27 +487,19 @@ public class Index implements AutoCloseable, Fields {
     
     public static abstract class SearchResult {
         public final SearchQuery query;
-        @JsonIgnore
-        public final int fdim;
         public int total; // total matches
         public final List<Facet> facets = new ArrayList<>();
         
         protected SearchResult () {
-            this (null, 20);
+            this ((SearchQuery)null);
         }
         
         protected SearchResult (SearchQuery query) {
-            this (query, 20);
-        }
-        
-        protected SearchResult (SearchQuery query, int fdim) {
             this.query = query;
-            this.fdim = fdim;
         }
 
         protected SearchResult (SearchResult result) {
             this.query = result.query;
-            this.fdim = result.fdim;
             this.total = result.total;
             this.facets.addAll(result.facets);
         }
@@ -573,8 +626,8 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
-    void adjustFacets (Map<String, Object> fmap,
-                       List<Facet> lf, Facets facets) throws IOException {
+    void getSelectedFacets (Map<String, Object> fmap,
+                            List<Facet> lf, Facets facets) throws IOException {
         for (Map.Entry<String, Object> me : fmap.entrySet()) {
             FacetsConfig.DimConfig conf =
                 facetConfig.getDimConfig(me.getKey());
@@ -584,15 +637,21 @@ public class Index implements AutoCloseable, Fields {
                 if (value instanceof String) {
                     String v = (String)value;
                     for (Facet f : lf) {
-                        if (f.name.equals(me.getKey()) && !f.hasValue(v)) {
-                            // make sure selected facets show up
-                            Number count = facets.getSpecificValue
-                                (me.getKey(), v);
-                            Logger.debug("!!!! "+me.getKey()+"/"+v
-                                         +" => "+count);
-                            if (count != null && count.intValue() > 0)
-                                f.values.add
-                                    (0, new FV (v, count.intValue(), true));
+                        if (f.name.equals(me.getKey())) {
+                            FV fv = f.getValue(v);
+                            if (fv == null) {
+                                // make sure selected facets show up
+                                Number count = facets.getSpecificValue
+                                    (me.getKey(), v);
+                                Logger.debug("!!!! "+me.getKey()+"/"+v
+                                             +" => "+count);
+                                if (count != null && count.intValue() > 0)
+                                    f.values.add
+                                        (0, new FV (v, count.intValue(), true));
+                            }
+                            else {
+                                fv.specified = true;
+                            }
                         }
                     }
                 }
@@ -710,9 +769,9 @@ public class Index implements AutoCloseable, Fields {
                     }
                 }
                 
-                result.facets.addAll(toFacets (facets, result.fdim));
+                result.facets.addAll(toFacets (facets, result.query.fdim()));
                 // ensure selected facets show up in the results
-                adjustFacets (fmap, result.facets, facets);
+                getSelectedFacets (fmap, result.facets, facets);
                 result.postProcessing(searcher);
             }
 
@@ -723,6 +782,84 @@ public class Index implements AutoCloseable, Fields {
                          +result.total+" found)!");
             
             return result.size();
+        }
+    }
+
+    void addFacetValues (Facet facet, Facets facets, String... values)
+        throws IOException {
+        List<String> path = new ArrayList<>();
+        FV parent = null;
+        for (String v : values) {
+            path.add(v);
+            Number count = facets.getSpecificValue
+                (facet.name, path.toArray(new String[0]));
+            if (count != null && count.intValue() > 0) {
+                FV fv = new FV (v, count.intValue());
+                if (parent != null)
+                    parent.add(fv);
+                else
+                    facet.values.add(fv);
+                parent = fv;
+            }
+        }
+        if (parent != null)
+            parent.specified = true;
+    }
+
+    protected void facets (SearchResult result) throws Exception {
+        long start = System.currentTimeMillis();
+        SearchQuery fq = result.query;
+        Logger.debug("### Facet: fdim="+fq.fdim()+" "+fq.getFacets());
+        try (IndexReader reader = DirectoryReader.open(indexWriter);
+             TaxonomyReader taxon = new DirectoryTaxonomyReader (taxonWriter)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
+            FacetsCollector fc = new FacetsCollector ();
+            TopDocs docs = FacetsCollector.search
+                (searcher, fq.rewrite(), 1, fc);
+            Facets facets = new FastTaxonomyFacetCounts
+                (taxon, facetConfig, fc);
+            if (fq.getFacets().isEmpty())
+                result.facets.addAll(toFacets (facets, fq.fdim()));
+            else {
+                for (Map.Entry<String, Object> me : fq.getFacets().entrySet()) {
+                    FacetsConfig.DimConfig conf =
+                        facetConfig.getDimConfig(me.getKey());
+                    if (conf != null) {
+                        Facet facet = new Facet (me.getKey());
+                        Object value = me.getValue();
+                        if (value instanceof String[]) {
+                            String[] values = (String[])value;
+                            if (conf.hierarchical) {
+                                addFacetValues (facet, facets, values);
+                            }
+                            else {
+                                for (String v : values)
+                                    addFacetValues (facet, facets, v);
+                            }
+                        }
+                        else if (value instanceof Object[]) {
+                            Object[] values = (Object[])value;
+                            for (Object v : values) {
+                                if (v instanceof String[]) {
+                                    addFacetValues (facet, facets, (String[])v);
+                                }
+                                else
+                                    addFacetValues (facet, facets, (String)v);
+                            }
+                        }
+                        else {
+                            addFacetValues (facet, facets, (String) value);
+                        }
+                        result.facets.add(facet);
+                    }
+                    else {
+                        Logger.warn("Unknown facet: "+me.getKey());
+                    }
+                }
+            }
+            Logger.debug("### Facets executed in "
+                         +String.format
+                         ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3));
         }
     }
 

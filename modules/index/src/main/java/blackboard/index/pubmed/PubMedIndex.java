@@ -693,7 +693,7 @@ public class PubMedIndex extends MetaMapIndex {
         }
 
         for (List<Facet> fs : facets.values()) {
-            Facet f = merge (fs.toArray(new Facet[0]));
+            Facet f = merge (merged.query.fdim(), fs.toArray(new Facet[0]));
             merged.facets.add(f);
         }
 
@@ -1170,6 +1170,12 @@ public class PubMedIndex extends MetaMapIndex {
         return result.docs.get(0);
     }
 
+    public SearchResult facets (SearchQuery query) throws Exception {
+        SearchResult result = new SearchResult (query);
+        facets (result);
+        return result;
+    }
+    
     public SearchResult search (SearchQuery query) throws Exception {
         if (query instanceof TextQuery) {
             // we recast this to use PubMedTextQuery
