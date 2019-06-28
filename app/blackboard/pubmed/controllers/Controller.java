@@ -363,5 +363,12 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
-    
+    public Result jsRoutes () {
+        return ok (JavaScriptReverseRouter.create
+                   ("pubmedRoutes",
+                    routes.javascript.Controller.search(),
+                    routes.javascript.Controller.facets(),
+                    routes.javascript.Controller.pmid()
+                    )).as("text/javascript");
+    }
 }

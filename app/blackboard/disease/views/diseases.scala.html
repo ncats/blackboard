@@ -1,4 +1,5 @@
 @import play.twirl.api.HtmlFormat
+@import java.net.URLEncoder
 @import _root_.blackboard.disease._
 @import _root_.blackboard.index.pubmed.PubMedIndex.SearchResult
 @import _root_.blackboard.disease.controllers.routes
@@ -68,11 +69,18 @@
       <div class="col-md-3"></div>
     </div>
   </div>
-  }(HtmlFormat.empty){
+  }{
+  <script src="@_root_.blackboard.pubmed.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>  
+  }{
       $(document).ready(function() {
           console.log('>>>>> @HtmlFormat.raw(request.uri)');
-          var url = '@_root_.blackboard.pubmed.controllers.routes.Controller.search(result.query.getQuery)';
+          var urlParams = new URLSearchParams(window.location.search);
+          var query = urlParams.get('q');
+          var route = pubmedRoutes.blackboard.pubmed
+              .controllers.Controller.search(query);
+          var url = route.url;
           url += (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
+          console.log('***** '+query+' => '+route.url);
           $.ajax({
               url: url,
               success: function(data) {

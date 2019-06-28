@@ -100,4 +100,11 @@ public class Controller extends play.mvc.Controller {
                 return _diseases (q, skip, top);
             }, ec.current());
     }
+
+    public Result jsRoutes () {
+        return ok (JavaScriptReverseRouter.create
+                   ("diseaseRoutes",
+                    routes.javascript.Controller.search()
+                    )).as("text/javascript");
+    }
 }

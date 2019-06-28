@@ -1,4 +1,5 @@
 @import play.twirl.api.HtmlFormat
+@import java.net.URLEncoder
 @import _root_.blackboard.index.pubmed.PubMedIndex._
 @import _root_.blackboard.controllers.routes
 @import _root_.blackboard.controllers.KnowledgeApp
@@ -95,14 +96,16 @@
         @** CONTEXT **@
         @contextcard(result.query){
           @result.total document@if(result.total!=1){s} matched
-        }
-        @if(refs != null && refs.size > 0){
-          @refcard(refs)
-        }
+          }
+          @if(refs != null && refs.size > 0){
+            @refcard(refs)
+            }
       </div>
     </div>
   </div>
-}(HtmlFormat.empty){
+  }{
+  <script src="@_root_.blackboard.disease.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
+  }{
 
   var urlParams = new URLSearchParams (window.location.search);  
   $(document).ready(function() {
@@ -120,19 +123,23 @@
       }
 
       @if(result.query.getQuery != null) {
-        var url = '@_root_.blackboard.disease.controllers.routes.Controller.search(result.query.getQuery.toString)';
-        url +=  (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
-        $.ajax({
-          url: url,
-          success: function(data) {
-              console.log('***** '+url+' '+data);
-              $('#disease-count').html(''+data);
-          },
-          error: function(){
-              $('#disease-count').html('?');
-              console.log('failed to retrieve disease count!');
-          }
-        });
+          var urlParams = new URLSearchParams(window.location.search);
+          var query = urlParams.get('q');
+          var route = diseaseRoutes.blackboard.disease
+              .controllers.Controller.search(query);
+          var url = route.url;
+          url += (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
+          $.ajax({
+              url: url,
+              success: function(data) {
+                  console.log('***** '+url+' '+data);
+                  $('#disease-count').html(''+data);
+              },
+              error: function(){
+                  $('#disease-count').html('?');
+                  console.log('failed to retrieve disease count!');
+              }
+          });
       }
   });
   

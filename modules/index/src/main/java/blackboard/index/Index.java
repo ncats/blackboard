@@ -446,7 +446,7 @@ public class Index implements AutoCloseable, Fields {
         }
 
         public String getField () { return field; }
-        public Object getQuery () { return query; }
+        public String getQuery () { return query; }
         public int skip () { return skip; }
         public int top () { return top; }
         public int max () { return top + skip; }
