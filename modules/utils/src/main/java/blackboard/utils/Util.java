@@ -213,8 +213,19 @@ public class Util {
                 if (slop > 0)
                     q.append("~"+slop);
             }
-            else
-                q.append("+"+tok);
+            else {
+                // parkinson's => +(parkinson parkinson's parkinsons)
+                if (tok.endsWith("'s")) {
+                    String s = tok.substring(0, tok.length()-2);
+                    tok = "+("+tok+" "+s+" "+s+"s)";
+                }
+                else if (!"AND".equals(tok)
+                         && !"OR".equals(tok) && !"NOT".equals(tok)
+                         && !tok.endsWith(")")) {
+                    q.append("+");
+                }
+                q.append(tok);
+            }
             //Logger.debug("TOKEN: <<"+tok+">>");
         }
         return q.toString();
