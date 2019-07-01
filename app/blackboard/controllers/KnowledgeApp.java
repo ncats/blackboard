@@ -39,6 +39,41 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         }
     }
 
+    static String displayHtml (FV node, int min) {
+        String text = node.display != null ? node.display : node.label;
+        for (FV p = node.parent; p != null; p = p.parent)
+            min -= 2;
+        if (text.length() > min) {
+            return "<span data-toggle=\"tooltip\""
+                +"title=\""+text+"\" style=\"margin-right:0.5rem\">"
+                +text.substring(0,min)+"...</span>";
+        }
+        return text;
+    }
+    
+    public static String toHtml (FV node) {
+        return toHtml (node, 20);
+    }
+    
+    public static String toHtml (FV node, int min) {
+        StringBuilder html = new StringBuilder ();
+        toHtml (html, min, node);
+        return html.toString();
+    }
+    
+    public static void toHtml (StringBuilder html, int min, FV node) {
+        for (FV p = node.parent; p != null; p = p.parent)
+            html.append(" ");
+        html.append("<li id=\""+node.getPath()+"\">"+displayHtml (node, min));
+        html.append(" <span class=\"badge badge-primary badge-pill\">"
+                    +node.count+"</span>");
+        html.append("<ul>");
+        for (FV child : node.children) {
+            toHtml (html, min, child);
+        }
+        html.append("</ul></li>");
+    }
+    
     @Inject
     public KnowledgeApp (HttpExecutionContext ec, PubMedIndexManager pubmed,
                          SyncCacheApi cache, Configuration config,

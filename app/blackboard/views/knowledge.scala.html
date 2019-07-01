@@ -74,42 +74,79 @@
   </nav>  
   <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
     <div class="row">
-      <div class="col-md-3">
-        @** FILTERS **@
-        @facetcard(app, "Year_Published", result.getFacet("@year"))
-        @facetcard(app, "Author", result.getFacet("@author"))
-        @facetcard(app, "Article_Type", result.getFacet("@pubtype"))
-        @facetcard(app, "Journal", result.getFacet("@journal"))
-        @facetcard(app, "Keyword", result.getFacet("@keyword"))
-        @facetcard(app, "Concept", result.getFacet("@cui"))
-      </div>
-      <div class="col-md-6">
-        @** SEARCH CONTENTS **@
-        @for(d <- result.docs) {
-          @articlecard(d)
-          }
-          <div class="alert fade show" role="alert">
-            @paging()
-          </div>
-      </div>
-      <div class="col-md-3">
-        @** CONTEXT **@
-        @contextcard(result.query){
-          @result.total document@if(result.total!=1){s} matched
-          }
-          @if(refs != null && refs.size > 0){
-            @refcard(refs)
+      <div class="d-flex" id="wrapper">
+        <!-- Sidebar -->
+        <div class="border-left" id="sidebar-wrapper">
+          @**facetcard(app, "MesH", result.getFacet("@ui"))**@
+          @facettreecard(app, "Disease", result.getFacet("@tr"), "C")
+          @facettreecard(app, "Chemical", result.getFacet("@tr"), "D")
+          @facettreecard(app, "Phenomena", result.getFacet("@tr"), "G")    
+        </div>
+
+        <!-- /#sidebar-wrapper -->
+        
+        <div class="col-md-3">
+          @** FILTERS **@
+          @facetcard(app, "Year_Published", result.getFacet("@year"))
+          @facetcard(app, "Author", result.getFacet("@author"))
+          @facetcard(app, "Article_Type", result.getFacet("@pubtype"))
+          @facetcard(app, "Journal", result.getFacet("@journal"))
+          @facetcard(app, "Keyword", result.getFacet("@keyword"))
+          @facetcard(app, "Concept", result.getFacet("@cui"))
+          @facetcard(app, "Semantic_Type", result.getFacet("@semtype"))    
+          <br><button class="btn btn-primary pull-right"
+                      id="menu-toggle">More...</button>
+        </div>
+        <div class="col-md-6">
+          @** SEARCH CONTENTS **@
+          @for(d <- result.docs) {
+            @articlecard(d)
             }
+            <div class="alert fade show" role="alert">
+              @paging()
+            </div>
+        </div>
+        <div class="col-md-3">
+          @** CONTEXT **@
+          @contextcard(result.query){
+            @result.total document@if(result.total!=1){s} matched
+            }
+            @if(refs != null && refs.size > 0){
+              @refcard(refs)
+              }
+        </div>        
       </div>
     </div>
   </div>
   }{
   <script src="@_root_.blackboard.disease.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
   }{
-
-  var urlParams = new URLSearchParams (window.location.search);  
   $(document).ready(function() {
       console.log('@HtmlFormat.raw(request.uri)');
+      $('#wrapper').toggleClass('toggled');
+      $("#menu-toggle").click(function(e) {
+          e.preventDefault();
+          $("#wrapper").toggleClass("toggled");
+          if ($('#wrapper').hasClass('toggled')) {
+              $('#menu-toggle').html("More...");
+          }
+          else {
+              $('#menu-toggle').html("Less...");
+          }
+      });
+
+      $.jstree.defaults.core.animation = 0;
+      $.jstree.defaults.core.themes.icons = false;
+      $.jstree.defaults.core.themes.stripes = true;  
+      $.jstree.defaults.core.themes.responsive = true;
+      $.jstree.defaults.checkbox.cascade = "up";
+      $.jstree.defaults.plugins = ["state", "wholerow", "dnd","checkbox"];
+      $.jstree.defaults.dnd.drag_selection = true;
+      $.jstree.defaults.dnd.large_drop_target = true;
+      $('#tr-C').jstree();
+      $('#tr-D').jstree();
+      $('#tr-G').jstree();
+      
       /*
       $('.facet-item').each(function () {
           console.log($(this).attr('id')+' '+$(this).attr('value')+' '+$(this).is(':checked'));

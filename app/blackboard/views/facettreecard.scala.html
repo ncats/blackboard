@@ -1,0 +1,26 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.index.Index._
+@import _root_.blackboard.utils.Util
+@import _root_.blackboard.controllers.KnowledgeApp
+@(app: KnowledgeApp, name: String, facet: Facet, prefix: String)
+@if(facet != null){
+  @defining(facet.getValuesWithPrefix(prefix)){values =>
+    @if(!values.isEmpty){
+      <div class="card" style="margin-top:10px;">
+         <div class="card-header" style="padding-bottom:0px">
+           <div class="alert alert-info" role="alert">
+             <a href="#" class="alert-link"
+                data-toggle="collapse" data-target='#tr-@prefix'>@name</a>
+           </div>
+         </div>
+         <div class="card-body">
+            <div id='tr-@prefix'>
+              @for(v <- values) {
+                <ul>@HtmlFormat.raw(KnowledgeApp.toHtml(v))</ul>
+              }
+            </div>
+         </div>
+      </div>
+    }
+  }
+}

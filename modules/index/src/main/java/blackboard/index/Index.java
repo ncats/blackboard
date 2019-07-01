@@ -6,6 +6,8 @@ import play.libs.Json;
 import javax.inject.Inject;
 import java.io.*;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.*;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -89,7 +91,7 @@ public class Index implements AutoCloseable, Fields {
         }
         
         public String getPath () {
-            return parent != null ? toPath (".") : null;
+            return parent != null ? toPath (".") : label;
         }
 
         static void print (StringBuilder sb, FV fv) {
@@ -138,12 +140,44 @@ public class Index implements AutoCloseable, Fields {
             return null;
         }
 
+        public List<FV> getValues (Predicate<FV> pred) {
+            return values.stream().filter(pred).collect(Collectors.toList());
+        }
+
+        public List<FV> getValuesWithPrefix (String prefix) {
+            return getValues (fv -> fv.label.startsWith(prefix));
+        }
+
         @JsonProperty(value="count")
         public int size () { return values.size(); }
 
-        void trim (int size) {
-            if (size > 0 && values.size() > size) {
+        public void trim (int size) {
+            int s = values.size();
+            if (size > 0 && s > size) {
                 List<FV> sub = new ArrayList<>(values.subList(0, size));
+                values.clear();
+                values.addAll(sub);
+            }
+        }
+
+        public void trim (int thres, int size) {
+            // this assumes sort() has already been done
+            int s = values.size();
+            if (s > size) {
+                List<FV> sub = new ArrayList<>();
+                for (FV fv : values) {
+                    if (fv.count < thres || fv.specified) {
+                        sub.add(fv);
+                        if (sub.size() >= size)
+                            break;
+                    }
+                }
+
+                if (sub.isEmpty() || sub.size() < size) {
+                    sub.clear();
+                    sub.addAll(values.subList(0, size));
+                }
+
                 values.clear();
                 values.addAll(sub);
             }
@@ -171,10 +205,6 @@ public class Index implements AutoCloseable, Fields {
      * merge facets; facet names must be the same 
      */
     public static Facet merge (Facet... facets) {
-        return merge (0, facets);
-    }
-    
-    public static Facet merge (int max, Facet... facets) {
         Facet merged = null;
         for (Facet f : facets) {
             if (merged == null) {
@@ -190,8 +220,6 @@ public class Index implements AutoCloseable, Fields {
         }
         
         merged.sort();
-        merged.trim(max);
-        
         return merged;
     }
 
@@ -662,7 +690,7 @@ public class Index implements AutoCloseable, Fields {
     protected List<Facet> toFacets (Facets facets, int topN)
         throws IOException {
         List<Facet> lf = new ArrayList<>();
-        for (FacetResult fr : facets.getAllDims(topN)) {
+        for (FacetResult fr : facets.getAllDims(2*topN)) {
             //Logger.debug("Facet: "+fr);
             if (fr != null) {
                 FacetsConfig.DimConfig dimconf =

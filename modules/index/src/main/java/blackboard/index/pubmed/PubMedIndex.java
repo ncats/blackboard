@@ -268,7 +268,15 @@ public class PubMedIndex extends MetaMapIndex {
             this.analyzer = analyzer;
         }
         public Analyzer getAnalyzer () { return analyzer; }
-        
+
+        Query textQuery (String field, String text) throws Exception {
+            String q = Util.queryRewrite(text);
+            Logger.debug("** REWRITE["+field+"]: "+q);
+            
+            QueryParser parser = new QueryParser (field, getAnalyzer ());
+            return parser.parse(q);
+        }
+            
         @Override
         public Query rewrite () {
             Query query = null;
@@ -276,12 +284,7 @@ public class PubMedIndex extends MetaMapIndex {
             if (field == null) {
                 try {
                     if (term != null) {
-                        String q = Util.queryRewrite(term);
-                        Logger.debug("** REWRITE: "+q);
-                        
-                        QueryParser parser = new QueryParser
-                            (FIELD_TEXT, getAnalyzer ());
-                        query = parser.parse(q);
+                        query = textQuery (FIELD_TEXT, term);
                     }
                     else {
                         query = new TermQuery
@@ -341,8 +344,15 @@ public class PubMedIndex extends MetaMapIndex {
                     break;
                     
                 default:
-                    query = new QueryBuilder (getAnalyzer ())
-                        .createPhraseQuery(field, term, slop);
+                    try {
+                        query = textQuery (field, term);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Bogus syntax: "+term
+                                     +"; revert to phrase query", ex);
+                        query = new QueryBuilder (getAnalyzer ())
+                            .createPhraseQuery(field, term, slop);
+                    }
                 }
             }
             
@@ -693,8 +703,11 @@ public class PubMedIndex extends MetaMapIndex {
             merged = new SearchResult ();
         }
 
+        int thres = (int)(merged.total * .4+0.5);
         for (List<Facet> fs : facets.values()) {
-            Facet f = merge (merged.query.fdim(), fs.toArray(new Facet[0]));
+            Facet f = merge (fs.toArray(new Facet[0]));
+            // only show facet values that are at most 40% of the total count
+            f.trim(thres, merged.query.fdim());
             merged.facets.add(f);
         }
 

@@ -10,7 +10,7 @@ import java.security.MessageDigest;
 public class Util {
     static final Pattern SLOP = Pattern.compile("~([\\d+])$");
     static final Pattern QUOTE =
-        Pattern.compile("([\\+~-])?\"([^\"]+)\"(~[\\d+])?");
+        Pattern.compile("([\\+~-])?[\"\\(]([^\"\\)]+)[\"\\)](~[\\d+])?");
     static Pattern TOKEN = Pattern.compile("\\s*([^\\s]+|$)\\s*");
 
     public static class QueryTokenizer {
@@ -220,8 +220,7 @@ public class Util {
                     tok = "+("+tok+" "+s+" "+s+"s)";
                 }
                 else if (!"AND".equals(tok)
-                         && !"OR".equals(tok) && !"NOT".equals(tok)
-                         && !tok.endsWith(")")) {
+                         && !"OR".equals(tok) && !"NOT".equals(tok)) {
                     q.append("+");
                 }
                 q.append(tok);
