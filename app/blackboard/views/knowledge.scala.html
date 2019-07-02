@@ -33,6 +33,20 @@
   }
 }
 
+@jstree(name: String, prefix: String) = {
+    @facettreecard(app, name,
+                   result.getFacet("@tr").getValuesWithPrefix(prefix),
+                   prefix)
+}
+
+@facettrees() = {
+    @**facetcard(app, "MesH", result.getFacet("@ui"))**@
+    @jstree("Disease", "C")
+    @jstree("Chemical", "D")
+    @jstree("Phenomena", "G")
+    @jstree("Anatomy", "A")
+}
+
 @views.html.ui.main("NCATS Knowledge Base"){
   <script>
   var filters = {}
@@ -77,10 +91,7 @@
       <div class="d-flex" id="wrapper">
         <!-- Sidebar -->
         <div class="border-left" id="sidebar-wrapper">
-          @**facetcard(app, "MesH", result.getFacet("@ui"))**@
-          @facettreecard(app, "Disease", result.getFacet("@tr"), "C")
-          @facettreecard(app, "Chemical", result.getFacet("@tr"), "D")
-          @facettreecard(app, "Phenomena", result.getFacet("@tr"), "G")    
+        @facettrees()
         </div>
 
         <!-- /#sidebar-wrapper -->
@@ -121,94 +132,208 @@
   }{
   <script src="@_root_.blackboard.disease.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
   }{
-  $(document).ready(function() {
-      console.log('@HtmlFormat.raw(request.uri)');
-      $('#wrapper').toggleClass('toggled');
-      $("#menu-toggle").click(function(e) {
-          e.preventDefault();
-          $("#wrapper").toggleClass("toggled");
-          if ($('#wrapper').hasClass('toggled')) {
-              $('#menu-toggle').html("More...");
-          }
-          else {
-              $('#menu-toggle').html("Less...");
-          }
-      });
-
-      $.jstree.defaults.core.animation = 0;
-      $.jstree.defaults.core.themes.icons = false;
-      $.jstree.defaults.core.themes.stripes = true;  
-      $.jstree.defaults.core.themes.responsive = true;
-      $.jstree.defaults.checkbox.cascade = "up";
-      $.jstree.defaults.plugins = ["state", "wholerow", "dnd","checkbox"];
-      $.jstree.defaults.dnd.drag_selection = true;
-      $.jstree.defaults.dnd.large_drop_target = true;
-      $('#tr-C').jstree();
-      $('#tr-D').jstree();
-      $('#tr-G').jstree();
-      
-      /*
-      $('.facet-item').each(function () {
-          console.log($(this).attr('id')+' '+$(this).attr('value')+' '+$(this).is(':checked'));
-      });
-      */
-      for(var id in filters) {
-         var f = filters[id];
-         if (f.checked) {
-            console.log(id+'='+f.name+'/'+f.value+' ');
-         }
-      }
-
-      @if(result.query.getQuery != null) {
-          var urlParams = new URLSearchParams(window.location.search);
-          var query = urlParams.get('q');
-          var route = diseaseRoutes.blackboard.disease
-              .controllers.Controller.search(query);
-          var url = route.url;
-          url += (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
-          $.ajax({
-              url: url,
-              success: function(data) {
-                  console.log('***** '+url+' '+data);
-                  $('#disease-count').html(''+data);
-              },
-              error: function(){
-                  $('#disease-count').html('?');
-                  console.log('failed to retrieve disease count!');
+      $(document).ready(function() {
+          console.log('@HtmlFormat.raw(request.uri)');
+          $('#wrapper').toggleClass('toggled');
+          $("#menu-toggle").click(function(e) {
+              e.preventDefault();
+              $("#wrapper").toggleClass("toggled");
+              if ($('#wrapper').hasClass('toggled')) {
+                  $('#menu-toggle').html("More...");
+              }
+              else {
+                  $('#menu-toggle').html("Less...");
               }
           });
-      }
-  });
-  
-  function filterToggle (el) {    
-      console.log(location.href+' '+el.id+' '+el.value+' '+el.checked);
-      filters[el.id].checked = el.checked;
-      applyFilter ();
-  }
-
-  function applyFilter () {
-      var facet = '';
-      for(var id in filters) {
-         var f = filters[id];
-         if (f.checked) {
-            if (facet.length > 0)
-               facet += '&';
-            facet += 'facet='+f.name+'/'+f.value;
-         }
-      }
-      var url = '@HtmlFormat.raw(app.uri("facet", "skip"))';
-      if (facet.length > 0) {
-         url += url.indexOf('?') < 0 ? '?' : '&';
-         url += facet;
-      }
-      console.log('=====> '+url);
-      $.ajax({
-         'url': url,
-         success: function () {
-            window.location.href = url;
-         }
-      }).done(function () {
-         
+          
+          setupTreeFacets ();
+          
+          /*
+            $('.facet-item').each(function () {
+            console.log($(this).attr('id')+' '+$(this).attr('value')+' '+$(this).is(':checked'));
+            });
+          */
+          for(var id in filters) {
+              var f = filters[id];
+              if (f.checked) {
+                  console.log(id+'='+f.name+'/'+f.value+' ');
+              }
+          }
+          
+          @if(result.query.getQuery != null) {
+              var urlParams = new URLSearchParams(window.location.search);
+              var query = urlParams.get('q');
+              var route = diseaseRoutes.blackboard.disease
+                  .controllers.Controller.search(query);
+              var url = route.url;
+              url += (url.indexOf('?') > 0 ? '&':'?')+'path=/total';
+              $.ajax({
+                  url: url,
+                  success: function(data) {
+                      console.log('***** '+url+' '+data);
+                      $('#disease-count').html(''+data);
+                  },
+                  error: function(){
+                      $('#disease-count').html('?');
+                      console.log('failed to retrieve disease count!');
+                  }
+              });
+          }
       });
-  }
+      
+      function filterToggle (el) {    
+          console.log(location.href+' '+el.id+' '+el.value+' '+el.checked);
+          filters[el.id].checked = el.checked;
+          applyFilter ();
+      }
+      
+      function applyFilter () {
+          var facet = '';
+          for(var id in filters) {
+              var f = filters[id];
+              if (f.checked) {
+                  if (facet.length > 0)
+                      facet += '&';
+                  facet += 'facet='+f.name+'/'+f.value;
+              }
+          }
+          var url = '@HtmlFormat.raw(app.uri("facet", "skip"))';
+          if (facet.length > 0) {
+              url += url.indexOf('?') < 0 ? '?' : '&';
+              url += facet;
+          }
+          console.log('=====> '+url);
+          $.ajax({
+              'url': url,
+              success: function () {
+                  window.location.href = url;
+              }
+          }).done(function () {
+              
+          });
+      }
+
+      function clearTreeSelections (el) {
+          var id = $(el).data("treeid");
+          var tr = $.jstree.reference('#'+id);
+          var selected = tr.get_bottom_selected();
+          var params = new URLSearchParams (window.location.search);
+          var facets = params.getAll('facet');
+          for (var i in facets) {
+              var node = $.jstree.reference('#'+facets[i]);
+              console.log(facets[i]+'...'+tr.is_selected(node));   
+          }
+          tr.deselect_all();
+      }
+
+      function applyTreeSelections (el) {
+          const trees = [
+              'tr-C',
+              'tr-D',
+              'tr-G',
+              'tr-A'
+          ];
+          var paths = [];
+          for (var i in trees) {
+              var tr = $.jstree.reference('#'+trees[i]);
+              var selected = tr.get_top_selected();
+              console.log('#'+trees[i]+'...');
+              for (var n in selected) {
+                  console.log('...'+selected[n]);
+                  paths.push(selected[n]);
+              }
+          }
+          
+          console.log('selected paths...'+paths);
+          if (paths.length > 0) {
+              var url = '@HtmlFormat.raw(app.uri("facet", "skip"))';
+              url += url.indexOf('?') < 0 ? '?' : '&';
+              url += 'facet=@@tr/'+paths[0];
+              for (var i = 1; i < paths.length; ++i) {
+                  url += '&facet=@@tr/'+paths[i];
+              }
+              console.log('=====> '+url);
+              $.ajax({
+                  'url': url,
+                  success: function () {
+                      window.location.href = url;
+                  }
+              }).done(function () {
+                  
+              });
+          }
+          else {
+              var params = new URLSearchParams (window.location.search);
+              var facets = params.getAll('facet');
+              params.delete('facet');
+              for (var i in facets) {
+                  var f = facets[i];
+                  if (f.startsWith('@@tr/')) {
+                      
+                  }
+                  else {
+                      params.append('facet', f);
+                  }
+              }
+              
+              var url = '@request.path'+'?'+params.toString();
+              console.log('=====> '+url);
+              $.ajax({
+                  'url': url,
+                  success: function () {
+                      window.location.href = url;
+                  }
+              }).done(function () {
+                  
+              });              
+          }
+      }
+
+      function setupTreeFacets () {
+          $.jstree.defaults.core.animation = 0;
+          $.jstree.defaults.core.themes.icons = false;
+          $.jstree.defaults.core.themes.stripes = false;  
+          $.jstree.defaults.core.themes.responsive = true;
+          $.jstree.defaults.checkbox.cascade = "up";
+          $.jstree.defaults.plugins = ["checkbox"];
+          $.jstree.defaults.dnd.drag_selection = true;
+          $.jstree.defaults.dnd.large_drop_target = true;
+          const trees = [
+              'tr-C',
+              'tr-D',
+              'tr-G',
+              'tr-A'
+          ];
+
+          var params = new URLSearchParams (window.location.search);
+          var facets = params.getAll('facet');
+          for (var i in trees) {
+              var id = '#'+trees[i];
+              $(id).jstree({
+                  'core': {
+                      'themes': {
+                          'name': 'proton',
+                          'responsive': true
+                      }
+                  }
+              });
+          }
+
+          var trcnt = 0;
+          for (var i in facets) {
+              var f = facets[i];
+              if (f.startsWith('@@tr/')) {
+                  var nid = f.substring(4);
+                  var id = '#tr-'+nid.substring(0, 1);
+                  var tr = $.jstree.reference(id);
+                  tr.select_node('#'+nid);
+                  ++trcnt;
+              }
+          }
+          
+          if (trcnt > 0) {
+              $('#menu-toggle').html("Less...");
+              $('#wrapper').toggleClass('toggled');
+          }
+      }
 }

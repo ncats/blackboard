@@ -43,9 +43,11 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         String text = node.display != null ? node.display : node.label;
         for (FV p = node.parent; p != null; p = p.parent)
             min -= 2;
+        if (min < 3)
+            min = 3;
         if (text.length() > min) {
             return "<span data-toggle=\"tooltip\""
-                +"title=\""+text+"\" style=\"margin-right:0.5rem\">"
+                +" title=\""+text+"\" style=\"margin-right:0.5rem\">"
                 +text.substring(0,min)+"...</span>";
         }
         return text;
