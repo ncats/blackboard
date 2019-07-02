@@ -771,6 +771,10 @@ public class PubMedIndex extends MetaMapIndex {
         FacetsConfig fc = new FacetsConfig ();
         fc.setMultiValued(FACET_TR, true);
         fc.setHierarchical(FACET_TR, true);
+        for (String cat : TR_CATEGORIES) {
+            fc.setMultiValued(FACET_TR+cat, true);
+            fc.setHierarchical(FACET_TR+cat, true);
+        }
         fc.setMultiValued(FACET_UI, true);
         fc.setMultiValued(FACET_SEMTYPE, true); // umls semantic types
         fc.setMultiValued(FACET_SOURCE, true); // umls sources
@@ -788,6 +792,7 @@ public class PubMedIndex extends MetaMapIndex {
         fc.setHierarchical(FACET_GRANTAGENCY, true);
         fc.setMultiValued(FACET_GRANTAGENCY, true);
         fc.setMultiValued(FACET_GRANTCOUNTRY, true);
+        
         return fc;
     }
 
@@ -950,7 +955,10 @@ public class PubMedIndex extends MetaMapIndex {
             
             for (String tr : desc.treeNumbers) {
                 Logger.debug("..."+tr);
-                doc.add(new FacetField (FACET_TR, tr.split("\\.")));
+                String[] path = tr.split("\\.");
+                doc.add(new FacetField (FACET_TR, path));
+                doc.add(new FacetField
+                        (FACET_TR+path[0].substring(0, 1), path));
                 doc.add(new Field (FIELD_TR, tr, tvFieldType));
             }
             

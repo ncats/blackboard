@@ -308,14 +308,24 @@
           var params = new URLSearchParams (window.location.search);
           var facets = params.getAll('facet');
           for (var i in trees) {
-              var id = '#'+trees[i];
-              $(id).jstree({
+              const id = trees[i];
+              $('#'+id).jstree({
                   'core': {
                       'themes': {
                           'name': 'proton',
                           'responsive': true
                       }
                   }
+              }).on('select_node.jstree', function (ev, data) {
+                  console.log(data.node.id+' is selected');
+                  console.log(data.selected);
+                  updateTreeHeader (id);
+              }).on('deselect_node.jstree', function(ev, data) {
+                  console.log(data.node.id+' it deselected');
+                  console.log(data.selected);
+                  updateTreeHeader (id);
+              }).on('deselect_all.jstree', function () {
+                  updateTreeHeader (id);
               });
           }
 
@@ -334,6 +344,18 @@
           if (trcnt > 0) {
               $('#menu-toggle').html("Less...");
               $('#wrapper').toggleClass('toggled');
+          }
+      }
+
+      function updateTreeHeader (tree) {
+          var id = '#header-'+tree;
+          var name = $(id).data('name');
+          var selected = $.jstree.reference('#'+tree).get_top_selected();
+          if (selected.length == 0) {
+              $(id).html(name);
+          }
+          else {
+              $(id).html(name+' ('+selected.length+')');
           }
       }
 }

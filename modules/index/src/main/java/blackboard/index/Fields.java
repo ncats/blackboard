@@ -19,6 +19,24 @@ public interface Fields {
     public static final String FIELD_UI = "ui";
     public static final String FACET_TR = "@tr"; // tree number";
     public static final String FIELD_TR = "tr"; // tree number";
+    public static final String[] TR_CATEGORIES = {
+        "A", // Anatomy
+        "B", // Organisms
+        "C", // Diseases
+        "D", // Chemicals and Drugs
+        "E", // Analytical, Diagnostic and Therapeutic
+        "F", // Psychiatry and Psychology
+        "G", // Phenomena and Processes
+        "H", // Disciplines and Occupuations
+        "I", // Anthropology..
+        "J", // Technology, Industry, ..
+        "K", // Humanities
+        "L", // Information Science
+        "M", // Named Groups
+        "N", // Health care
+        "V", // Publication Characteristics
+        "Z" // Geographicals
+    };
     public static final String FIELD_MESH = "mesh";
     public static final String FACET_MESH = "@mesh";
     public static final String FACET_LANG = "@lang";
