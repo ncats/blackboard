@@ -34,9 +34,12 @@
 }
 
 @jstree(name: String, prefix: String) = {
-    @facettreecard(app, name,
-                   result.getFacet("@tr").getValuesWithPrefix(prefix),
-                   prefix)
+    @defining(result.getFacet("@tr")){ tr =>
+      @if(tr != null) {
+        @facettreecard(app, name,
+                       tr.getValuesWithPrefix(prefix), prefix)
+      }
+    }
 }
 
 @facettrees() = {
@@ -188,20 +191,25 @@
       }
       
       function applyFilter () {
-          var facet = '';
+          var params = new URLSearchParams (window.location.search);
+          params.delete('skip');
+          
+          var facets = params.getAll('facet');
+          params.delete('facet');
           for(var id in filters) {
               var f = filters[id];
               if (f.checked) {
-                  if (facet.length > 0)
-                      facet += '&';
-                  facet += 'facet='+f.name+'/'+f.value;
+                  params.append('facet', f.name+'/'+f.value);
               }
           }
-          var url = '@HtmlFormat.raw(app.uri("facet", "skip"))';
-          if (facet.length > 0) {
-              url += url.indexOf('?') < 0 ? '?' : '&';
-              url += facet;
+          
+          for (var i in facets) {
+              if (facets[i].startsWith('@@tr/')) {
+                  params.append('facet', facets[i]);
+              }
           }
+
+          var url = '@request.path'+'?'+params.toString();
           console.log('=====> '+url);
           $.ajax({
               'url': url,
@@ -245,25 +253,14 @@
           }
           
           console.log('selected paths...'+paths);
+          var params = new URLSearchParams (window.location.search);
           if (paths.length > 0) {
-              var url = '@HtmlFormat.raw(app.uri("facet", "skip"))';
-              url += url.indexOf('?') < 0 ? '?' : '&';
-              url += 'facet=@@tr/'+paths[0];
-              for (var i = 1; i < paths.length; ++i) {
-                  url += '&facet=@@tr/'+paths[i];
+              params.delete('skip');
+              for (var i in paths) {
+                  params.append('facet', '@@tr/'+paths[i]);
               }
-              console.log('=====> '+url);
-              $.ajax({
-                  'url': url,
-                  success: function () {
-                      window.location.href = url;
-                  }
-              }).done(function () {
-                  
-              });
           }
           else {
-              var params = new URLSearchParams (window.location.search);
               var facets = params.getAll('facet');
               params.delete('facet');
               for (var i in facets) {
@@ -273,20 +270,20 @@
                   }
                   else {
                       params.append('facet', f);
+                      console.log('keeping...'+f);
                   }
               }
+          }              
+          var url = '@request.path'+'?'+params.toString();
+          console.log('=====> '+url);
+          $.ajax({
+              'url': url,
+              success: function () {
+                  window.location.href = url;
+              }
+          }).done(function () {
               
-              var url = '@request.path'+'?'+params.toString();
-              console.log('=====> '+url);
-              $.ajax({
-                  'url': url,
-                  success: function () {
-                      window.location.href = url;
-                  }
-              }).done(function () {
-                  
-              });              
-          }
+          });              
       }
 
       function setupTreeFacets () {
