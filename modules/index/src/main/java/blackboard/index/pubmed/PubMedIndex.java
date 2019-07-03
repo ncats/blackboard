@@ -533,13 +533,6 @@ public class PubMedIndex extends MetaMapIndex {
             throws IOException {
             for (Facet f : facets) {
                 switch (f.name) {
-                case FACET_TR: // treeNumber
-                    if (mesh != null) {
-                        for (FV fv : f.values)
-                            updateTreeNumberDisplay (fv);
-                    }
-                    break;
-
                 case FACET_UI:
                 case FACET_PUBTYPE:
                     if (mesh != null) {
@@ -572,6 +565,13 @@ public class PubMedIndex extends MetaMapIndex {
                         Concept concept = getConcept (searcher, fv.label);
                         if (concept != null)
                             fv.display = concept.name;
+                    }
+                    break;
+
+                default:
+                    if (f.name.startsWith(FACET_TR) && mesh != null) {
+                        for (FV fv : f.values)
+                            updateTreeNumberDisplay (fv);
                     }
                     break;
                 }

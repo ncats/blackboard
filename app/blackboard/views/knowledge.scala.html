@@ -34,7 +34,7 @@
 }
 
 @jstree(name: String, prefix: String) = {
-    @defining(result.getFacet("@tr")){ tr =>
+    @defining(result.getFacet("@tr"+prefix)){ tr =>
       @if(tr != null) {
         @facettreecard(app, name,
                        tr.getValuesWithPrefix(prefix), prefix)
@@ -204,7 +204,7 @@
           }
           
           for (var i in facets) {
-              if (facets[i].startsWith('@@tr/')) {
+              if (facets[i].startsWith('@@tr')) {
                   params.append('facet', facets[i]);
               }
           }
@@ -254,26 +254,27 @@
           
           console.log('selected paths...'+paths);
           var params = new URLSearchParams (window.location.search);
-          if (paths.length > 0) {
-              params.delete('skip');
-              for (var i in paths) {
-                  params.append('facet', '@@tr/'+paths[i]);
+          var facets = params.getAll('facet');
+          params.delete('facet');
+          for (var i in facets) {
+              var f = facets[i];
+              if (f.startsWith('@@tr')) {
+                  
+              }
+              else {
+                  params.append('facet', f);
+                  console.log('keeping...'+f);
               }
           }
-          else {
-              var facets = params.getAll('facet');
-              params.delete('facet');
-              for (var i in facets) {
-                  var f = facets[i];
-                  if (f.startsWith('@@tr/')) {
-                      
-                  }
-                  else {
-                      params.append('facet', f);
-                      console.log('keeping...'+f);
-                  }
+          
+          if (paths.length > 0) {
+              for (var i in paths) {
+                  var fname = '@@tr'+paths[i].substring(0,1)+'/';
+                  params.append('facet', fname+paths[i]);
               }
-          }              
+              params.delete('skip');
+          }
+
           var url = '@request.path'+'?'+params.toString();
           console.log('=====> '+url);
           $.ajax({
@@ -329,8 +330,8 @@
           var trcnt = 0;
           for (var i in facets) {
               var f = facets[i];
-              if (f.startsWith('@@tr/')) {
-                  var nid = f.substring(4);
+              if (f.startsWith('@@tr')) {
+                  var nid = f.substring(f.indexOf('/')+1);
                   var id = '#tr-'+nid.substring(0, 1);
                   var tr = $.jstree.reference(id);
                   tr.select_node('#'+nid);

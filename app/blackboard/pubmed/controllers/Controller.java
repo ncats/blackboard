@@ -81,12 +81,9 @@ public class Controller extends play.mvc.Controller {
                 if (pos > 0) {
                     String name = p.substring(0, pos);
                     Object value = p.substring(pos+1);
-                    switch (name) {
-                    case FACET_TR:
-                    case FACET_GRANTAGENCY:
+                    if (name.equals(FACET_GRANTAGENCY)
+                        || name.startsWith(FACET_TR)) {
                         value = ((String)value).split("\\.");
-                        break;
-                    default:
                     }
                     
                     Object old = facets.get(name);
