@@ -129,7 +129,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     }
 
     protected PubMedSax createSaxParser () {
-        PubMedSax pms = new PubMedSax (pubmed.mesh, d -> {
+        PubMedSax pms = new PubMedSax (pubmed.mesh, (s, d) -> {
                 boolean cont = false;
                 if (max == null || max == 0 || count.incrementAndGet() < max) {
                     try {

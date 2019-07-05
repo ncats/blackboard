@@ -721,7 +721,7 @@ public class Index implements AutoCloseable, Fields {
         long start = System.currentTimeMillis();
         Map<String, Object> fmap = result.query.getFacets();
         Query query = result.query.rewrite();
-        Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
+        //Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
         
         try (IndexReader reader = DirectoryReader.open(indexWriter);
              TaxonomyReader taxonReader =
@@ -803,12 +803,12 @@ public class Index implements AutoCloseable, Fields {
                 result.postProcessing(searcher);
             }
 
-            Logger.debug("### Query executed in "
+            Logger.debug("### Query "+query+" executed in "
                          +String.format
                          ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
                          +"..."+result.size()+" hit(s) (out of "
                          +result.total+" found)!");
-            
+
             return result.size();
         }
     }

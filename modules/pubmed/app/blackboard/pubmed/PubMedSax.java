@@ -16,12 +16,13 @@ import java.util.*;
 import java.io.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 import play.Logger;
 
 public class PubMedSax extends DefaultHandler {
-    static final byte[] TAG_START = "<PubmedArticle>".getBytes();
-    static final byte[] TAG_STOP = "</PubmedArticle>".getBytes();
+    static final byte[] TAG_START_PA = "<PubmedArticle>".getBytes();
+    static final byte[] TAG_STOP_PA = "</PubmedArticle>".getBytes();
     static final byte[] TAG_XML = "<?xml version=\"1.0\"?>\n".getBytes();
 
     static final long EPOCH = 18000000l;
@@ -35,10 +36,11 @@ public class PubMedSax extends DefaultHandler {
     String idtype, ui, majorTopic, lang, pubstatus;
     MeshHeading mh;
     final MeshDb mesh;
-    Predicate<PubMedDoc> consumer;
+    BiPredicate<PubMedSax, PubMedDoc> consumer;
     Map<String, Object> author = new LinkedHashMap<>();
     Map<String, Object> grant = new LinkedHashMap<>();
     Map<String, Object> reference = new LinkedHashMap<>();
+    List<Long> deleteCitations = new ArrayList<>();
     
     CaptureInputStream cis;
     String source;
@@ -46,6 +48,8 @@ public class PubMedSax extends DefaultHandler {
     
     static class CaptureInputStream extends FilterInputStream {
         ByteArrayOutputStream buf = new ByteArrayOutputStream (1024);
+        // other xml
+        ByteArrayOutputStream xml = new ByteArrayOutputStream (1024);
         int start, stop;
         Consumer<byte[]> consumer;
         boolean done;
@@ -77,25 +81,29 @@ public class PubMedSax extends DefaultHandler {
                 byte[] xml = buf.toByteArray();
                 if (consumer != null)
                     consumer.accept(xml);
+                this.xml.reset();
             }
         }
         
         void add (byte b) {
-            if (start == TAG_START.length) {
+            if (start == TAG_START_PA.length) {
                 buf.write(b);
-                if (stop < TAG_STOP.length && b == TAG_STOP[stop]) {
-                    if (++stop == TAG_STOP.length) {
+                xml.write(b);
+                if (stop < TAG_STOP_PA.length && b == TAG_STOP_PA[stop]) {
+                    if (++stop == TAG_STOP_PA.length) {
                         publish ();
                         clear ();
                     }
                 }
                 else stop = 0;
             }
-            else if (start < TAG_START.length && b == TAG_START[start]) {
+            else if (start < TAG_START_PA.length && b == TAG_START_PA[start]) {
                 buf.write(b);
+                xml.write(b);
                 ++start;
             }
             else {
+                xml.write(b);
                 clear ();
             }
         }
@@ -107,7 +115,9 @@ public class PubMedSax extends DefaultHandler {
                 byte b = (byte)(ch & 0xff);
                 add (b);
             }
-            else publish ();
+            else {
+                publish ();
+            }
             return ch;
         }
         
@@ -118,8 +128,9 @@ public class PubMedSax extends DefaultHandler {
                 for (int i = 0; i < nb; ++i)
                     add (b[i]);
             }
-            else
+            else {
                 publish ();
+            }
                 
             return nb;
         }
@@ -131,17 +142,21 @@ public class PubMedSax extends DefaultHandler {
                 for (int i = 0; i < nb; ++i)
                     add (b[off+i]);
             }
-            else publish ();
+            else {
+                publish ();
+            }
             return nb;
         }
+
+        public byte[] getOtherXML () { return xml.toByteArray(); }
         protected void setDone (boolean done) { this.done = done; }
     }
     
-    public PubMedSax (Predicate<PubMedDoc> consumer) {
+    public PubMedSax (BiPredicate<PubMedSax, PubMedDoc> consumer) {
         this (null, consumer);
     }
 
-    public PubMedSax (MeshDb mesh, Predicate<PubMedDoc> consumer) {
+    public PubMedSax (MeshDb mesh, BiPredicate<PubMedSax, PubMedDoc> consumer) {
         this.mesh = mesh;
         this.consumer = consumer;
     }
@@ -150,6 +165,9 @@ public class PubMedSax extends DefaultHandler {
     public String getSource () { return source; }
     public void setTimestamp (Long timestamp) { this.timestamp = timestamp; }
     public Long getTimestamp () { return timestamp; }
+    public List<Long> getDeleteCitations () {
+        return Collections.unmodifiableList(deleteCitations);
+    }
     
     public void parse (File file) throws Exception {
         source = file.getName();
@@ -172,6 +190,9 @@ public class PubMedSax extends DefaultHandler {
             ("http://apache.org/xml/features/nonvalidating/load-dtd-grammar",
             false);
         SAXParser sax = spf.newSAXParser();
+        
+        // we're doing this so that we can capture the PubmedArticle
+        // xml for storage!
         cis = new CaptureInputStream (is, xml -> {
                 doc = new PubMedDoc ();
                 doc.xml = xml;
@@ -188,6 +209,14 @@ public class PubMedSax extends DefaultHandler {
         byte[] buf = new byte[8192];
         for (int nb; (nb = cis.read(buf, 0, buf.length)) != -1;)
             ;
+        
+        byte[] xml = cis.getOtherXML();
+        try {
+            // catch delete citations
+            sax.parse(new ByteArrayInputStream (xml), this);
+        }
+        catch (Exception ex) {
+        }
     }
     
     public void startDocument () {
@@ -199,8 +228,11 @@ public class PubMedSax extends DefaultHandler {
     public void startElement (String uri, String localName, String qName, 
                               Attributes attrs) {
         switch (qName) {
+        case "DeleteCitation":
+            deleteCitations.clear();
+            break;
+            
         case "PubmedArticle":
-            //doc = new PubMedDoc ();
             break;
             
         case "PubDate":  case "DateRevised": case "PubMedPubDate":
@@ -270,13 +302,17 @@ public class PubMedSax extends DefaultHandler {
         String value = content.toString().trim();
         switch (qName) {
         case "PMID":
-            if ("MedlineCitation".equals(parent)) {
-                try {
-                    doc.pmid = Long.parseLong(value);
+            try {
+                Long pmid = Long.parseLong(value);
+                if ("MedlineCitation".equals(parent)) {
+                    doc.pmid = pmid;
                 }
-                catch (NumberFormatException ex) {
-                    Logger.error("Bogus PMID: "+content, ex);
+                else if ("DeleteCitation".equals(parent)) {
+                    deleteCitations.add(pmid);
                 }
+            }
+            catch (NumberFormatException ex) {
+                Logger.error("Bogus PMID: "+content, ex);
             }
             break;
             
@@ -441,7 +477,7 @@ public class PubMedSax extends DefaultHandler {
             
         case "PubmedArticle":
             if (consumer != null) {
-                if (!consumer.test(doc))
+                if (!consumer.test(this, doc))
                     cis.setDone(true);
             }
             break;
@@ -474,7 +510,7 @@ public class PubMedSax extends DefaultHandler {
         }
 
         Calendar cal = Calendar.getInstance();
-        PubMedSax pms = new PubMedSax (d -> {
+        PubMedSax pms = new PubMedSax ((s, d) -> {
                 cal.setTime(d.date);
                 Logger.debug(d.getPMID()+": ["+cal.get(Calendar.YEAR)+"] "
                              +d.getTitle()+"\n"+d.abs);
@@ -484,6 +520,8 @@ public class PubMedSax extends DefaultHandler {
         for (String a : argv) {
             pms.parse(new java.util.zip.GZIPInputStream
                       (new java.io.FileInputStream (a)));
+            List<Long> delcit = pms.getDeleteCitations();
+            Logger.debug("**** "+delcit.size()+" delete citations!\n"+delcit);
         }
     }
 } // PubMedSax

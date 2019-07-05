@@ -277,7 +277,7 @@ public class PubMedDb extends Neo4j implements AutoCloseable {
         for (int i = 0; i < nthreads; ++i)
             futures[i] = es.submit(new IndexTask ());
         
-        new PubMedSax(mesh, d -> {
+        new PubMedSax(mesh, (s, d) -> {
                 boolean cont = false;
                 try {
                     //Logger.debug("queuing "+d.pmid+"...");

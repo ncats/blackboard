@@ -805,6 +805,34 @@ public class PubMedIndex extends MetaMapIndex {
             return hits.totalHits > 0;
         }
     }
+
+    public int deleteDocs (Long...pmids) throws IOException {
+        int start = indexWriter.numDocs();
+        for (Long id : pmids) {
+            Query q = NumericRangeQuery.newLongRange
+                (FIELD_PMID, id, id, true, true);
+            indexWriter.deleteDocuments(q);
+        }
+        indexWriter.commit();
+        return indexWriter.numDocs() - start;
+    }
+
+    public int deletedocs (MatchedDoc... docs) throws IOException {
+        int start = indexWriter.numDocs();
+        for (MatchedDoc d : docs) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(NumericRangeQuery.newLongRange
+                        (FIELD_PMID, d.pmid, d.pmid, true, true),
+                        BooleanClause.Occur.MUST);
+            long revised = d.revised.getTime();
+            builder.add(NumericRangeQuery.newLongRange
+                        (FIELD_REVISED, revised, revised, true, true),
+                        BooleanClause.Occur.MUST);
+            indexWriter.deleteDocuments(builder.build());
+        }
+        indexWriter.commit();
+        return indexWriter.numDocs() - start;
+    }
     
     public boolean addIfAbsent (PubMedDoc d) throws IOException {
         if (!indexed (d.getPMID())) {
@@ -1182,14 +1210,23 @@ public class PubMedIndex extends MetaMapIndex {
         return md;
     }
 
-    public MatchedDoc getMatchedDoc (long pmid) throws Exception {
+    public MatchedDoc[] getMatchedDocs (long pmid) throws Exception {
         PMIDQuery pq = new PMIDQuery (pmid);
         SearchResult result = search (pq);
         if (result.total == 0)
-            return EMPTY_DOC;
-        if (result.total > 1)
-            Logger.warn("PMID "+pmid+" has "+result.total+" documents!");
-        return result.docs.get(0);
+            return new MatchedDoc[0];
+        MatchedDoc[] docs = result.docs.toArray(new MatchedDoc[0]);
+        if (docs.length > 1) {
+            Arrays.sort(docs);
+        }
+        return docs;
+    }
+        
+    public MatchedDoc getMatchedDoc (long pmid) throws Exception {
+        MatchedDoc[] docs = getMatchedDocs (pmid);
+        if (docs.length > 1)
+            Logger.warn("PMID "+pmid+" has "+docs.length+" documents!");
+        return docs.length == 0 ? EMPTY_DOC : docs[0];
     }
 
     public SearchResult facets (SearchQuery query) throws Exception {
@@ -1252,7 +1289,7 @@ public class PubMedIndex extends MetaMapIndex {
              PubMedIndex index = new PubMedIndex (new File (argv[0]))) {
 
             AtomicInteger count = new AtomicInteger ();
-            PubMedSax pms = new PubMedSax (mesh, d -> {
+            PubMedSax pms = new PubMedSax (mesh, (s, d) -> {
                     try {
                         index.add(d);
                         Logger.debug(d.getPMID()+": "+d.getTitle());
