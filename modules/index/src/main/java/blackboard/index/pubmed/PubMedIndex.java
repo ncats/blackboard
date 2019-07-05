@@ -817,7 +817,7 @@ public class PubMedIndex extends MetaMapIndex {
         return indexWriter.numDocs() - start;
     }
 
-    public int deletedocs (MatchedDoc... docs) throws IOException {
+    public int deleteDocs (MatchedDoc... docs) throws IOException {
         int start = indexWriter.numDocs();
         for (MatchedDoc d : docs) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();

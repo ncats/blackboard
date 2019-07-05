@@ -44,8 +44,15 @@ public class PubMedIndexUpdater implements AutoCloseable {
     }
 
     static class Delete {
+        final MatchedDoc doc;
+        Delete (MatchedDoc doc) {
+            this.doc = doc;
+        }
+    }
+
+    static class DeleteCitation {
         final Long[] input;        
-        Delete (Long... input) {
+        DeleteCitation (Long... input) {
             this.input = input;
         }
     }
@@ -77,12 +84,23 @@ public class PubMedIndexUpdater implements AutoCloseable {
             return receiveBuilder()
                 .match(Delete.class, this::doDelete)
                 .match(Update.class, this::doUpdate)
+                .match(DeleteCitation.class, this::doDeleteCitation)
                 .build();
+        }
+
+        void doDeleteCitation (DeleteCitation del) {
+            try {
+                int dels = pmi.deleteDocs(del.input);
+                getSender().tell(dels, getSelf ());
+            }
+            catch (IOException ex) {
+                getSender().tell(ex, getSelf ());
+            }
         }
 
         void doDelete (Delete del) {
             try {
-                int dels = pmi.deleteDocs(del.input);
+                int dels = pmi.deleteDocs(del.doc);
                 getSender().tell(dels, getSelf ());
             }
             catch (IOException ex) {
@@ -153,7 +171,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     }
 
     void deleteCitations (Long... citations) {
-        Delete del = new Delete (citations);
+        DeleteCitation del = new DeleteCitation (citations);
         for (ActorRef actorRef : actors) {
             inbox.send(actorRef, del);
             try {
@@ -190,7 +208,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
 
     void updateDoc (Long pmid) {
         Update upd = new Update (pmid);
-        List<MatchedDoc> alldocs = new ArrayList<>();
+        Map<MatchedDoc, ActorRef> alldocs = new LinkedHashMap<>();
         for (ActorRef actorRef : actors) {
             inbox.send(actorRef, upd);
         }
@@ -207,7 +225,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
                         Logger.debug
                             (actorRef+": "+docs.length+" doc(s) matched!");
                         for (MatchedDoc d : docs)
-                            alldocs.add(d);
+                            alldocs.put(d, actorRef);
                     }
                 }
             }
@@ -218,10 +236,28 @@ public class PubMedIndexUpdater implements AutoCloseable {
         }
         
         if (alldocs.size() > 1) {
-            Collections.sort(alldocs);
+            List<MatchedDoc> docs = new ArrayList<>(alldocs.keySet());
+            Collections.sort(docs);
             Logger.warn(pmid+" has "+alldocs.size()+" instances!");
-            for (MatchedDoc d : alldocs) {
-                Logger.warn("** deleting "+d.pmid+" "+d.revised);
+            Logger.warn("** keeping "+docs.get(0).pmid+" "+docs.get(0).revised);
+            for (int i = 1; i < docs.size(); ++i) {
+                MatchedDoc d = docs.get(i);
+                ActorRef actorRef = alldocs.get(d);
+                inbox.send(actorRef, new Delete (d));
+                try {
+                    Object res = inbox.receive(Duration.ofSeconds(5l));
+                    if (res instanceof Throwable) {
+                        Logger.error(actorRef+": ** can't delete "+d.pmid
+                                     +" "+d.revised, (Throwable) res);
+                    }
+                    else {
+                        Logger.warn("** deleted "+d.pmid+" "+d.revised);    
+                    }
+                }
+                catch (TimeoutException ex) {
+                    Logger.error("Unable to receive result from "+actorRef
+                                 +" within alloted time", ex);
+                }
             }
         }
     }
