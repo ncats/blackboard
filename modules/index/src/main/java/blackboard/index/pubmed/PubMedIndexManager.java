@@ -101,12 +101,6 @@ public class PubMedIndexManager implements AutoCloseable {
 
         @Override
         public void postStop () {
-            try {
-                pmi.close();
-            }
-            catch (Exception ex) {
-                Logger.error("Can't close PubMedIndex: "+pmi.getDbFile(), ex);
-            }
             Logger.debug("### "+self ()+"...stopped!");
         }
 
@@ -182,7 +176,8 @@ public class PubMedIndexManager implements AutoCloseable {
             File db = new File (dir, idx);
             try {
                 ActorRef actorRef = actorSystem.actorOf
-                    (PubMedIndexActor.props(pmif, db), idx);
+                    (PubMedIndexActor.props(pmif, db),
+                     getClass().getName()+"-"+idx);
                 this.indexes.add(actorRef);
             }
             catch (Exception ex) {
@@ -192,8 +187,15 @@ public class PubMedIndexManager implements AutoCloseable {
 
         metamap = actorSystem.actorOf(MetaMapActor.props(umls));
         lifecycle.addStopHook(() -> {
-                close ();
-                return CompletableFuture.completedFuture(null);
+                return CompletableFuture.runAsync
+                    (() -> {
+                        try {
+                            close ();
+                        }
+                        catch (Exception ex) {
+                            Logger.error("Can't close index manager", ex);
+                        }
+                    });
             });
 
         this.umls = umls;
@@ -212,7 +214,7 @@ public class PubMedIndexManager implements AutoCloseable {
         for (ActorRef actorRef : indexes) {
             actorRef.tell(PoisonPill.getInstance(), ActorRef.noSender());
         }
-        Logger.debug("$$ shutting down "+getClass().getName());
+        Logger.debug("$$ shutting down "+this);
     }
 
     public SearchResult search (String query, Map<String, Object> facets) {

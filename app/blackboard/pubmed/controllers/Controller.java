@@ -19,7 +19,6 @@ import play.mvc.BodyParser;
 import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
-import play.inject.ApplicationLifecycle;
 import play.cache.SyncCacheApi;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -50,21 +49,13 @@ public class Controller extends play.mvc.Controller {
 
     @Inject
     public Controller (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                       SyncCacheApi cache, ApplicationLifecycle lifecycle) {
+                       SyncCacheApi cache) {
         this.pubmed = pubmed;
         this.ec = ec;
         this.cache = cache;
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
-        lifecycle.addStopHook(() -> {
-                shutdown ();
-                return CompletableFuture.completedFuture(null);
-            });
-        
         Logger.debug("$$" +getClass().getName()+": "+pubmed);
-    }
-
-    public void shutdown () {
     }
     
     public Result index () {

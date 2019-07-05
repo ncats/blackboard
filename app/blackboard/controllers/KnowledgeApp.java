@@ -78,9 +78,8 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     
     @Inject
     public KnowledgeApp (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                         SyncCacheApi cache, Configuration config,
-                         ApplicationLifecycle lifecycle) {
-        super (ec, pubmed, cache, lifecycle);
+                         SyncCacheApi cache, Configuration config) {
+        super (ec, pubmed, cache);
     }
 
     public Result index () {

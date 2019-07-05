@@ -44,18 +44,13 @@ public class Controller extends play.mvc.Controller {
 
     @Inject
     public Controller (PubMedIndexManager pubmed, SemMedDbKSource semmed,
-                       SyncCacheApi cache, HttpExecutionContext ec,
-                       ApplicationLifecycle lifecycle) {
+                       SyncCacheApi cache, HttpExecutionContext ec) {
         this.pubmed = pubmed;
         this.ec = ec;
         this.cache = cache;
         this.semmed = semmed;
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
-        lifecycle.addStopHook(() -> {
-                return CompletableFuture.completedFuture(null);
-            });
-        
         Logger.debug("$$" +getClass().getName()+": "+pubmed);
     }
 

@@ -67,7 +67,8 @@ public class PubMedIndexBuilder implements AutoCloseable {
     final Application app;
     final AtomicBoolean addIfAbsent = new AtomicBoolean (false);
     final AtomicInteger count = new AtomicInteger ();
-
+    final PubMedIndexFactory pmif;
+    
     Integer max;
     
     public PubMedIndexBuilder () throws IOException {
@@ -85,13 +86,13 @@ public class PubMedIndexBuilder implements AutoCloseable {
             .in(new File("."))
             .build();
         pubmed = app.injector().instanceOf(PubMedKSource.class);
+        pmif = app.injector().instanceOf(PubMedIndexFactory.class);
+
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
             UMLSKSource umls = app.injector().instanceOf(UMLSKSource.class);
-            PubMedIndex index = new PubMedIndex (db);
+            PubMedIndex index = pmif.get(db);
             index.setMetaMap(umls.getMetaMap());
-            index.semmed = app.injector().instanceOf(SemMedDbKSource.class);
-            index.mesh = app.injector().instanceOf(MeshKSource.class);
             this.threads.add(es.submit(new Builder (index)));
         }
     }
@@ -120,7 +121,6 @@ public class PubMedIndexBuilder implements AutoCloseable {
             PubMedIndex pmi = f.get();
             total += pmi.size();
             pmi.debug();
-            pmi.close();
         }
         Logger.debug("####### "+total+" document(s) indexed!");
         
@@ -205,7 +205,7 @@ public class PubMedIndexBuilder implements AutoCloseable {
     }
 
     /*
-     * sbt "runMain blackboard.pubmed.index.PubMedIndexBuilder pubmed18n0001.xml.gz"
+     * sbt "runMain blackboard.pubmed.PubMedIndexBuilder pubmed18n0001.xml.gz"
      */
     public static void main (String[] argv) throws Exception {
         if (argv.length < 1)

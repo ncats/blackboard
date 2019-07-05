@@ -13,6 +13,8 @@ import blackboard.ct.ClinicalTrialDb;
 import blackboard.mesh.MeshFactory;
 import blackboard.mesh.MeshDb;
 import blackboard.index.pubmed.PubMedIndexFactory;
+import blackboard.index.pubmed.PubMedIndexFactoryFacade;
+import blackboard.index.pubmed.DefaultPubMedIndexFactory;
 import blackboard.index.pubmed.PubMedIndex;
 
 /**
@@ -38,8 +40,9 @@ public class Module extends AbstractModule {
              (ClinicalTrialFactory.class, ClinicalTrialDb.class));
         bind(MeshFactory.class).toProvider
             (FactoryProvider.newFactory(MeshFactory.class, MeshDb.class));
-        bind(PubMedIndexFactory.class).toProvider
-            (FactoryProvider.newFactory(PubMedIndexFactory.class,
+        bind(PubMedIndexFactoryFacade.class).toProvider
+            (FactoryProvider.newFactory(PubMedIndexFactoryFacade.class,
                                         PubMedIndex.class));
+        bind(PubMedIndexFactory.class).to(DefaultPubMedIndexFactory.class);
     }
 }

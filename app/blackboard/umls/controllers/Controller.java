@@ -41,7 +41,8 @@ public class Controller extends play.mvc.Controller {
                 try {
                     Concept concept = ks.getConcept(cui);
                     if (concept != null)
-                        return ok (blackboard.umls.views.html.cui.render(concept, ks));
+                        return ok (blackboard.umls.views
+                                   .html.cui.render(concept, ks));
                     return index (cui);
                 }
                 catch (Exception ex) {

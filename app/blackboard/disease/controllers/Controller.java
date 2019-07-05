@@ -37,15 +37,10 @@ public class Controller extends play.mvc.Controller {
 
     @Inject
     public Controller (HttpExecutionContext ec, DiseaseKSource disease,
-                       Configuration config, SyncCacheApi cache,
-                       ApplicationLifecycle lifecycle) {
+                       Configuration config, SyncCacheApi cache) {
         this.ec = ec;
         this.cache = cache;
         this.disease = disease;
-
-        lifecycle.addStopHook(() -> {
-                return CompletableFuture.completedFuture(null);
-            });
         
         Logger.debug("$$" +getClass().getName());
     }
