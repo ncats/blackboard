@@ -36,24 +36,26 @@ import akka.actor.Inbox;
  * sbt "runMain blackboard.pubmed.PubMedIndexUpdate ARGS..."
  */
 public class PubMedIndexUpdater implements AutoCloseable {
+    static final int BATCH_SIZE = 4096;
+    
     static class Update {
-        final Long pmid;
-        Update (Long pmid) {
-            this.pmid = pmid;
+        final PubMedDoc[] docs;
+        Update (PubMedDoc... docs) {
+            this.docs = docs;
         }
     }
 
     static class Delete {
-        final MatchedDoc doc;
-        Delete (MatchedDoc doc) {
-            this.doc = doc;
+        final Long[] input;        
+        Delete (Long... input) {
+            this.input = input;
         }
     }
 
-    static class DeleteCitation {
-        final Long[] input;        
-        DeleteCitation (Long... input) {
-            this.input = input;
+    static class Insert {
+        final PubMedDoc doc;
+        Insert (PubMedDoc doc) {
+            this.doc = doc;
         }
     }
 
@@ -82,13 +84,13 @@ public class PubMedIndexUpdater implements AutoCloseable {
         @Override
         public Receive createReceive () {
             return receiveBuilder()
-                .match(Delete.class, this::doDelete)
                 .match(Update.class, this::doUpdate)
-                .match(DeleteCitation.class, this::doDeleteCitation)
+                .match(Delete.class, this::doDelete)
+                .match(Insert.class, this::doInsert)
                 .build();
         }
 
-        void doDeleteCitation (DeleteCitation del) {
+        void doDelete (Delete del) {
             try {
                 int dels = pmi.deleteDocs(del.input);
                 getSender().tell(dels, getSelf ());
@@ -98,23 +100,25 @@ public class PubMedIndexUpdater implements AutoCloseable {
             }
         }
 
-        void doDelete (Delete del) {
+        void doUpdate (Update update) {
+            PubMedDoc[] docs = update.docs;
             try {
-                int dels = pmi.deleteDocs(del.doc);
-                getSender().tell(dels, getSelf ());
+                int dels = pmi.deleteDocsIfOlderThan(docs);
+                PubMedDoc[] newDocs = pmi.checkDocsIfNewerThan(docs);
+                getSender().tell(newDocs, getSelf ());
             }
-            catch (IOException ex) {
+            catch (Exception ex) {
                 getSender().tell(ex, getSelf ());
             }
         }
 
-        void doUpdate (Update update) {
+        void doInsert (Insert insert) {
+            PubMedDoc doc = insert.doc;
             try {
-                MatchedDoc[] docs = pmi.getMatchedDocs(update.pmid);
-                getSender().tell(docs, getSelf ());
+                pmi.add(doc);
             }
-            catch (Exception ex) {
-                getSender().tell(ex, getSelf ());
+            catch (IOException ex) {
+                Logger.error(getSelf()+": can't add document", ex);
             }
         }
     }
@@ -123,6 +127,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     final List<ActorRef> actors = new ArrayList<>();
     final Inbox inbox;
     final AtomicInteger count = new AtomicInteger ();
+    final List<PubMedDoc> batch = new ArrayList<>(BATCH_SIZE);
     Integer max;
     
     public PubMedIndexUpdater () throws IOException {
@@ -170,8 +175,12 @@ public class PubMedIndexUpdater implements AutoCloseable {
         play.api.Play.stop(app.getWrappedApplication());
     }
 
+    public void setMax (int max) {
+        this.max = max;
+    }
+
     void deleteCitations (Long... citations) {
-        DeleteCitation del = new DeleteCitation (citations);
+        Delete del = new Delete (citations);
         for (ActorRef actorRef : actors) {
             inbox.send(actorRef, del);
             try {
@@ -193,78 +202,67 @@ public class PubMedIndexUpdater implements AutoCloseable {
 
     protected PubMedSax createSaxParser () {
         count.set(0);
+        batch.clear();
         PubMedSax pms = new PubMedSax ((s, d) -> {
-                boolean cont = false;
                 if (max == null || max == 0 || count.intValue() < max) {
-                    cont = true;
-                    updateDoc (d.pmid);
-                    count.incrementAndGet();
+                    if (batch.size() == BATCH_SIZE) {
+                        updateDocs (batch.toArray(new PubMedDoc[0]));
+                        batch.clear();
+                    }
+                    batch.add(d);
                 }
-                return cont;
+                count.incrementAndGet();
+                return true;
             });
         
         return pms;
     }
 
-    void updateDoc (Long pmid) {
-        Update upd = new Update (pmid);
-        Map<MatchedDoc, ActorRef> alldocs = new LinkedHashMap<>();
-        for (ActorRef actorRef : actors) {
-            inbox.send(actorRef, upd);
-        }
+    void updateDocs (PubMedDoc... docs) {
+        Update update = new Update (docs);
+        for (ActorRef actorRef : actors)
+            inbox.send(actorRef, update);
 
+        Map<PubMedDoc, Integer> matched = new HashMap<>();
         for (ActorRef actorRef : actors) {
             try {
                 Object res = inbox.receive(Duration.ofSeconds(5l));
                 if (res instanceof Throwable) {
-                    Logger.error("Can't update doc "+pmid, (Throwable)res);
+                    Logger.error(actorRef+": can't update doc batch",
+                                 (Throwable)res);                    
                 }
                 else {
-                    MatchedDoc[] docs = (MatchedDoc[])res;
-                    if (docs.length > 0) {
-                        Logger.debug
-                            (actorRef+": "+docs.length+" doc(s) matched!");
-                        for (MatchedDoc d : docs)
-                            alldocs.put(d, actorRef);
+                    docs = (PubMedDoc[])res;
+                    for (PubMedDoc d : docs) {
+                        Integer c = matched.get(d);
+                        matched.put(d, c== null ? 1 : c+1);
                     }
                 }
             }
             catch (TimeoutException ex) {
-                Logger.error("Unable to receive result from "+actorRef
+                Logger.error("Unable to receive result "
                              +" within alloted time", ex);
             }
         }
-        
-        if (alldocs.size() > 1) {
-            List<MatchedDoc> docs = new ArrayList<>(alldocs.keySet());
-            Collections.sort(docs);
-            Logger.warn(pmid+" has "+alldocs.size()+" instances!");
-            Logger.warn("** keeping "+docs.get(0).pmid+" "+docs.get(0).revised);
-            for (int i = 1; i < docs.size(); ++i) {
-                MatchedDoc d = docs.get(i);
-                ActorRef actorRef = alldocs.get(d);
-                inbox.send(actorRef, new Delete (d));
-                try {
-                    Object res = inbox.receive(Duration.ofSeconds(5l));
-                    if (res instanceof Throwable) {
-                        Logger.error(actorRef+": ** can't delete "+d.pmid
-                                     +" "+d.revised, (Throwable) res);
-                    }
-                    else {
-                        Logger.warn("** deleted "+d.pmid+" "+d.revised);    
-                    }
-                }
-                catch (TimeoutException ex) {
-                    Logger.error("Unable to receive result from "+actorRef
-                                 +" within alloted time", ex);
-                }
+
+        // now add the new docs
+        Random rand = new Random ();
+        for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
+            //Logger.debug(me.getKey().pmid+"="+me.getValue());
+            if (actors.size() == me.getValue()) {
+                int pos = rand.nextInt(actors.size());
+                inbox.send(actors.get(pos), new Insert (me.getKey()));
             }
         }
     }
-
+    
     public void update (File file) throws Exception {
         PubMedSax pms = createSaxParser ();
         pms.parse(file);
+
+        if (!batch.isEmpty()) {
+            updateDocs (batch.toArray(new PubMedDoc[0]));
+        }
         
         List<Long> citations = pms.getDeleteCitations();
         Logger.debug("## "+count+" doc(s) parsed; "
@@ -283,13 +281,30 @@ public class PubMedIndexUpdater implements AutoCloseable {
     public static void main (String[] argv) throws Exception {
         if (argv.length < 1)
             usage ();
-        
+
+        int max = 0;
         try (PubMedIndexUpdater pmiu = new PubMedIndexUpdater ()) {
+            List<File> files = new ArrayList<>();
             for (String a : argv) {
-                File f = new File (a);
-                if (f.exists())
-                    pmiu.update(f);
+                if (a.startsWith("MAX=")) {
+                    max = Integer.parseInt(a.substring(4));
+                    Logger.debug("MAX: "+max);
+                }
+                else {
+                    File f = new File (a);
+                    if (f.exists())
+                        files.add(f);
+                }
             }
+            
+            if (files.isEmpty()) {
+                Logger.error("No input file specified!");
+                usage ();
+            }
+
+            if (max != 0) pmiu.setMax(max);
+            for (File f : files)
+                pmiu.update(f);
         }
     }
 }

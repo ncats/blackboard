@@ -816,23 +816,6 @@ public class PubMedIndex extends MetaMapIndex {
         indexWriter.commit();
         return indexWriter.numDocs() - start;
     }
-
-    public int deleteDocs (MatchedDoc... docs) throws IOException {
-        int start = indexWriter.numDocs();
-        for (MatchedDoc d : docs) {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(NumericRangeQuery.newLongRange
-                        (FIELD_PMID, d.pmid, d.pmid, true, true),
-                        BooleanClause.Occur.MUST);
-            long revised = d.revised.getTime();
-            builder.add(NumericRangeQuery.newLongRange
-                        (FIELD_REVISED, revised, revised, true, true),
-                        BooleanClause.Occur.MUST);
-            indexWriter.deleteDocuments(builder.build());
-        }
-        indexWriter.commit();
-        return indexWriter.numDocs() - start;
-    }
     
     public boolean addIfAbsent (PubMedDoc d) throws IOException {
         if (!indexed (d.getPMID())) {
@@ -840,6 +823,51 @@ public class PubMedIndex extends MetaMapIndex {
             return true;
         }
         return false;
+    }
+
+    public int deleteDocsIfOlderThan (PubMedDoc... docs) throws IOException {
+        int start = indexWriter.numDocs();
+        for (PubMedDoc d : docs) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(NumericRangeQuery.newLongRange
+                        (FIELD_PMID, d.pmid, d.pmid, true, true),
+                        BooleanClause.Occur.MUST);
+            long revised = d.revised.getTime();
+            builder.add(NumericRangeQuery.newLongRange
+                        (FIELD_REVISED, 0l, revised, false, false),
+                        BooleanClause.Occur.MUST);
+            indexWriter.deleteDocuments(builder.build());
+        }
+        indexWriter.commit();
+        return indexWriter.numDocs() - start;
+    }
+
+    /*
+     * return PubMedDoc's for which there don't exist newer versions
+     * already indexed
+     */
+    public PubMedDoc[] checkDocsIfNewerThan (PubMedDoc... docs)
+        throws IOException {
+        List<PubMedDoc> newests = new ArrayList<>();
+        try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
+            for (PubMedDoc d : docs) {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                builder.add(NumericRangeQuery.newLongRange
+                            (FIELD_PMID, d.pmid, d.pmid, true, true),
+                            BooleanClause.Occur.MUST);
+                long revised = d.revised.getTime();
+                builder.add(NumericRangeQuery.newLongRange
+                            (FIELD_REVISED, revised, Long.MAX_VALUE,
+                             true, false), BooleanClause.Occur.MUST);
+                TopDocs hits = searcher.search(builder.build(), 1);
+                if (hits.totalHits == 0) {
+                    //Logger.debug(d.pmid+"... to be added");
+                    newests.add(d);
+                }
+            }
+        }
+        return newests.toArray(new PubMedDoc[0]);
     }
 
     protected Document instrument (Document doc, PubMedDoc d)

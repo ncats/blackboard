@@ -514,6 +514,10 @@ public class PubMedSax extends DefaultHandler {
                 cal.setTime(d.date);
                 Logger.debug(d.getPMID()+": ["+cal.get(Calendar.YEAR)+"] "
                              +d.getTitle()+"\n"+d.abs);
+                if (d.revised == null) {
+                    Logger.warn(d.getPMID()+" has no revised date!");
+                    return false;
+                }
                 //Logger.debug("-------\n\""+new String (d.xml)+"\"");
                 return true;
             });
