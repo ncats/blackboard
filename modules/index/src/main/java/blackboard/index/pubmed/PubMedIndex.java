@@ -814,7 +814,7 @@ public class PubMedIndex extends MetaMapIndex {
             indexWriter.deleteDocuments(q);
         }
         indexWriter.commit();
-        return indexWriter.numDocs() - start;
+        return start - indexWriter.numDocs();
     }
     
     public boolean addIfAbsent (PubMedDoc d) throws IOException {
@@ -839,7 +839,7 @@ public class PubMedIndex extends MetaMapIndex {
             indexWriter.deleteDocuments(builder.build());
         }
         indexWriter.commit();
-        return indexWriter.numDocs() - start;
+        return start - indexWriter.numDocs();
     }
 
     /*

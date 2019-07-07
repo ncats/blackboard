@@ -155,13 +155,13 @@ public class PubMedDoc implements java.io.Serializable {
                     if (grantId.startsWith(act)) {
                         t = act;
                         i = grantId.substring(act.length()).trim();
-                        if (i.charAt(0) == '-')
+                        if (i.length() > 0 && i.charAt(0) == '-')
                             i = i.substring(1);
                         break;
                     }
                 }
                 
-                if (i == null)
+                if (i == null || i.length() == 0)
                     i = grantId;
             }
             return new String[]{t, i};

@@ -203,6 +203,7 @@ public class PubMedSax extends DefaultHandler {
                 }
                 catch (Exception ex) {
                     Logger.error("Can't parse XML:\n"+new String (xml), ex);
+                    ex.printStackTrace();
                 }
             });
         

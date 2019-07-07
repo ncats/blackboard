@@ -132,7 +132,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     
     final Application app;
     final List<ActorRef> actors = new ArrayList<>();
-    final Inbox inbox;
+    final Inbox updateInbox, deleteInbox, insertInbox;
     final PubMedKSource pubmed;
     final AtomicInteger count = new AtomicInteger ();
     final List<PubMedDoc> batch = new ArrayList<>(BATCH_SIZE);
@@ -151,7 +151,9 @@ public class PubMedIndexUpdater implements AutoCloseable {
             (conf.hasPath("base") ? conf.getString("base") : ".");
 
         ActorSystem actorSystem = app.injector().instanceOf(ActorSystem.class);
-        inbox = Inbox.create(actorSystem);
+        updateInbox = Inbox.create(actorSystem);
+        deleteInbox = Inbox.create(actorSystem);
+        insertInbox = Inbox.create(actorSystem);
         
         PubMedIndexFactory pmif =
             app.injector().instanceOf(PubMedIndexFactory.class);
@@ -191,9 +193,9 @@ public class PubMedIndexUpdater implements AutoCloseable {
     void deleteCitations (Long... citations) {
         Delete del = new Delete (citations);
         for (ActorRef actorRef : actors) {
-            inbox.send(actorRef, del);
+            deleteInbox.send(actorRef, del);
             try {
-                Object res = inbox.receive(Duration.ofSeconds(5l));
+                Object res = deleteInbox.receive(Duration.ofSeconds(60l));
                 if (res instanceof Throwable) {
                     Throwable t = (Throwable)res;
                     Logger.error(t.getMessage(), t.getCause());
@@ -230,17 +232,18 @@ public class PubMedIndexUpdater implements AutoCloseable {
     void updateDocs (PubMedDoc... docs) {
         Update update = new Update (docs);
         for (ActorRef actorRef : actors)
-            inbox.send(actorRef, update);
+            updateInbox.send(actorRef, update);
 
         Map<PubMedDoc, Integer> matched = new HashMap<>();
         for (ActorRef actorRef : actors) {
             try {
-                Object res = inbox.receive(Duration.ofSeconds(5l));
+                Object res = updateInbox.receive(Duration.ofSeconds(60l));
                 if (res instanceof Throwable) {
                     Throwable t = (Throwable)res;
                     Logger.error(t.getMessage(), t.getCause());
                 }
                 else if (res instanceof PubMedDoc) {
+                    // we shouldn't be in here
                     PubMedDoc d = (PubMedDoc)res;
                     Integer c = matched.get(d);
                     matched.put(d, c== null ? 1 : c+1);
@@ -268,14 +271,14 @@ public class PubMedIndexUpdater implements AutoCloseable {
                 int pos = rand.nextInt(actors.size());
                 ActorRef actorRef = actors.get(pos);
                 PubMedDoc doc = me.getKey();
-                inbox.send(actorRef, new Insert (doc));
+                insertInbox.send(actorRef, new Insert (doc));
                 ++ndocs;
             }
         }
 
         for (int i = 0; i < ndocs; ++i) {
             try {
-                Object res = inbox.receive(Duration.ofSeconds(5l));
+                Object res = insertInbox.receive(Duration.ofSeconds(60l));
                 if (res instanceof Throwable) {
                     Throwable t = (Throwable) res;
                     Logger.error(t.getMessage(), t.getCause());
