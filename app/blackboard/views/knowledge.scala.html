@@ -48,6 +48,7 @@
     @jstree("Chemical", "D")
     @jstree("Phenomena", "G")
     @jstree("Anatomy", "A")
+    @jstree("Analytical", "E")
 }
 
 @views.html.ui.main("NCATS Knowledge Base"){
@@ -239,7 +240,8 @@
               'tr-C',
               'tr-D',
               'tr-G',
-              'tr-A'
+              'tr-A',
+              'tr-E'
           ];
           var paths = [];
           for (var i in trees) {
@@ -300,7 +302,8 @@
               'tr-C',
               'tr-D',
               'tr-G',
-              'tr-A'
+              'tr-A',
+              'tr-E'
           ];
 
           var params = new URLSearchParams (window.location.search);

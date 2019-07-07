@@ -36,7 +36,7 @@ import akka.actor.Inbox;
  * sbt "runMain blackboard.pubmed.PubMedIndexUpdate ARGS..."
  */
 public class PubMedIndexUpdater implements AutoCloseable {
-    static final int BATCH_SIZE = 4096;
+    static final int BATCH_SIZE = 2048;
     
     static class Update {
         final PubMedDoc[] docs;
@@ -96,7 +96,9 @@ public class PubMedIndexUpdater implements AutoCloseable {
                 getSender().tell(dels, getSelf ());
             }
             catch (IOException ex) {
-                getSender().tell(ex, getSelf ());
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't delete docs" , ex),
+                                 getSelf ());
             }
         }
 
@@ -108,7 +110,9 @@ public class PubMedIndexUpdater implements AutoCloseable {
                 getSender().tell(newDocs, getSelf ());
             }
             catch (Exception ex) {
-                getSender().tell(ex, getSelf ());
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't update docs", ex),
+                                 getSelf ());
             }
         }
 
@@ -116,9 +120,12 @@ public class PubMedIndexUpdater implements AutoCloseable {
             PubMedDoc doc = insert.doc;
             try {
                 pmi.add(doc);
+                getSender().tell(doc, getSelf ());
             }
             catch (IOException ex) {
-                Logger.error(getSelf()+": can't add document", ex);
+                getSender().tell
+                    (new Exception (getSelf()+": Can't insert doc "+doc.pmid,
+                                    ex), getSelf ());
             }
         }
     }
@@ -126,6 +133,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     final Application app;
     final List<ActorRef> actors = new ArrayList<>();
     final Inbox inbox;
+    final PubMedKSource pubmed;
     final AtomicInteger count = new AtomicInteger ();
     final List<PubMedDoc> batch = new ArrayList<>(BATCH_SIZE);
     Integer max;
@@ -147,7 +155,8 @@ public class PubMedIndexUpdater implements AutoCloseable {
         
         PubMedIndexFactory pmif =
             app.injector().instanceOf(PubMedIndexFactory.class);
-
+        pubmed = app.injector().instanceOf(PubMedKSource.class);
+        
         List<String> indexes = conf.getStringList("indexes");
         for (String idx : indexes) {
             File db = new File (dir, idx);
@@ -186,8 +195,8 @@ public class PubMedIndexUpdater implements AutoCloseable {
             try {
                 Object res = inbox.receive(Duration.ofSeconds(5l));
                 if (res instanceof Throwable) {
-                    Logger.error(actorRef+": can't delete citations",
-                                 (Throwable)res);
+                    Throwable t = (Throwable)res;
+                    Logger.error(t.getMessage(), t.getCause());
                 }
                 else {
                     Logger.debug(actorRef+": "+res+" doc(s) deleted!");
@@ -203,7 +212,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     protected PubMedSax createSaxParser () {
         count.set(0);
         batch.clear();
-        PubMedSax pms = new PubMedSax ((s, d) -> {
+        PubMedSax pms = new PubMedSax (pubmed.mesh, (s, d) -> {
                 if (max == null || max == 0 || count.intValue() < max) {
                     if (batch.size() == BATCH_SIZE) {
                         updateDocs (batch.toArray(new PubMedDoc[0]));
@@ -228,8 +237,13 @@ public class PubMedIndexUpdater implements AutoCloseable {
             try {
                 Object res = inbox.receive(Duration.ofSeconds(5l));
                 if (res instanceof Throwable) {
-                    Logger.error(actorRef+": can't update doc batch",
-                                 (Throwable)res);                    
+                    Throwable t = (Throwable)res;
+                    Logger.error(t.getMessage(), t.getCause());
+                }
+                else if (res instanceof PubMedDoc) {
+                    PubMedDoc d = (PubMedDoc)res;
+                    Integer c = matched.get(d);
+                    matched.put(d, c== null ? 1 : c+1);
                 }
                 else {
                     docs = (PubMedDoc[])res;
@@ -247,11 +261,29 @@ public class PubMedIndexUpdater implements AutoCloseable {
 
         // now add the new docs
         Random rand = new Random ();
+        int ndocs = 0;
         for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
             //Logger.debug(me.getKey().pmid+"="+me.getValue());
             if (actors.size() == me.getValue()) {
                 int pos = rand.nextInt(actors.size());
-                inbox.send(actors.get(pos), new Insert (me.getKey()));
+                ActorRef actorRef = actors.get(pos);
+                PubMedDoc doc = me.getKey();
+                inbox.send(actorRef, new Insert (doc));
+                ++ndocs;
+            }
+        }
+
+        for (int i = 0; i < ndocs; ++i) {
+            try {
+                Object res = inbox.receive(Duration.ofSeconds(5l));
+                if (res instanceof Throwable) {
+                    Throwable t = (Throwable) res;
+                    Logger.error(t.getMessage(), t.getCause());
+                }
+            }
+            catch (TimeoutException ex) {
+                Logger.error("Unable to receive result "
+                                 +" within alloted time", ex);
             }
         }
     }
@@ -290,6 +322,16 @@ public class PubMedIndexUpdater implements AutoCloseable {
                     max = Integer.parseInt(a.substring(4));
                     Logger.debug("MAX: "+max);
                 }
+                else if (a.startsWith("INPUT=")) {
+                    BufferedReader br = new BufferedReader
+                        (new FileReader (a.substring(6)));
+                    for (String line; (line = br.readLine()) != null; ) {
+                        File f = new File (line.trim());
+                        if (f.exists())
+                            files.add(f);
+                    }
+                    br.close();
+                }
                 else {
                     File f = new File (a);
                     if (f.exists())
@@ -303,8 +345,12 @@ public class PubMedIndexUpdater implements AutoCloseable {
             }
 
             if (max != 0) pmiu.setMax(max);
-            for (File f : files)
+            for (int i = 0; i < files.size(); ++i) {
+                File f = files.get(i);
+                Logger.debug("##### "+String.format("%1$d of %2$d",
+                                           i+1, files.size())+": "+f);
                 pmiu.update(f);
+            }
         }
     }
 }
