@@ -485,40 +485,40 @@ public class PubMedDoc implements java.io.Serializable {
     public static int parseMonth (String mon) {
         int month = 0;
         switch (mon) {
-        case "jan": case "Jan":
+        case "jan": case "Jan": case "January": case "january":
             month = JANUARY;
             break;
-        case "feb": case "Feb":
+        case "feb": case "Feb": case "Febuary": case "febuary":
             month = FEBRUARY;
             break;
-        case "mar": case "Mar":
+        case "mar": case "Mar": case "March": case "march":
             month = MARCH;
             break;
-        case "apr": case "Apr":
+        case "apr": case "Apr": case "April": case "april":
             month = APRIL;
             break;
         case "may": case "May":
             month = MAY;
             break;
-        case "jun": case "Jun":
+        case "jun": case "Jun": case "June": case "june":
             month = JUNE;
             break;
-        case "jul": case "Jul":
+        case "jul": case "Jul": case "July": case "july":
             month = JULY;
             break;
-        case "aug": case "Aug":
+        case "aug": case "Aug": case "August": case "august":
             month = AUGUST;
             break;
-        case "sep": case "Sep":
+        case "sep": case "Sep": case "September": case "september":
             month = SEPTEMBER;
             break;
-        case "oct": case "Oct":
+        case "oct": case "Oct": case "October": case "october":
             month = OCTOBER;
             break;
-        case "nov": case "Nov":
+        case "nov": case "Nov": case "November": case "november":
             month = NOVEMBER;
             break;
-        case "dec": case "Dec":
+        case "dec": case "Dec": case "December": case "december":
             month = DECEMBER;
             break;
         default:

@@ -111,6 +111,7 @@
                   (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
                 }
               </div>
+              @if(!a.affiliations.isEmpty){
               <div class="card-body">
                 <ul>
                   @for(affl <- a.affiliations){
@@ -120,6 +121,7 @@
                     }
                 </ul>
               </div>
+              }
             </div>
             <br>
             }
@@ -165,8 +167,8 @@
       }
     }
   </div>
-  }(HtmlFormat.empty){
-  $(document).ready(function () {
-  $('[data-toggle="tooltip"]').tooltip();
-  });
-  }
+}(HtmlFormat.empty){
+    $(document).ready(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+}
