@@ -251,11 +251,13 @@
           var paths = [];
           for (var i in trees) {
               var tr = $.jstree.reference('#'+trees[i]);
-              var selected = tr.get_top_selected();
-              console.log('#'+trees[i]+'...');
-              for (var n in selected) {
-                  console.log('...'+selected[n]);
-                  paths.push(selected[n]);
+              if (tr != null) {
+                  var selected = tr.get_top_selected();
+                  console.log('#'+trees[i]+'...');
+                  for (var n in selected) {
+                      console.log('...'+selected[n]);
+                      paths.push(selected[n]);
+                  }
               }
           }
           
