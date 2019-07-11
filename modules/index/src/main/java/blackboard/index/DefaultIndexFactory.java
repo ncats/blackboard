@@ -1,4 +1,4 @@
-package blackboard.index.pubmed;
+package blackboard.index;
 
 import play.Logger;
 import play.inject.ApplicationLifecycle;
@@ -13,28 +13,27 @@ import javax.inject.Singleton;
 import javax.inject.Inject;
 
 @Singleton
-public class DefaultPubMedIndexFactory implements PubMedIndexFactory {
+public class DefaultIndexFactory implements IndexFactory {
     
-    final ConcurrentMap<File, PubMedIndex> indexes =
-        new ConcurrentHashMap<>();
+    final ConcurrentMap<File, Index> indexes = new ConcurrentHashMap<>();
     final ReentrantLock lock = new ReentrantLock ();
-    final PubMedIndexFactoryFacade factory;
+    final IndexFacade facade;
 
     @Inject
-    public DefaultPubMedIndexFactory (PubMedIndexFactoryFacade factory,
-                                      ApplicationLifecycle lifecycle) {
-        this.factory = factory;
+    public DefaultIndexFactory (IndexFacade facade,
+                                ApplicationLifecycle lifecycle) {
+        this.facade = facade;
         lifecycle.addStopHook(() -> {
                 return CompletableFuture.runAsync
-                    (DefaultPubMedIndexFactory.this::close);
+                    (DefaultIndexFactory.this::close);
             });
     }
 
-    public PubMedIndex get (File db) {
+    public Index get (File db) {
         lock.lock();
         try {
             return indexes.computeIfAbsent
-                (db.getCanonicalFile(), file ->  factory.get(file));
+                (db.getCanonicalFile(), file ->  facade.get(file));
         }
         catch (IOException ex) {
             Logger.error("Can't get canonical file: "+db, ex);
@@ -48,7 +47,7 @@ public class DefaultPubMedIndexFactory implements PubMedIndexFactory {
     public void close () {
         lock.lock();
         try {
-            for (PubMedIndex index : indexes.values()) {
+            for (Index index : indexes.values()) {
                 try {
                     index.close();
                 }

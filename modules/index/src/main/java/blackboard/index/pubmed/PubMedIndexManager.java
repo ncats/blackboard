@@ -28,6 +28,7 @@ import akka.actor.Inbox;
 
 import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
+import blackboard.index.IndexFactory;
 import static blackboard.index.pubmed.PubMedIndex.*;
 import blackboard.utils.Util;
 
@@ -84,14 +85,14 @@ public class PubMedIndexManager implements AutoCloseable {
     }
 
     static class PubMedIndexActor extends AbstractActor {
-        static Props props (PubMedIndexFactory pmif, File db) {
+        static Props props (IndexFactory pmif, File db) {
             return Props.create
                 (PubMedIndexActor.class, () -> new PubMedIndexActor (pmif, db));
         }
         
         final PubMedIndex pmi;
-        public PubMedIndexActor (PubMedIndexFactory pmif, File dir) {
-            pmi = pmif.get(dir);
+        public PubMedIndexActor (IndexFactory pmif, File dir) {
+            pmi = (PubMedIndex) pmif.get(dir);
         }
 
         @Override
@@ -150,7 +151,7 @@ public class PubMedIndexManager implements AutoCloseable {
     final UMLSKSource umls;
     
     @Inject
-    public PubMedIndexManager (Configuration config, PubMedIndexFactory pmif,
+    public PubMedIndexManager (Configuration config, @PubMed IndexFactory ifac,
                                UMLSKSource umls, ActorSystem actorSystem,
                                SyncCacheApi cache,
                                ApplicationLifecycle lifecycle) {
@@ -176,7 +177,7 @@ public class PubMedIndexManager implements AutoCloseable {
             File db = new File (dir, idx);
             try {
                 ActorRef actorRef = actorSystem.actorOf
-                    (PubMedIndexActor.props(pmif, db),
+                    (PubMedIndexActor.props(ifac, db),
                      getClass().getName()+"-"+idx);
                 this.indexes.add(actorRef);
             }

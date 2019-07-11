@@ -34,7 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import blackboard.umls.MetaMap;
 import blackboard.index.Index;
 
-public class MetaMapIndex extends Index {
+public class MetaMapIndex extends Index implements UMLSFields {
     protected ObjectMapper mapper = new ObjectMapper ();    
     protected MetaMap metamap;
 
@@ -90,8 +90,7 @@ public class MetaMapIndex extends Index {
                 json = nodes;
             }
             catch (Exception ex) {
-                Logger.error("Can't annotate doc "
-                             +doc.get(FIELD_PMID)+" with MetaMap", ex);
+                Logger.error("Can't annotate doc "+doc+" with MetaMap", ex);
             }
         }
         return json;

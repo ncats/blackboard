@@ -77,7 +77,7 @@
         </li>
         @if(result.query.getQuery != null) {
           <li class="nav-item">
-            <a class="nav-link" href="@_root_.blackboard.disease.controllers.routes.Controller.diseases(result.query.getQuery.toString)">diseases (<span id="disease-count">...</span>)</a>
+            <a class="nav-link" href='@_root_.blackboard.disease.controllers.routes.Controller.diseases(request.getQueryString("q"))'>diseases (<span id="disease-count">...</span>)</a>
           </li>
         }
       </ul>

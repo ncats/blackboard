@@ -1,5 +1,7 @@
 import com.google.inject.AbstractModule;
 import com.google.inject.assistedinject.FactoryProvider;
+import com.google.inject.TypeLiteral;
+import com.google.inject.PrivateModule;
 
 import java.time.Clock;
 
@@ -12,10 +14,15 @@ import blackboard.ct.ClinicalTrialFactory;
 import blackboard.ct.ClinicalTrialDb;
 import blackboard.mesh.MeshFactory;
 import blackboard.mesh.MeshDb;
-import blackboard.index.pubmed.PubMedIndexFactory;
-import blackboard.index.pubmed.PubMedIndexFactoryFacade;
-import blackboard.index.pubmed.DefaultPubMedIndexFactory;
+
 import blackboard.index.pubmed.PubMedIndex;
+import blackboard.index.pubmed.PubMed;
+import blackboard.index.tcrd.TCRDIndex;
+import blackboard.index.tcrd.TCRD;
+
+import blackboard.index.IndexFacade;
+import blackboard.index.IndexFactory;
+import blackboard.index.DefaultIndexFactory;
 
 /**
  * This class is a Guice module that tells Guice how to bind several
@@ -40,9 +47,32 @@ public class Module extends AbstractModule {
              (ClinicalTrialFactory.class, ClinicalTrialDb.class));
         bind(MeshFactory.class).toProvider
             (FactoryProvider.newFactory(MeshFactory.class, MeshDb.class));
-        bind(PubMedIndexFactoryFacade.class).toProvider
-            (FactoryProvider.newFactory(PubMedIndexFactoryFacade.class,
-                                        PubMedIndex.class));
-        bind(PubMedIndexFactory.class).to(DefaultPubMedIndexFactory.class);
+
+        install (new PrivateModule () {
+                @Override
+                protected void configure () {
+                    // bind IndexFacade PRIVATELY
+                    bind(IndexFacade.class).toProvider
+                        (FactoryProvider.newFactory(IndexFacade.class,
+                                                    PubMedIndex.class));
+                    bind(IndexFactory.class).annotatedWith(PubMed.class)
+                        .to(DefaultIndexFactory.class);
+                    // expose IndexFactory GLOBALLY
+                    expose(IndexFactory.class).annotatedWith(PubMed.class);
+                }
+            });
+        install (new PrivateModule () {
+                @Override
+                protected void configure () {
+                    // bind IndexFacade PRIVATELY
+                    bind(IndexFacade.class).toProvider
+                        (FactoryProvider.newFactory(IndexFacade.class,
+                                                    TCRDIndex.class));
+                    bind(IndexFactory.class).annotatedWith(TCRD.class)
+                        .to(DefaultIndexFactory.class);
+                    // expose IndexFactory GLOBALLY
+                    expose(IndexFactory.class).annotatedWith(TCRD.class);
+                }
+            });        
     }
 }

@@ -64,7 +64,7 @@ import javax.xml.transform.stream.StreamResult;
 import com.google.inject.assistedinject.Assisted;
 import blackboard.utils.Util;
 
-public class PubMedIndex extends MetaMapIndex {
+public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public static final String VERSION = "PubMedIndex-v1";
     
     /*
@@ -74,9 +74,6 @@ public class PubMedIndex extends MetaMapIndex {
     static final String _FIELD_CONCEPT = "_concept";
     static final String _FIELD_SEMTYPE = "_semtype";
         
-    // MetaMap compressed json
-    public static final String FIELD_MM_TITLE = "mm_title";
-    public static final String FIELD_MM_ABSTRACT = "mm_abstract";
     public static final int MAX_FACET_FIELD_LENGTH = 1024;
 
     static final String[] HIGHLIGHT_FIELDS = {

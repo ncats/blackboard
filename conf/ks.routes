@@ -1,9 +1,9 @@
 ->  /chembl  chembl.Routes
 ->  /pharos  pharos.Routes
-->  /umls    ksUMLS.Routes
-->  /semmed  ksSemmed.Routes
-->  /pubmed  ksPubmed.Routes
-->  /mesh    mesh.Routes
+->  /umls    ksumls.Routes
+->  /semmed  kssemmed.Routes
+->  /pubmed  kspubmed.Routes
+->  /mesh    ksmesh.Routes
 ->  /ct      ksCT.Routes
 ->  /aws     aws.Routes
 

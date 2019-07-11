@@ -9,7 +9,9 @@ import play.inject.ApplicationLifecycle;
 import com.typesafe.config.Config;
 
 import blackboard.pubmed.*;
-import blackboard.index.pubmed.*;
+import blackboard.index.pubmed.PubMed;
+import blackboard.index.pubmed.PubMedIndex;
+import blackboard.index.IndexFactory;
 import static blackboard.index.pubmed.PubMedIndex.*;
 
 import java.io.*;
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.*;
 import java.time.Duration;
 import java.time.temporal.ChronoField;
+import javax.inject.Inject;
 
 import akka.actor.ActorSystem;
 import akka.actor.AbstractActor;
@@ -59,6 +62,18 @@ public class PubMedIndexUpdater implements AutoCloseable {
         }
     }
 
+    static class PubMedIndexFactory {
+        final IndexFactory ifac;
+        @Inject
+        PubMedIndexFactory (@PubMed IndexFactory ifac) {
+            this.ifac = ifac;
+        }
+
+        public PubMedIndex get (File db) {
+            return (PubMedIndex) ifac.get(db);
+        }
+    }
+    
     static class PubMedIndexActor extends AbstractActor {
         static Props props (PubMedIndexFactory pmif, File db) {
             return Props.create
@@ -67,7 +82,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
         
         final PubMedIndex pmi;
         public PubMedIndexActor (PubMedIndexFactory pmif, File dir) {
-            pmi = pmif.get(dir);
+            pmi = (PubMedIndex) pmif.get(dir);
             Logger.debug("*** index loaded..."+dir+" "+pmi.size()+" doc(s)!");
         }
 
@@ -309,7 +324,7 @@ public class PubMedIndexUpdater implements AutoCloseable {
     
     static void usage () {
         System.err.println
-            ("Usage: PubMedIndexUpdate [MAX=0] FILES...");
+            ("Usage: PubMedIndexUpdater [MAX=0] FILES...");
         System.exit(1);
     }
     

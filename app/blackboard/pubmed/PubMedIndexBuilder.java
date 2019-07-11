@@ -16,7 +16,9 @@ import blackboard.pubmed.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
-import blackboard.index.pubmed.*;
+import blackboard.index.pubmed.PubMedIndex;
+import blackboard.index.pubmed.PubMed;
+import blackboard.index.IndexFactory;
 
 /*
  * main class for building pubmed indexes:
@@ -59,6 +61,18 @@ public class PubMedIndexBuilder implements AutoCloseable {
             return index;
         }
     }
+
+    static class PubMedIndexFactory {
+        final IndexFactory ifac;
+        @Inject
+        PubMedIndexFactory (@PubMed IndexFactory ifac) {
+            this.ifac = ifac;
+        }
+
+        public PubMedIndex get (File db) {
+            return (PubMedIndex) ifac.get(db);
+        }
+    }
     
     final BlockingQueue<PubMedDoc> queue = new ArrayBlockingQueue<>(1000);
     final ExecutorService es;
@@ -67,7 +81,6 @@ public class PubMedIndexBuilder implements AutoCloseable {
     final Application app;
     final AtomicBoolean addIfAbsent = new AtomicBoolean (false);
     final AtomicInteger count = new AtomicInteger ();
-    final PubMedIndexFactory pmif;
     
     Integer max;
     
@@ -86,7 +99,8 @@ public class PubMedIndexBuilder implements AutoCloseable {
             .in(new File("."))
             .build();
         pubmed = app.injector().instanceOf(PubMedKSource.class);
-        pmif = app.injector().instanceOf(PubMedIndexFactory.class);
+        PubMedIndexFactory pmif =
+            app.injector().instanceOf(PubMedIndexFactory.class);
 
         for (int i = 0; i < threads; ++i) {
             File db = new File (base+"-"+String.format("%1$02d.db", i+1));
