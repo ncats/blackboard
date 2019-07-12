@@ -31,24 +31,29 @@ import blackboard.pubmed.PubMedDoc;
 import blackboard.semmed.Predication;
 import blackboard.semmed.SemMedDbKSource;
 import blackboard.umls.SemanticType;
-import blackboard.index.pubmed.PubMedIndexManager;
-import blackboard.index.pubmed.PubMedIndex;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import blackboard.mesh.MeshDb;
+import blackboard.mesh.MeshKSource;
+import blackboard.pubmed.index.PubMedIndexManager;
+import blackboard.pubmed.index.PubMedIndex;
+import static blackboard.pubmed.index.PubMedIndex.*;
 
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
     final PubMedIndexManager pubmed;
     final SyncCacheApi cache;
     final SemMedDbKSource semmed;
+    final MeshDb mesh;
     final ObjectMapper mapper = Json.mapper();
 
     @Inject
     public Controller (PubMedIndexManager pubmed, SemMedDbKSource semmed,
-                       SyncCacheApi cache, HttpExecutionContext ec) {
+                       MeshKSource mesh, SyncCacheApi cache,
+                       HttpExecutionContext ec) {
         this.pubmed = pubmed;
         this.ec = ec;
         this.cache = cache;
         this.semmed = semmed;
+        this.mesh = mesh.getMeshDb();
 
         mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
         Logger.debug("$$" +getClass().getName()+": "+pubmed);
@@ -60,8 +65,7 @@ public class Controller extends play.mvc.Controller {
                     public PubMedDoc call () {
                         MatchedDoc doc = pubmed.getDoc(pmid);
                         if (doc != null) {
-                            return PubMedDoc.getInstance
-                                (doc.doc, semmed.pubmed.mesh);
+                            return PubMedDoc.getInstance(doc.doc, mesh);
                         }
                         return null;
                     }

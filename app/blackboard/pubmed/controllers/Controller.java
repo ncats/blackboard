@@ -29,9 +29,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.apache.commons.lang3.StringUtils;
 
-import blackboard.index.pubmed.PubMedIndexManager;
-import blackboard.index.pubmed.PubMedIndex;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import blackboard.pubmed.index.PubMedIndexManager;
+import blackboard.pubmed.index.PubMedIndex;
+import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.semmed.SemMedDbKSource;

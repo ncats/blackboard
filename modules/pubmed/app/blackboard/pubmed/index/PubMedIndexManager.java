@@ -1,4 +1,4 @@
-package blackboard.index.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 
@@ -29,7 +29,7 @@ import akka.actor.Inbox;
 import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
 import blackboard.index.IndexFactory;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.utils.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;

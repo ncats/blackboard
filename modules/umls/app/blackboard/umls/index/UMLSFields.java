@@ -1,4 +1,4 @@
-package blackboard.index.umls;
+package blackboard.umls.index;
 import blackboard.index.Fields;
 
 public interface UMLSFields extends Fields {

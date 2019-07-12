@@ -1,4 +1,4 @@
-package blackboard.index.umls;
+package blackboard.umls.index;
 
 import play.Logger;
 import play.libs.Json;

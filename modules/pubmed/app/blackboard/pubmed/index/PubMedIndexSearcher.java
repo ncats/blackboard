@@ -1,4 +1,4 @@
-package blackboard.index.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 import play.Application;
@@ -18,7 +18,7 @@ import blackboard.index.Fields;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import static blackboard.pubmed.index.PubMedIndex.*;
 
 public class PubMedIndexSearcher implements AutoCloseable, Fields {
     final Application app;

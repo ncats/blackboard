@@ -44,15 +44,14 @@ lazy val root = (project in file("."))
     utils,
     disease,
     pharos,
-    biothings,
-    beacons,
     pubmed,
     umls,
     semmed,
     ct,
     hpo,
     aws,
-    chembl
+    chembl,
+    idg
   )
   .aggregate(
     ui,
@@ -60,15 +59,14 @@ lazy val root = (project in file("."))
     utils,
     disease,
     pharos,
-    biothings,
-    beacons,
     pubmed,
     umls,
     semmed,
     ct,
     hpo,
     aws,
-    chembl
+    chembl,
+    idg
   )
 
 lazy val buildinfo = (project in file("modules/build"))
@@ -135,28 +133,21 @@ lazy val pharos = (project in file("modules/pharos"))
     javacOptions ++= javaBuildOptions
 ).dependsOn(pubmed).aggregate(pubmed)
 
+lazy val idg = (project in file("modules/idg"))
+  .enablePlugins(PlayJava)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "idg",
+    libraryDependencies ++= commonDependencies,
+    javacOptions ++= javaBuildOptions
+).dependsOn(index).aggregate(index)
+
 lazy val tripod = (project in file("modules/tripod"))
   .settings(commonSettings: _*)
   .settings(
     name := "tripod",
     javacOptions ++= javaBuildOptions
   )
-
-lazy val biothings = (project in file("modules/biothings"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "biothings",
-    libraryDependencies ++= commonDependencies,
-    javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
-
-lazy val beacons = (project in file("modules/beacons"))
-  .settings(commonSettings: _*)
-  .settings(
-  name := "beacons",
-    libraryDependencies ++= commonDependencies,
-    javacOptions ++= javaBuildOptions
-).dependsOn(core).aggregate(core)
 
 lazy val mesh = (project in file("modules/mesh"))
   .enablePlugins(PlayJava)
@@ -175,7 +166,7 @@ lazy val pubmed = (project in file("modules/pubmed"))
     libraryDependencies ++= commonDependencies,
     libraryDependencies +=   "org.json" % "json" % "20090211",
     javacOptions ++= javaBuildOptions
-  ).dependsOn(umls, ui).aggregate(umls, ui)
+  ).dependsOn(semmed,index).aggregate(semmed,index)
 
 lazy val umls = (project in file("modules/umls"))
   .enablePlugins(PlayJava)
@@ -184,7 +175,7 @@ lazy val umls = (project in file("modules/umls"))
   name := "umls",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(mesh).aggregate(mesh)
+).dependsOn(mesh,index).aggregate(mesh,index)
 
 lazy val semmed = (project in file("modules/semmed"))
   .enablePlugins(PlayJava)
@@ -193,7 +184,7 @@ lazy val semmed = (project in file("modules/semmed"))
   name := "semmed",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-  ).dependsOn(pubmed).aggregate(pubmed)
+  ).dependsOn(umls,ui).aggregate(umls,ui)
 
 lazy val index =  (project in file("modules/index"))
   .settings(commonSettings: _*)
@@ -201,7 +192,7 @@ lazy val index =  (project in file("modules/index"))
     name := "index",
     libraryDependencies ++= commonDependencies,
     javacOptions ++= javaBuildOptions
-).dependsOn(utils,umls,semmed).aggregate(utils,umls,semmed)
+).dependsOn(utils).aggregate(utils)
 
 lazy val ct = (project in file("modules/ct"))
   .enablePlugins(PlayJava)

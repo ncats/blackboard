@@ -16,8 +16,8 @@ import blackboard.pubmed.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.mesh.MeshKSource;
 import blackboard.semmed.SemMedDbKSource;
-import blackboard.index.pubmed.PubMedIndex;
-import blackboard.index.pubmed.PubMed;
+import blackboard.pubmed.index.PubMedIndex;
+import blackboard.pubmed.index.PubMed;
 import blackboard.index.IndexFactory;
 
 /*

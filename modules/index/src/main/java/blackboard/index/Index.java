@@ -287,6 +287,68 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    public static class MatchedFragment {
+        public final String fragment;
+        public final String field;
+        public final String text;
+
+        public MatchedFragment (String text) {
+            String f = null, t = null;
+            // locate <b>...</b>
+            int pos = text.indexOf("<b>");
+            if (pos >= 0) {
+                int bgn = pos;
+                while (--bgn > 0 && text.charAt(bgn) != '>')
+                    ;
+                for (int i = bgn; --i >= 0; ) {
+                    if (text.startsWith("fn=\"", i)) {
+                        i += 4;
+                        int j = i;
+                        for (; j < bgn && text.charAt(j) != '"'; ++j)
+                            ;
+                        f = text.substring(i, j);
+                        break;
+                    }
+                }
+                
+                pos = text.indexOf("</b>", pos);
+                if (pos > 0) {
+                    pos += 4;
+                    bgn = Math.max(0, bgn);
+                    for (int i = pos; i < text.length(); ++i) {
+                        if (text.startsWith("</fld", i)) {
+                            if (text.charAt(bgn) == '>')
+                                ++bgn;
+                            t = text.substring(bgn, i);
+                            break;
+                        }
+                    }
+                    
+                    if (t == null) {
+                        if (bgn < 0) bgn = 0;
+                        if (text.charAt(bgn) == '>')
+                            ++bgn;
+                        t = text.substring(bgn);
+                    }
+                }
+            }
+            this.field = f;
+            this.fragment = t;
+            this.text = text;
+        }
+
+        public MatchedFragment (String field, String text) {
+            this.fragment = text;
+            this.text = text;
+            this.field = field;
+        }
+
+        public String toString () {
+            return "MatchedFragment{text="+text+",field="+field
+                +",fragment="+fragment+"}";
+        }
+    }
+    
     public static class ResultDoc {
         public final Document doc;
         public final Float score;
@@ -613,6 +675,10 @@ public class Index implements AutoCloseable, Fields {
 
     public String toString () {
         return "###"+getClass().getName()+": db="+root+" size="+size();
+    }
+
+    protected void add (Document doc) throws IOException {
+        indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
     }
     
     public Index addIndexes (File... dbs) throws IOException {

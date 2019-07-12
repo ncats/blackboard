@@ -9,10 +9,10 @@ import play.inject.ApplicationLifecycle;
 import com.typesafe.config.Config;
 
 import blackboard.pubmed.*;
-import blackboard.index.pubmed.PubMed;
-import blackboard.index.pubmed.PubMedIndex;
+import blackboard.pubmed.index.PubMed;
+import blackboard.pubmed.index.PubMedIndex;
 import blackboard.index.IndexFactory;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import static blackboard.pubmed.index.PubMedIndex.*;
 
 import java.io.*;
 import java.util.*;

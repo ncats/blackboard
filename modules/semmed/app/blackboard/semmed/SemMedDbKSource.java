@@ -30,7 +30,6 @@ import akka.actor.ActorSystem;
 import blackboard.*;
 import blackboard.umls.UMLSKSource;
 import blackboard.umls.MatchedConcept;
-import blackboard.pubmed.PubMedKSource;
 
 import static blackboard.KEntity.*;
 
@@ -39,7 +38,6 @@ public class SemMedDbKSource implements KSource {
     public final WSClient wsclient;
     public final KSourceProvider ksp;
     public final UMLSKSource umls;
-    public final PubMedKSource pubmed;
     
     private final Database db;
     private final SyncCacheApi cache;
@@ -52,14 +50,13 @@ public class SemMedDbKSource implements KSource {
                             Environment env,
                             @Named("semmed") KSourceProvider ksp,
                             @NamedDatabase("semmed") Database db,
-                            UMLSKSource umls, PubMedKSource pubmed,
+                            UMLSKSource umls,
                             ApplicationLifecycle lifecycle) {
         this.wsclient = wsclient;
         this.ksp = ksp;
         this.cache = cache;
         this.db = db;
         this.umls = umls;
-        this.pubmed = pubmed;
 
         blacklist = new ConcurrentHashMap<>();
         whitelist = new ConcurrentHashMap<>();
@@ -73,7 +70,6 @@ public class SemMedDbKSource implements KSource {
 
         String count = ksp.getProperties().get("min-predicate-count");
         minPredCount = count != null ? Integer.parseInt(count) : 10;
-
 
         lifecycle.addStopHook(() -> {
                 wsclient.close();

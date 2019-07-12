@@ -1,4 +1,4 @@
-package blackboard.index.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 import play.libs.Json;
@@ -6,7 +6,6 @@ import play.libs.Json;
 import blackboard.pubmed.*;
 import blackboard.mesh.MeshDb;
 import blackboard.mesh.Descriptor;
-import blackboard.index.umls.MetaMapIndex;
 import blackboard.semmed.SemMedDbKSource;
 
 import javax.inject.Inject;

@@ -1,4 +1,4 @@
-package blackboard.index.pubmed;
+package blackboard.pubmed.index;
 
 import play.Logger;
 import play.libs.Json;
@@ -12,7 +12,8 @@ import blackboard.semmed.SemMedDbKSource;
 import blackboard.semmed.Predication;
 import blackboard.umls.SemanticType;
 import blackboard.umls.UMLSKSource;
-import blackboard.index.umls.MetaMapIndex;
+import blackboard.umls.index.MetaMapIndex;
+import blackboard.utils.Util;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -62,7 +63,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.google.inject.assistedinject.Assisted;
-import blackboard.utils.Util;
 
 public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public static final String VERSION = "PubMedIndex-v1";
@@ -74,8 +74,6 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     static final String _FIELD_CONCEPT = "_concept";
     static final String _FIELD_SEMTYPE = "_semtype";
         
-    public static final int MAX_FACET_FIELD_LENGTH = 1024;
-
     static final String[] HIGHLIGHT_FIELDS = {
         FIELD_TITLE,
         FIELD_AUTHOR,
@@ -92,69 +90,7 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public static final SearchResult EMPTY_RESULT = new SearchResult ();
 
     final static Pattern RANGE_REGEX = Pattern.compile
-        ("\\(([^,]*),([^\\)]*)\\)");
-    
-    public static class MatchedFragment {
-        public final String fragment;
-        public final String field;
-        public final String text;
-
-        MatchedFragment (String text) {
-            String f = null, t = null;
-            // locate <b>...</b>
-            int pos = text.indexOf("<b>");
-            if (pos >= 0) {
-                int bgn = pos;
-                while (--bgn > 0 && text.charAt(bgn) != '>')
-                    ;
-                for (int i = bgn; --i >= 0; ) {
-                    if (text.startsWith("fn=\"", i)) {
-                        i += 4;
-                        int j = i;
-                        for (; j < bgn && text.charAt(j) != '"'; ++j)
-                            ;
-                        f = text.substring(i, j);
-                        break;
-                    }
-                }
-                
-                pos = text.indexOf("</b>", pos);
-                if (pos > 0) {
-                    pos += 4;
-                    bgn = Math.max(0, bgn);
-                    for (int i = pos; i < text.length(); ++i) {
-                        if (text.startsWith("</fld", i)) {
-                            if (text.charAt(bgn) == '>')
-                                ++bgn;
-                            t = text.substring(bgn, i);
-                            break;
-                        }
-                    }
-                    
-                    if (t == null) {
-                        if (bgn < 0) bgn = 0;
-                        if (text.charAt(bgn) == '>')
-                            ++bgn;
-                        t = text.substring(bgn);
-                    }
-                }
-            }
-            this.field = f;
-            this.fragment = t;
-            this.text = text;
-        }
-
-        MatchedFragment (String field, String text) {
-            this.fragment = text;
-            this.text = text;
-            this.field = field;
-        }
-
-        public String toString () {
-            return "MatchedFragment{text="+text+",field="+field
-                +",fragment="+fragment+"}";
-        }
-    }
+        ("\\(([^,]*),([^\\)]*)\\)");    
     
     public static class MatchedDoc implements Comparable<MatchedDoc> {
         public Float score;
@@ -1139,10 +1075,6 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
             indexWriter.addDocument(doc);
         }
     }       
-
-    protected void add (Document doc) throws IOException {
-        indexWriter.addDocument(facetConfig.build(taxonWriter, doc));
-    }
 
     protected Document newDocument () {
         Document doc = new Document ();

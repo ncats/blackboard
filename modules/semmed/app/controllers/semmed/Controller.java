@@ -30,7 +30,6 @@ import blackboard.semmed.PredicateSummary;
 import blackboard.umls.MatchedConcept;
 import blackboard.umls.Concept;
 import blackboard.umls.SemanticType;
-import blackboard.pubmed.PubMedDoc;
 
 
 @Singleton

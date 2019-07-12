@@ -1,5 +1,5 @@
-package blackboard.index.pubmed;
-import blackboard.index.umls.UMLSFields;
+package blackboard.pubmed.index;
+import blackboard.umls.index.UMLSFields;
 
 public interface PubMedFields extends UMLSFields {
     public static final String FIELD_YEAR = "year";

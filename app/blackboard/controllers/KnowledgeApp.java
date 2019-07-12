@@ -21,11 +21,11 @@ import play.routing.JavaScriptReverseRouter;
 import play.inject.ApplicationLifecycle;
 import play.cache.SyncCacheApi;
 
-import blackboard.index.pubmed.PubMedIndexManager;
-import blackboard.index.pubmed.PubMedIndex;
+import blackboard.pubmed.index.PubMedIndexManager;
+import blackboard.pubmed.index.PubMedIndex;
 import blackboard.index.Index.FV;
 import blackboard.index.Index.Facet;
-import static blackboard.index.pubmed.PubMedIndex.*;
+import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.utils.Util;
 
 public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {

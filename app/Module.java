@@ -15,10 +15,10 @@ import blackboard.ct.ClinicalTrialDb;
 import blackboard.mesh.MeshFactory;
 import blackboard.mesh.MeshDb;
 
-import blackboard.index.pubmed.PubMedIndex;
-import blackboard.index.pubmed.PubMed;
-import blackboard.index.tcrd.TCRDIndex;
-import blackboard.index.tcrd.TCRD;
+import blackboard.pubmed.index.PubMedIndex;
+import blackboard.pubmed.index.PubMed;
+import blackboard.idg.index.IDGIndex;
+import blackboard.idg.index.IDG;
 
 import blackboard.index.IndexFacade;
 import blackboard.index.IndexFactory;
@@ -67,11 +67,11 @@ public class Module extends AbstractModule {
                     // bind IndexFacade PRIVATELY
                     bind(IndexFacade.class).toProvider
                         (FactoryProvider.newFactory(IndexFacade.class,
-                                                    TCRDIndex.class));
-                    bind(IndexFactory.class).annotatedWith(TCRD.class)
+                                                    IDGIndex.class));
+                    bind(IndexFactory.class).annotatedWith(IDG.class)
                         .to(DefaultIndexFactory.class);
                     // expose IndexFactory GLOBALLY
-                    expose(IndexFactory.class).annotatedWith(TCRD.class);
+                    expose(IndexFactory.class).annotatedWith(IDG.class);
                 }
             });        
     }
