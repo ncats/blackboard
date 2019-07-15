@@ -247,4 +247,19 @@ public class Util {
         }
         return call.url()+url;
     }
+
+    public static String getQueryString (Http.Request request,
+                                         String... params) {
+        StringBuilder url = new StringBuilder ();
+        for (String p : params) {
+            String[] values = request.queryString().get(p);
+            if (values != null && values.length > 0) {
+                for (int i = 0; i < values.length; ++i) {
+                    if (url.length() > 0) url.append("&");
+                    url.append(p+"="+values[i]);
+                }
+            }
+        }
+        return url.toString();
+    }
 }

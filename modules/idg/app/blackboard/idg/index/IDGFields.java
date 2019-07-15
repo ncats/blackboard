@@ -15,4 +15,11 @@ public interface IDGFields extends Fields {
     public static final String FACET_CHROMOSOME = "@chr";
     public static final String FIELD_DTOID = "dtoid";
     public static final String FIELD_STRINGID = "stringid";
+    
+    public static final String FIELD_DATASET = "dataset";
+    public static final String FACET_DATASET = "@dataset";
+    public static final String FIELD_DSCAT = "dscat";
+    public static final String FACET_DSCAT = "@dscat"; // dataset category
+    public static final String FIELD_DSTYPE = "dstype";
+    public static final String FACET_DSTYPE = "@dstype"; // dataset type
 }

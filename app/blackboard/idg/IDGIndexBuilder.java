@@ -50,9 +50,9 @@ public class IDGIndexBuilder implements AutoCloseable, IDGFields {
     }
 
     static class Insert {
-        final Map<String, Object> data;
-        Insert (Map<String, Object> data) {
-            this.data = data;
+        final Target target;
+        Insert (Target target) {
+            this.target = target;
         }
     }
 
@@ -63,19 +63,27 @@ public class IDGIndexBuilder implements AutoCloseable, IDGFields {
         }
 
         final IDGIndex index;
+        final Database db;
         public IDGIndexActor (IDGIndexFactory tif, File dir) {
             index = tif.get(dir);
-            index.setDatabase(tif.db);
+            db = tif.db;
         }
 
         @Override
         public void preStart () {
+            index.setConnection(db.getConnection());
             Logger.debug("### "+self ()+ "...initialized!");
         }
 
         @Override
         public void postStop () {
-            Logger.debug("### "+self ()+"...stopped!");
+            try {
+                index.getConnection().close();
+                Logger.debug("### "+self ()+"...stopped!");
+            }
+            catch (SQLException ex) {
+                ex.printStackTrace();
+            }
         }
 
         @Override
@@ -87,13 +95,12 @@ public class IDGIndexBuilder implements AutoCloseable, IDGFields {
 
         void doInsert (Insert ins) {
             try {
-                index.addTarget(ins.data);
-                getSender().tell(ins.data, getSelf ());
+                index.addTarget(ins.target);
+                getSender().tell(ins.target, getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell(new Exception
-                                 ("Can't insert target "
-                                  +ins.data.get(FIELD_TCRDID), ex),
+                                 ("Can't insert target "+ins.target.id, ex),
                                  getSelf ());
             }
         }
@@ -146,21 +153,23 @@ public class IDGIndexBuilder implements AutoCloseable, IDGFields {
         play.api.Play.stop(app.getWrappedApplication());
     }
 
-    protected Map<String, Object> instrument
-        (Map<String, Object> data, ResultSet rset) throws SQLException {
-        data.put(FIELD_TCRDID, rset.getLong("target_id"));
-        data.put(FIELD_NAME, rset.getString("name"));
-        data.put(FIELD_IDGTDL, rset.getString("tdl"));
-        data.put(FIELD_GENE, rset.getString("sym"));
-        data.put(FIELD_NOVELTY, rset.getDouble("score"));
-        if (rset.wasNull()) data.remove(FIELD_NOVELTY);
-        data.put(FIELD_AASEQ, rset.getString("seq"));
-        data.put(FIELD_GENEID, rset.getInt("geneid"));
-        data.put(FIELD_UNIPROT, rset.getString("uniprot"));
-        data.put(FIELD_CHROMOSOME, rset.getString("chr"));
-        data.put(FIELD_DTOID, rset.getString("dtoid"));
-        data.put(FIELD_STRINGID, rset.getString("stringid"));
-        return data;
+    protected Target instrument (Target target, ResultSet rset)
+        throws SQLException {
+        target.name = rset.getString("name");
+        target.idgtdl = Target.TDL.valueOf(rset.getString("tdl"));
+        target.gene = rset.getString("sym");
+        target.novelty = rset.getDouble("score");
+        if (rset.wasNull())
+            target.novelty = null;
+        target.sequence = rset.getString("seq");
+        target.geneid = rset.getInt("geneid");
+        if (rset.wasNull())
+            target.geneid = null;
+        target.uniprot = rset.getString("uniprot");
+        target.chr = rset.getString("chr");
+        target.dtoid = rset.getString("dtoid");
+        target.stringid = rset.getString("stringid");
+        return target;
     }
     
     public void build () throws Exception {
@@ -196,11 +205,10 @@ public class IDGIndexBuilder implements AutoCloseable, IDGFields {
                     continue;
                 }
                 
-                Map<String, Object> data =
-                    instrument (new LinkedHashMap<>(), rset);
+                Target target = instrument (new Target (targetid), rset);
                 
                 ActorRef actorRef = actors.get(rand.nextInt(actors.size()));
-                insertInbox.send(actorRef, new Insert (data));
+                insertInbox.send(actorRef, new Insert (target));
                 try {
                     Object res = insertInbox.receive(Duration.ofSeconds(5l));
                     if (res instanceof Throwable) {

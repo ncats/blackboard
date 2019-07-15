@@ -1,7 +1,7 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.pubmed.index.PubMedIndex.MatchedDoc
 @import _root_.blackboard.pubmed.controllers.routes
-@(doc: MatchedDoc)
+@(doc: MatchedDoc, ctx: String = "")
 <div class="card" style="margin-top: 10px;">
   <div class="card-header">
     <table>
@@ -11,7 +11,7 @@
                 data-pmid="@doc.pmid" data-style="small_circle"></span>
         </td>
         <td>
-          <h5><a href="@routes.Controller.article(doc.pmid)">
+          <h5><a href="@{routes.Controller.article(doc.pmid) + ctx}">
             @defining(doc.getMatchedFragment("title")){ mf =>
               @if(mf != null){
                 @HtmlFormat.raw(mf.fragment)

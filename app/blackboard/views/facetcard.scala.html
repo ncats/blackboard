@@ -1,8 +1,9 @@
 @import _root_.blackboard.index.Index._
+@import _root_.blackboard.pubmed.controllers.Controller
 @import _root_.blackboard.utils.Util
 @import _root_.blackboard.controllers.KnowledgeApp
-@(app: KnowledgeApp, name: String, facet: Facet,
-       expanded: Boolean = true, max: Int = 10)
+@(app: Controller, name: String, facet: Facet,
+  expanded: Boolean = true, max: Int = 10)
 
 @display(text: String, min: Integer) = {
   @if(text.length() > min){

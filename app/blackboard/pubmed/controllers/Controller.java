@@ -32,6 +32,8 @@ import org.apache.commons.lang3.StringUtils;
 import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndex;
 import static blackboard.pubmed.index.PubMedIndex.*;
+import static blackboard.index.Index.Facet;
+import static blackboard.index.Index.FV;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.semmed.SemMedDbKSource;
@@ -313,8 +315,17 @@ public class Controller extends play.mvc.Controller {
                     if (doc != null) {
                         PubMedDoc pmdoc = PubMedDoc.getInstance
                             (doc.doc, mesh.getMeshDb());
-                        return ok (blackboard.pubmed.views
-                                   .html.article.render(this, pmdoc));
+                        SearchResult result = null;
+                        String q = request().getQueryString("q");
+                        if (q != null) {
+                            result = doSearch (q, 0, 1);
+                            for (Facet f : result.getFacets()) {
+                                if (f.name.startsWith(FACET_TR))
+                                    f.filter(pmdoc.getTreeNumbers());
+                            }
+                        }
+                        return ok (blackboard.pubmed.views.html.article.render
+                                   (this, result, pmdoc));
                     }
                     return ok (views.html.ui.error.render
                                ("Unknown PubMed article: "+pmid, 400));
@@ -351,6 +362,81 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public boolean isFacetSelected (Facet facet, FV fv) {
+        String[] facets = request().queryString().get("facet");
+        if (facets != null) {
+            for (String f : facets) {
+                if (f.startsWith(facet.name)) {
+                    String value = f.substring(facet.name.length()+1);
+                    if (value.equals(fv.label))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public String uri (String... exclude) {
+        StringBuilder uri = new StringBuilder (request().path());
+        Map<String, String[]> query = new TreeMap<>(request().queryString());
+        for (String p : exclude) {
+            query.remove(p);
+        }
+
+        if (!query.isEmpty()) {
+            int i = 0;
+            for (Map.Entry<String, String[]> me : query.entrySet()) {
+                for (String v : me.getValue()) {
+                    if ("q".equals(me.getKey())) {
+                        v = v.replaceAll("\\+", "%2B")
+                            .replaceAll("'", "%27");
+                    }
+                    uri.append(i == 0 ? "?" : "&");
+                    uri.append(me.getKey()+"="+v);
+                    ++i;
+                }
+            }
+        }
+        return uri.toString();
+    }
+
+    static String displayHtml (FV node, int min) {
+        String text = node.display != null ? node.display : node.label;
+        for (FV p = node.parent; p != null; p = p.parent)
+            min -= 2;
+        if (min < 3)
+            min = 3;
+        if (text.length() > min) {
+            return "<span data-toggle=\"tooltip\""
+                +" title=\""+text+"\" style=\"margin-right:0.5rem\">"
+                +text.substring(0,min)+"...</span>";
+        }
+        return text;
+    }
+    
+    public static String toHtml (FV node) {
+        return toHtml (node, 20);
+    }
+    
+    public static String toHtml (FV node, int min) {
+        StringBuilder html = new StringBuilder ();
+        toHtml (html, min, node);
+        return html.toString();
+    }
+    
+    public static void toHtml (StringBuilder html, int min, FV node) {
+        for (FV p = node.parent; p != null; p = p.parent)
+            html.append(" ");
+        html.append("<li id=\""+node.getPath()+"\">"+displayHtml (node, min));
+        html.append(" <span class=\"badge badge-primary badge-pill\">"
+                    +node.count+"</span>");
+        html.append("<ul>");
+        for (FV child : node.children) {
+            toHtml (html, min, child);
+        }
+        html.append("</ul></li>");
+    }
+    
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("pubmedRoutes",

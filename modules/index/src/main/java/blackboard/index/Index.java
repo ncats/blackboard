@@ -150,7 +150,33 @@ public class Index implements AutoCloseable, Fields {
 
         @JsonProperty(value="count")
         public int size () { return values.size(); }
-
+        
+        public void filter (String... labels) {
+            Set<String> flabels = new HashSet<>();
+            for (String l : labels)
+                flabels.add(l);
+            
+            //Logger.debug("filter... "+flabels);
+            Set<FV> nodes = new HashSet<>();
+            Set<FV> remove = new HashSet<>();
+            for (FV fv : values) {
+                Index.filter(nodes, fv, flabels);
+                Index.filter(fv, nodes, remove);
+            }
+            
+            // now remove all nodes not in nodes
+            for (FV fv : remove) {
+                if (fv.parent != null) {
+                    //Logger.debug("removing "+fv.getPath());
+                    fv.parent.children.remove(fv);
+                }
+                else {
+                    //Logger.debug("removing "+fv.getPath());
+                    values.remove(fv);
+                }
+            }
+        }
+        
         public void trim (int size) {
             int s = values.size();
             if (size > 0 && s > size) {
@@ -201,6 +227,35 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    static void addDescendants (Set<FV> nodes, FV n) {
+        nodes.add(n);
+        for (FV child : n.children)
+            addDescendants (nodes, child);
+    }
+    
+    static void filter (Set<FV> nodes, FV n, Set<String> labels) {
+        if (labels.contains(n.getPath())) {
+            // add this node and all of its children and parents
+            for (FV p = n.parent; p != null; p = p.parent)
+                nodes.add(p);
+            addDescendants (nodes, n);
+        }
+        else {
+            for (FV child : n.children)
+                filter (nodes, child, labels);
+        }
+    }
+
+    static void filter (FV n, Set<FV> keep, Set<FV> remove) {
+        if (!keep.contains(n)) {
+            remove.add(n);
+        }
+        else {
+            for (FV child : n.children)
+                filter (child, keep, remove);
+        }
+    }
+    
     /*
      * merge facets; facet names must be the same 
      */

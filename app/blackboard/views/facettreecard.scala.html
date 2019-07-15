@@ -1,8 +1,8 @@
 @import play.twirl.api.HtmlFormat
 @import _root_.blackboard.index.Index._
 @import _root_.blackboard.utils.Util
-@import _root_.blackboard.controllers.KnowledgeApp
-@(app: KnowledgeApp, name: String, values: List[FV], prefix: String)
+@import _root_.blackboard.pubmed.controllers.Controller
+@(name: String, values: List[FV], prefix: String)
 @if(!values.isEmpty){
   <div class="card" style="margin-top:10px;">
     <div class="card-header" style="padding-bottom:0px">
@@ -14,7 +14,7 @@
     </div>
     <div class="card-body show" id="tr-@prefix">
       @for(v <- values) {
-        <ul>@HtmlFormat.raw(KnowledgeApp.toHtml(v))</ul>
+        <ul>@HtmlFormat.raw(Controller.toHtml(v))</ul>
         }
     </div>
     <div class="card-footer">

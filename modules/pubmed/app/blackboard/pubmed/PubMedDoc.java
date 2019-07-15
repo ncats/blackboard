@@ -464,7 +464,16 @@ public class PubMedDoc implements java.io.Serializable {
     public String getJournal () { return journal; }
     public List<MeshHeading> getMeshHeadings () { return headings; }
     public List<Entry> getChemicals () { return chemicals; }
-
+    public String[] getTreeNumbers () {
+        List<String> treeNumbers = new ArrayList<>();
+        for (MeshHeading mh : headings) {
+            Descriptor desc = (Descriptor)mh.descriptor;
+            for (String tr : desc.treeNumbers)
+                treeNumbers.add(tr);
+        }
+        return treeNumbers.toArray(new String[0]);
+    }
+    
     public PubMedDoc addAuthor (Map<String, Object> author) {
         authors.add(new Author (author));
         return this;
