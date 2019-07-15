@@ -1,0 +1,30 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.index.Index._
+@import _root_.blackboard.utils.Util
+@import _root_.blackboard.pubmed.controllers.Controller
+@(name: String, values: List[FV], prefix: String)
+@if(!values.isEmpty){
+  <div class="card" style="margin-top:10px;">
+    <div class="card-header" style="padding-bottom:0px">
+      <div class="alert alert-info" role="alert">
+        <a href="#" class="alert-link" id="header-tr-@prefix"
+           data-name="@name" data-toggle="collapse"
+           data-target='#tr-@prefix'>@name</a>
+      </div>
+    </div>
+    <div class="card-body show" id="tr-@prefix">
+      @for(v <- values) {
+        <ul>@HtmlFormat.raw(Controller.toHtml(v))</ul>
+        }
+    </div>
+    <div class="card-footer">
+      <span class="pull-right">
+        <button class="btn btn-primary" onclick="applyTreeSelections(this);"
+                style="border-radius:3rem">Apply</button>
+        <button class="btn btn-primary" onclick="clearTreeSelections(this);"
+                data-treeid="tr-@prefix"
+                style="border-radius:3rem">Clear</button>
+      </span>
+    </div>
+  </div>
+}

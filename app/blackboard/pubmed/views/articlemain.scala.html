@@ -1,0 +1,139 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.semmed.SemMedDbKSource
+@import _root_.blackboard.semmed.Predication
+@import _root_.blackboard.pubmed.PubMedDoc
+@import org.apache.commons.lang3.text.WordUtils
+@(controller: _root_.blackboard.pubmed.controllers.Controller, doc: PubMedDoc)
+
+<div class="jumbotron">
+  <div class="row">
+    <div class="col-1" style="padding:10px">
+      <span class="__dimensions_badge_embed__ pull-right"
+            data-pmid="@doc.getPMID" data-style="small_circle"></span>
+    </div>
+    <div class="col-11">
+      <h1 class="display-4">@doc.getTitle</h1>
+    </div>
+  </div>
+  <p class="lead"><i>@doc.getJournal</i>, <b>@{new java.text.SimpleDateFormat("MMM d, yyy").format(doc.getDate)}</b></p>
+  <p class="lead">PMID:<a href="https://www.ncbi.nlm.nih.gov/pubmed/@doc.getPMID">@doc.getPMID</a> <span class="fa fa-external-link"></span>
+    @if(doc.getDOI != null) {
+      DOI:<a href="https://dx.doi.org/@doc.getDOI">@doc.getDOI</a>
+      <span class="fa fa-external-link"></span>
+    }
+    <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a>
+    <span class="fa fa-download"></span>
+  </p>
+</div>
+<div class="row">
+  <div class="col-md-12"
+       @**<a href='@controller.pmid(doc.getPMID,"json")'>JSON</a></p>**@
+    <p class="lead">
+      <a class="btn btn-primary" data-toggle="collapse"
+         href="#abstract-card" role="button"
+         aria-expanded="false" aria-controls="abstract-card">
+        Abstract</a>
+    </p>
+    <div class="collapse show" id="abstract-card">
+      <div class="card card-body">
+        @for(t <- doc.getAbstract) {
+          @HtmlFormat.raw(t)
+          <br>
+          }
+      </div>
+    </div>
+  </div>
+</div>
+@if(doc.keywords.size > 0){
+  <div class="row" style="margin-top:1em">
+    <div class="col-md-12">
+      <p class="lead">
+        <a class="btn btn-primary" data-toggle="collapse"
+           href="#keyword-card" role="button"
+           aria-expanded="false" aria-controls="keyword-card">
+          Keywords (@doc.keywords.size)</a>
+      </p>
+      <div class="collapse show" id="keyword-card">
+        <div class="card">
+          <div class="card-footer">
+            @for(k <- doc.keywords){
+              <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@keyword/"+WordUtils.capitalize(k)}'>@k</a></span>
+              }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
+  <div class="row" style="margin-top:1em">
+    <div class="col-md-12">
+      <p class="lead">
+        <a class="btn btn-primary" data-toggle="collapse"
+           href="#author-card" role="button"
+           aria-expanded="false" aria-controls="author-card">
+          Authors (@doc.authors.size)</a>
+      </p>
+      <div class="collapse show" id="author-card">
+        @for(a <- doc.authors){
+          <div class="card">
+            <div class="card-header">
+              <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
+              @if(a.identifier != null){
+                (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
+              }
+            </div>
+            @if(!a.affiliations.isEmpty){
+              <div class="card-body">
+                <ul>
+                  @for(affl <- a.affiliations){
+                    <li>
+                      <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
+                    </li>
+                    }
+                </ul>
+              </div>
+              }
+          </div>
+          <br>
+          }
+      </div>
+    </div>
+  </div>
+  @defining(controller.semmed.getPredicationsByPMID(doc.getPMID.toString)){preds =>
+    @if(preds.length > 0) {
+      <div class="row" style="margin-top:1em">
+      <div class="col-md-12">
+      <p class="lead">
+      <a class="btn btn-primary" data-toggle="collapse"
+      href="#concept-card" role="button"
+      aria-expanded="false" aria-controls="concept-card">
+      Concepts (@preds.length)</a>
+      </p>
+      <div class="collapse show" id="concept-card">
+      @for(p <- preds) {
+        @defining(controller.semmed.umls.getConcept(p.subcui)){ sub =>
+          @if(sub != null) {
+            @defining(controller.semmed.umls.getConcept(p.`objcui`)){ obj =>
+              @if(obj != null) {
+                <div class="card"> 
+                <div class="card-header">
+                <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.subcui}'>@sub.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)'><i class="fa fa-info-circle"></i></a> <b><span class="font-italic">@p.predicate</span></b>
+              <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.objcui}'>@obj.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)'><i class="fa fa-info-circle"></i></a>
+            </div>
+            <div class="card-body">
+            @for(e <- p.evidence) {
+              @e.context<br>
+            }
+            </div>
+            </div>
+            <br>
+              }
+            }
+          }
+        }
+      }
+  </div>
+  </div>
+  </div>
+    }
+  }
