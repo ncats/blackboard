@@ -105,11 +105,13 @@ public class Index implements AutoCloseable, Fields {
                 print (sb, child);
         }
         
-        public String toString () {
+        public String toTreeString () {
             StringBuilder sb = new StringBuilder ();
             print (sb, this);
             return sb.toString();
         }
+        
+        public String toString () { return getPath (); }
     }
     
     public static class Facet {
@@ -161,6 +163,7 @@ public class Index implements AutoCloseable, Fields {
             Set<FV> remove = new HashSet<>();
             for (FV fv : values) {
                 Index.filter(nodes, fv, flabels);
+                //Logger.debug("..."+fv+" => "+nodes);
                 Index.filter(fv, nodes, remove);
             }
             
@@ -238,6 +241,7 @@ public class Index implements AutoCloseable, Fields {
             // add this node and all of its children and parents
             for (FV p = n.parent; p != null; p = p.parent)
                 nodes.add(p);
+            n.specified = true;
             addDescendants (nodes, n);
         }
         else {

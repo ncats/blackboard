@@ -319,9 +319,10 @@ public class Controller extends play.mvc.Controller {
                         String q = request().getQueryString("q");
                         if (q != null) {
                             result = doSearch (q, 0, 1);
+                            String[] treeNumbers = pmdoc.getTreeNumbers();
                             for (Facet f : result.getFacets()) {
                                 if (f.name.startsWith(FACET_TR))
-                                    f.filter(pmdoc.getTreeNumbers());
+                                    f.filter(treeNumbers);
                             }
                         }
                         return ok (blackboard.pubmed.views.html.article.render
@@ -427,7 +428,9 @@ public class Controller extends play.mvc.Controller {
     public static void toHtml (StringBuilder html, int min, FV node) {
         for (FV p = node.parent; p != null; p = p.parent)
             html.append(" ");
-        html.append("<li id=\""+node.getPath()+"\">"+displayHtml (node, min));
+        html.append("<li id=\""+node.getPath()+"\" data-jstree='{\"icon\":\"");
+        html.append(node.specified ? "fa fa-check" : "");
+        html.append("\"}'>"+displayHtml (node, min));
         html.append(" <span class=\"badge badge-primary badge-pill\">"
                     +node.count+"</span>");
         html.append("<ul>");

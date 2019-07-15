@@ -1,4 +1,13 @@
 
+const mesh_trees = [
+    'tr-C',
+    'tr-D',
+    'tr-G',
+    'tr-A',
+    'tr-E'
+];
+
+
 function setupTreeFacets () {
     $.jstree.defaults.core.animation = 0;
     $.jstree.defaults.core.themes.icons = false;
@@ -9,23 +18,16 @@ function setupTreeFacets () {
     $.jstree.defaults.plugins = ["checkbox"];
     $.jstree.defaults.dnd.drag_selection = true;
     $.jstree.defaults.dnd.large_drop_target = true;
-    const trees = [
-        'tr-C',
-        'tr-D',
-        'tr-G',
-        'tr-A',
-        'tr-E'
-    ];
     
     var params = new URLSearchParams (window.location.search);
     var facets = params.getAll('facet');
-    for (var i in trees) {
-        const id = trees[i];
+    for (var i in mesh_trees) {
+        const id = mesh_trees[i];
         $('#'+id).jstree({
             'core': {
                 'themes': {
                     'name': 'proton',
-                    'responsive': true
+                    'responsive': true,
                 }
             }
         }).on('select_node.jstree', function (ev, data) {
@@ -85,19 +87,12 @@ function clearTreeSelections (el) {
 }
 
 function applyTreeSelections (el) {
-    const trees = [
-        'tr-C',
-        'tr-D',
-        'tr-G',
-        'tr-A',
-        'tr-E'
-    ];
     var paths = [];
-    for (var i in trees) {
-        var tr = $.jstree.reference('#'+trees[i]);
+    for (var i in mesh_trees) {
+        var tr = $.jstree.reference('#'+mesh_trees[i]);
         if (tr != null) {
             var selected = tr.get_top_selected();
-            console.log('#'+trees[i]+'...');
+            console.log('#'+mesh_trees[i]+'...');
             for (var n in selected) {
                 console.log('...'+selected[n]);
                 paths.push(selected[n]);

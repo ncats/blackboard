@@ -66,17 +66,24 @@
         }
     </div>
   </div>
-  }{
+}{
   <script src='@controllers.routes.Assets.versioned("javascripts/meshtreefacets.js")' type="text/javascript"></script>  
   }{
-      $(document).ready(function () {
-          setupTreeFacets ();
-          @**
-          @for(tr <- doc.getTreeNumbers){
-              var tr = $.jstree.reference('#tr-@tr.charAt(0)');
-              if (tr != null) {
-                  tr.select_node('#@tr');
-              }
-          }**@
-      });
+  $(document).ready(function () {
+      setupTreeFacets ();
+      for (var i in mesh_trees) {
+          $('#'+mesh_trees[i]).on('ready.jstree click', function (e, data){
+              // remove all non-custom icon
+              $('i.jstree-themeicon').not('.jstree-themeicon-custom').remove();
+          });
+      }
+
+      var tr;
+      @for(tr <- doc.getTreeNumbers){
+          tr = $.jstree.reference('#tr-@tr.charAt(0)');
+          if (tr != null) {
+              tr.show_icons();
+          }
+      }
+  });
 }
