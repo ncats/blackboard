@@ -44,6 +44,7 @@
     </div>
   </div>
 </div>
+
 @if(doc.keywords.size > 0){
   <div class="row" style="margin-top:1em">
     <div class="col-md-12">
@@ -65,40 +66,7 @@
     </div>
   </div>
   }
-  <div class="row" style="margin-top:1em">
-    <div class="col-md-12">
-      <p class="lead">
-        <a class="btn btn-primary" data-toggle="collapse"
-           href="#author-card" role="button"
-           aria-expanded="false" aria-controls="author-card">
-          Authors (@doc.authors.size)</a>
-      </p>
-      <div class="collapse show" id="author-card">
-        @for(a <- doc.authors){
-          <div class="card">
-            <div class="card-header">
-              <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
-              @if(a.identifier != null){
-                (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
-              }
-            </div>
-            @if(!a.affiliations.isEmpty){
-              <div class="card-body">
-                <ul>
-                  @for(affl <- a.affiliations){
-                    <li>
-                      <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
-                    </li>
-                    }
-                </ul>
-              </div>
-              }
-          </div>
-          <br>
-          }
-      </div>
-    </div>
-  </div>
+  
   @defining(controller.semmed.getPredicationsByPMID(doc.getPMID.toString)){preds =>
     @if(preds.length > 0) {
       <div class="row" style="margin-top:1em">
@@ -137,3 +105,74 @@
   </div>
     }
   }
+
+  @if(doc.references.size > 0){
+    <div class="row" style="margin-top:1em">
+      <div class="col-md-12">
+        <p class="lead">
+          <a class="btn btn-primary" data-toggle="collapse"
+             href="#reference-card" role="button"
+             aria-expanded="false" aria-controls="author-card">
+            References (@doc.references.size)</a>
+        </p>
+        <div class="collapse" id="reference-card">
+          @for(r <- doc.references){
+            <div class="card">
+              <div class="card-header">
+                <table>
+                  <tr>
+                    <td style="padding-right:1em">
+                      <span class="__dimensions_badge_embed__"
+                            data-pmid="@r.pmids(0)"
+                            data-style="small_rectangle"> </span>
+                    </td>
+                    <td>
+                      <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.article(r.pmids(0))'
+                         data-pmid="@r.pmids(0)">...</a>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+            <br>
+            }
+        </div>
+      </div>
+    </div>
+    }
+    
+    <div class="row" style="margin-top:1em">
+      <div class="col-md-12">
+        <p class="lead">
+          <a class="btn btn-primary" data-toggle="collapse"
+             href="#author-card" role="button"
+             aria-expanded="false" aria-controls="author-card">
+            Authors (@doc.authors.size)</a>
+        </p>
+        <div class="collapse" id="author-card">
+          @for(a <- doc.authors){
+            <div class="card">
+              <div class="card-header">
+                <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
+                @if(a.identifier != null){
+                  (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
+                }
+              </div>
+              @if(!a.affiliations.isEmpty){
+                <div class="card-body">
+                  <ul>
+                    @for(affl <- a.affiliations){
+                      <li>
+                        <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
+                      </li>
+                      }
+                  </ul>
+                </div>
+                }
+            </div>
+            <br>
+            }
+        </div>
+      </div>
+    </div>
+    

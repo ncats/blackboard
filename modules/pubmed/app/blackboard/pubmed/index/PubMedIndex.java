@@ -1197,7 +1197,7 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     }
 
     public SearchResult facets (SearchQuery query) throws Exception {
-        SearchResult result = new SearchResult (query);
+        SearchResult result = createSearchResult (query);
         facets (result);
         return result;
     }

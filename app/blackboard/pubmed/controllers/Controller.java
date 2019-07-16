@@ -307,6 +307,37 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public CompletionStage<Result> field (Long pmid, String field) {
+        Logger.debug(">> "+request().uri());        
+        return supplyAsync (() -> {
+                try {
+                    MatchedDoc doc = pubmed.getDoc(pmid);
+                    if (doc != null) {
+                        ObjectNode obj = Json.newObject();
+                        switch (field) {
+                        case "title":
+                            obj.put(field, doc.title);
+                            break;
+                            
+                        case "abstract":
+                            obj.put(field, mapper.valueToTree(doc.abstracts));
+                            break;
+                            
+                        default:
+                            return notFound ("Unsupported field: "+field);
+                        }
+                        return ok (obj);
+                    }
+                    return notFound ("Can't find PMID "+pmid);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't retrieve doc: "+pmid, ex);
+                    return internalServerError
+                        ("Internal server error: "+ex.getMessage());
+                }
+            }, ec.current());
+    }
+
     public CompletionStage<Result> article (Long pmid) {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
@@ -315,17 +346,18 @@ public class Controller extends play.mvc.Controller {
                     if (doc != null) {
                         PubMedDoc pmdoc = PubMedDoc.getInstance
                             (doc.doc, mesh.getMeshDb());
-                        SearchResult result = null;
+
                         String q = request().getQueryString("q");
-                        if (q != null) {
-                            result = doSearch (q, 0, 1);
-                            result = result.clone();
-                            String[] treeNumbers = pmdoc.getTreeNumbers();
-                            for (Facet f : result.getFacets()) {
-                                if (f.name.startsWith(FACET_TR))
-                                    f.filter(treeNumbers);
-                            }
+                        SearchResult result = q != null ? doSearch (q, 0, 1)
+                            : pubmed.facets();
+
+                        result = result.clone();
+                        String[] treeNumbers = pmdoc.getTreeNumbers();
+                        for (Facet f : result.getFacets()) {
+                            if (f.name.startsWith(FACET_TR))
+                                f.filter(treeNumbers);
                         }
+                        
                         return ok (blackboard.pubmed.views.html.article.render
                                    (this, result, pmdoc));
                     }
@@ -429,7 +461,8 @@ public class Controller extends play.mvc.Controller {
     public static void toHtml (StringBuilder html, int min, FV node) {
         for (FV p = node.parent; p != null; p = p.parent)
             html.append(" ");
-        html.append("<li id=\""+node.getPath()+"\"");
+        html.append("<li id=\""+node.getPath()+"\" class=\"pubmed-facetnode\""
+                    +" data-facetcount=\""+node.count+"\"");
         if (node.specified) {
             html.append(" data-jstree='{\"icon\":\"fa fa-check\"}'");
         }
@@ -448,7 +481,8 @@ public class Controller extends play.mvc.Controller {
                    ("pubmedRoutes",
                     routes.javascript.Controller.search(),
                     routes.javascript.Controller.facets(),
-                    routes.javascript.Controller.pmid()
+                    routes.javascript.Controller.pmid(),
+                    routes.javascript.Controller.field()
                     )).as("text/javascript");
     }
 }

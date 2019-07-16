@@ -1,12 +1,18 @@
 
-const mesh_trees = [
-    'tr-C',
-    'tr-D',
-    'tr-G',
-    'tr-A',
-    'tr-E'
-];
+const MESH = {
+    trees: [
+        'tr-C',
+        'tr-D',
+        'tr-G',
+        'tr-A',
+        'tr-E'
+    ],
+    selection: {}
+};
 
+// FIXME!!!
+const MESH_SEARCH_PREFIX = '/search?';
+const MESH_MAXCOUNT = 2019; // max facet count to allow 
 
 function setupTreeFacets () {
     $.jstree.defaults.core.animation = 0;
@@ -21,8 +27,8 @@ function setupTreeFacets () {
     
     var params = new URLSearchParams (window.location.search);
     var facets = params.getAll('facet');
-    for (var i in mesh_trees) {
-        const id = mesh_trees[i];
+    for (var i in MESH.trees) {
+        const id = MESH.trees[i];
         $('#'+id).jstree({
             'core': {
                 'themes': {
@@ -32,14 +38,27 @@ function setupTreeFacets () {
             }
         }).on('select_node.jstree', function (ev, data) {
             console.log(data.node.id+' is selected');
-            console.log(data.selected);
+            MESH.selection[data.node.id] = id;
+            console.log(MESH.selection);
             updateTreeHeader (id);
         }).on('deselect_node.jstree', function(ev, data) {
             console.log(data.node.id+' it deselected');
-            console.log(data.selected);
+            delete MESH.selection[data.node.id];
+            console.log(MESH.selection);
             updateTreeHeader (id);
         }).on('deselect_all.jstree', function () {
             updateTreeHeader (id);
+            MESH.selection = {};
+        }).on('ready.jstree click', function (e, data) {
+            // remove all non-custom icon
+            $('i.jstree-themeicon').not('.jstree-themeicon-custom').remove();
+            $('.pubmed-facetnode').each(function (index) {
+                var count = $(this).attr('data-facetcount');
+                console.log($(this).attr('id')+' '+count);
+                if (count > MESH_MAXCOUNT) {
+                    $.jstree.reference('#'+id).disable_node($(this));
+                }
+            });
         });
     }
     
@@ -59,6 +78,7 @@ function setupTreeFacets () {
         $('#menu-toggle').html("Less...");
         $('#wrapper').toggleClass('toggled');
     }
+
 }
 
 function updateTreeHeader (tree) {
@@ -76,28 +96,29 @@ function updateTreeHeader (tree) {
 function clearTreeSelections (el) {
     var id = $(el).data("treeid");
     var tr = $.jstree.reference('#'+id);
-    var selected = tr.get_bottom_selected();
     var params = new URLSearchParams (window.location.search);
     var facets = params.getAll('facet');
+    var pruned = [];
     for (var i in facets) {
-        var node = $.jstree.reference('#'+facets[i]);
-        console.log(facets[i]+'...'+tr.is_selected(node));   
+        var pos = facets[i].indexOf('/');
+        var node = facets[i].substring(pos+1);
+        console.log(facets[i]+'...'+tr.is_selected(node));
+        if (!tr.is_selected(node))
+            pruned.push(facets[i]);
     }
+    params.delete('facet');
+    for (var i in pruned) {
+        params.append('facet', pruned[i]);
+    }
+    params.delete('skip');
     tr.deselect_all();
+    applySearch (params);
 }
 
 function applyTreeSelections (el) {
     var paths = [];
-    for (var i in mesh_trees) {
-        var tr = $.jstree.reference('#'+mesh_trees[i]);
-        if (tr != null) {
-            var selected = tr.get_top_selected();
-            console.log('#'+mesh_trees[i]+'...');
-            for (var n in selected) {
-                console.log('...'+selected[n]);
-                paths.push(selected[n]);
-            }
-        }
+    for (var p in MESH.selection) {
+        paths.push(p);
     }
     
     console.log('selected paths...'+paths);
@@ -123,8 +144,12 @@ function applyTreeSelections (el) {
         params.delete('skip');
     }
     
+    applySearch (params);
+}
+
+function applySearch (params) {
     //var url = window.location.pathname+'?'+params.toString();
-    var url = '/search?'+params.toString(); // FIXME!!!!!
+    var url = MESH_SEARCH_PREFIX+params.toString(); // FIXME!!!!!
     console.log('=====> '+url);
     $.ajax({
         'url': url,

@@ -67,17 +67,30 @@
     </div>
   </div>
 }{
+  <script src="@_root_.blackboard.pubmed.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
   <script src='@controllers.routes.Assets.versioned("javascripts/meshtreefacets.js")' type="text/javascript"></script>  
-  }{
+}{
   $(document).ready(function () {
       setupTreeFacets ();
-      for (var i in mesh_trees) {
-          $('#'+mesh_trees[i]).on('ready.jstree click', function (e, data){
-              // remove all non-custom icon
-              $('i.jstree-themeicon').not('.jstree-themeicon-custom').remove();
+      $("a[data-pmid]").each(function (index) {
+          const pmid = $(this).data('pmid');
+          const route = pubmedRoutes.blackboard.pubmed
+                .controllers.Controller.field(pmid, 'title');
+          const link = $(this);
+          $.ajax({
+              url: route.url,
+              success: function(data) {
+                  console.log(pmid+': '+data['title']);
+                  link.html(data['title']);
+              },
+              error: function () {
+                  console.log('failed to retrieve title for '+pmid);
+                  link.html('publication title for '+pmid);
+              }
+          }).done(function () {
           });
-      }
-
+      });
+      
       var tr;
       @for(tr <- doc.getTreeNumbers){
           tr = $.jstree.reference('#tr-@tr.charAt(0)');

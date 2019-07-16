@@ -983,10 +983,12 @@ public class Index implements AutoCloseable, Fields {
              TaxonomyReader taxon = new DirectoryTaxonomyReader (taxonWriter)) {
             IndexSearcher searcher = new IndexSearcher (reader);
             FacetsCollector fc = new FacetsCollector ();
+            
             TopDocs docs = FacetsCollector.search
                 (searcher, fq.rewrite(), 1, fc);
             Facets facets = new FastTaxonomyFacetCounts
                 (taxon, facetConfig, fc);
+            
             if (fq.getFacets().isEmpty())
                 result.facets.addAll(toFacets (facets, fq.fdim()));
             else {
@@ -1026,6 +1028,8 @@ public class Index implements AutoCloseable, Fields {
                     }
                 }
             }
+            result.postProcessing(searcher);
+            
             Logger.debug("### Facets executed in "
                          +String.format
                          ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3));
