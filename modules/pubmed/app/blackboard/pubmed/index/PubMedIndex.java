@@ -412,6 +412,16 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         
         @Override
         public int size () { return docs.size(); }
+
+        @Override
+        public SearchResult clone () {
+            SearchResult result = new SearchResult (this);
+            result.facets.clear(); // clone facets instead of referencing
+            for (Facet f : facets) {
+                result.facets.add(PubMedIndex.clone(f));
+            }
+            return result;
+        }
         
         protected boolean process (IndexSearcher searcher,
                                    blackboard.index.Index.ResultDoc rdoc) {

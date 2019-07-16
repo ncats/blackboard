@@ -687,6 +687,10 @@ public class Index implements AutoCloseable, Fields {
             return 0 == size () && facets.isEmpty();
         }
 
+        public SearchResult clone () {
+            return null; // can't clone an abstract class
+        }
+
         // can be overriden by subclass to do post processing
         protected void postProcessing (IndexSearcher searcher)
             throws IOException {

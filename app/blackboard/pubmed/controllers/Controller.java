@@ -319,6 +319,7 @@ public class Controller extends play.mvc.Controller {
                         String q = request().getQueryString("q");
                         if (q != null) {
                             result = doSearch (q, 0, 1);
+                            result = result.clone();
                             String[] treeNumbers = pmdoc.getTreeNumbers();
                             for (Facet f : result.getFacets()) {
                                 if (f.name.startsWith(FACET_TR))
