@@ -428,9 +428,11 @@ public class Controller extends play.mvc.Controller {
     public static void toHtml (StringBuilder html, int min, FV node) {
         for (FV p = node.parent; p != null; p = p.parent)
             html.append(" ");
-        html.append("<li id=\""+node.getPath()+"\" data-jstree='{\"icon\":\"");
-        html.append(node.specified ? "fa fa-check" : "");
-        html.append("\"}'>"+displayHtml (node, min));
+        html.append("<li id=\""+node.getPath()+"\"");
+        if (node.specified) {
+            html.append(" data-jstree='{\"icon\":\"fa fa-check\"}'");
+        }
+        html.append(">"+displayHtml (node, min));
         html.append(" <span class=\"badge badge-primary badge-pill\">"
                     +node.count+"</span>");
         html.append("<ul>");

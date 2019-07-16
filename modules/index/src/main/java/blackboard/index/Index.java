@@ -67,6 +67,12 @@ public class Index implements AutoCloseable, Fields {
             return this;
         }
 
+        public boolean remove () {
+            if (parent != null)
+                return parent.children.remove(this);
+            return false;
+        }
+
         public String name () {
             if (display != null) return display;
             return label;
@@ -159,25 +165,31 @@ public class Index implements AutoCloseable, Fields {
                 flabels.add(l);
             
             //Logger.debug("filter... "+flabels);
-            Set<FV> nodes = new HashSet<>();
-            Set<FV> remove = new HashSet<>();
-            for (FV fv : values) {
+            Comparator<FV> fvcomp = (a,b) -> a.getPath().compareTo(b.getPath());
+            Set<FV> nodes = new TreeSet<>(fvcomp);
+            for (FV fv : values)
                 Index.filter(nodes, fv, flabels);
-                //Logger.debug("..."+fv+" => "+nodes);
+
+            Set<FV> remove = new TreeSet<>(fvcomp);
+            for (FV fv : values)
                 Index.filter(fv, nodes, remove);
-            }
-            
+            /*
+            Logger.debug("nodes... "+nodes);
+            Logger.debug("remove... "+remove);
+            Logger.debug("values... "+values);
+            */
             // now remove all nodes not in nodes
             for (FV fv : remove) {
                 if (fv.parent != null) {
-                    //Logger.debug("removing "+fv.getPath());
-                    fv.parent.children.remove(fv);
+                    boolean removed = fv.remove();
+                    //Logger.debug("removing "+fv.getPath()+"..."+removed);
                 }
                 else {
-                    //Logger.debug("removing "+fv.getPath());
-                    values.remove(fv);
+                    boolean removed = values.remove(fv);
+                    //Logger.debug("removing "+fv.getPath()+"..."+removed);
                 }
             }
+            //Logger.debug("final..."+values);
         }
         
         public void trim (int size) {
@@ -239,7 +251,7 @@ public class Index implements AutoCloseable, Fields {
     static void filter (Set<FV> nodes, FV n, Set<String> labels) {
         if (labels.contains(n.getPath())) {
             // add this node and all of its children and parents
-            for (FV p = n.parent; p != null; p = p.parent)
+            for (FV p = n; p != null; p = p.parent)
                 nodes.add(p);
             n.specified = true;
             addDescendants (nodes, n);

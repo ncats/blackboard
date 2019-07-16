@@ -37,7 +37,7 @@
 @jstree(name: String, prefix: String) = {
     @defining(result.getFacet("@tr"+prefix)){ tr =>
       @if(tr != null) {
-        @facettreecard(name, tr.getValuesWithPrefix(prefix), prefix)
+        @_root_.blackboard.pubmed.views.html.facettreecard(name, tr.getValuesWithPrefix(prefix), prefix)
       }
     }
 }
