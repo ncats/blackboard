@@ -81,8 +81,8 @@
           </li>
         }
       </ul>
-      <form class="form-inline my-2 my-lg-0" method="GET"
-            action="@routes.KnowledgeApp.ksearch(null)">
+      <form id="search-form" class="form-inline my-2 my-lg-0"
+            method="GET" action="@routes.KnowledgeApp.ksearch(null)">
         <input class="form-control mr-sm-2" type="search" name="q"
                placeholder="ENTER SEARCH TERMS..." style="width:20em">
         <button class="btn btn-primary my-2 my-sm-0"
@@ -91,6 +91,7 @@
     </div>
   </nav>  
   <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
+    <div id="content-panel" class="loader loader-default"></div>     
     <div class="row">
       @defining(result.getFacet("@tr")){ tr =>
         @if(tr != null){
@@ -117,7 +118,7 @@
         <div class="col-md-6">
           @** SEARCH CONTENTS **@
           @for(d <- result.docs) {
-            @articlecard(d,"?"+Util.getQueryString(request, "q"))
+            @articlecard(d,"?"+Util.getQueryString(request, "q", "facet"))
             }
             <div class="alert fade show" role="alert">
               @paging()
@@ -140,7 +141,7 @@
   </div>
   }{
   <script src="@_root_.blackboard.disease.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
-  <script src='@controllers.routes.Assets.versioned("javascripts/meshtreefacets.js")' type="text/javascript"></script>
+  <script src='@controllers.routes.Assets.versioned("javascripts/treefacets.js")' type="text/javascript"></script>
   }{
       $(document).ready(function() {
           console.log('@HtmlFormat.raw(request.uri)');
@@ -155,7 +156,10 @@
                   $('#menu-toggle').html("Less...");
               }
           });
-          
+
+          $('#search-form').on('submit', function(e) {
+              showloader();
+          });
           setupTreeFacets ();
           
           /*
@@ -215,9 +219,11 @@
                   params.append('facet', facets[i]);
               }
           }
-
+  
           var url = '@request.path'+'?'+params.toString();
           console.log('=====> '+url);
+          showloader ();
+          
           $.ajax({
               'url': url,
               success: function () {

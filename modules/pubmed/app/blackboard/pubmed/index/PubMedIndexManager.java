@@ -238,10 +238,11 @@ public class PubMedIndexManager implements AutoCloseable {
         tq.skip = skip;
         tq.top = top;
         tq.slop = slop;
-        
+        final String key = tq.cacheKey()+"/"+skip+"/"+top;
         return cache.getOrElseUpdate
-            (tq.cacheKey()+"/"+skip+"/"+top, new Callable<SearchResult>() {
+            (key, new Callable<SearchResult>() {
                     public SearchResult call () {
+                        Logger.debug("Cache missed: "+key);
                         return search (tq);
                     }
                 });
@@ -293,9 +294,11 @@ public class PubMedIndexManager implements AutoCloseable {
     public List<Concept> getConcepts (SearchQuery q) {
         List<Concept> concepts = new ArrayList<>();
         if (q.getQuery() != null) {
+            final String key = q.cacheKey()+"/concepts";
             concepts = cache.getOrElseUpdate
-                (q.cacheKey()+"/concepts", new Callable<List<Concept>> () {
+                (key, new Callable<List<Concept>> () {
                         public List<Concept> call () {
+                            Logger.debug("Cache missed: "+key);
                             return _getConcepts (q);
                         }
                     });
@@ -342,64 +345,74 @@ public class PubMedIndexManager implements AutoCloseable {
                  }
              });
     }
+
+    public MatchedDoc getDoc (PMIDQuery q) {
+        Inbox inbox = Inbox.create(actorSystem);
+        List<MatchedDoc> docs = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            inbox.send(actorRef, q);
+            try {
+                MatchedDoc doc = (MatchedDoc)inbox.receive
+                    (Duration.ofSeconds(2l));
+                if (doc != EMPTY_DOC)
+                    docs.add(doc);
+            }
+            catch (TimeoutException ex) {
+                Logger.error("Unable to receive result from "
+                             +actorRef
+                             +" within alloted time", ex);
+            }
+        }
+                        
+        if (docs.size() > 1) {
+            Logger.warn(q.pmid+" has multiple ("
+                        +docs.size()+") documents!");
+
+            Collections.sort(docs);
+        }
+                        
+        return docs.isEmpty() ? null : docs.get(0);
+    }
     
     public MatchedDoc getDoc (Long pmid) {
         final PMIDQuery q = new PMIDQuery (pmid);
         return cache.getOrElseUpdate
             (q.cacheKey(), new Callable<MatchedDoc>() {
                     public MatchedDoc call () {
-                        Inbox inbox = Inbox.create(actorSystem);
-                        List<MatchedDoc> docs = new ArrayList<>();
-                        for (ActorRef actorRef : indexes) {
-                            inbox.send(actorRef, q);
-                            try {
-                                MatchedDoc doc = (MatchedDoc)inbox.receive
-                                    (Duration.ofSeconds(2l));
-                                if (doc != EMPTY_DOC)
-                                    docs.add(doc);
-                            }
-                            catch (TimeoutException ex) {
-                                Logger.error("Unable to receive result from "
-                                             +actorRef
-                                             +" within alloted time", ex);
-                            }
-                        }
-                        
-                        if (docs.size() > 1) {
-                            Logger.warn(pmid+" has multiple ("
-                                        +docs.size()+") documents!");
-
-                            Collections.sort(docs);
-                        }
-                        
-                        return docs.isEmpty() ? null : docs.get(0);
+                        Logger.debug("Cache missed: "+q.cacheKey());
+                        return getDoc (q);
                     }
                 });
     }
 
+    public SearchResult getDocs (PMIDBatchQuery bq) {
+        Inbox inbox = Inbox.create(actorSystem);
+        List<SearchResult> results = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            inbox.send(actorRef, bq);
+            try {
+                SearchResult result =
+                    (SearchResult)inbox.receive
+                    (Duration.ofSeconds(5l));
+                results.add(result);
+            }
+            catch (TimeoutException ex) {
+                Logger.error("Unable to receive result from "
+                             +actorRef
+                             +" within alloted time", ex);
+            }
+        }
+        return PubMedIndex.merge
+            (results.toArray(new SearchResult[0]));
+    }
+    
     public SearchResult getDocs (Long... pmids) {
         final PMIDBatchQuery bq = new PMIDBatchQuery (pmids);
         return cache.getOrElseUpdate
             (bq.cacheKey(), new Callable<SearchResult>() {
                     public SearchResult call () {
-                        Inbox inbox = Inbox.create(actorSystem);
-                        List<SearchResult> results = new ArrayList<>();
-                        for (ActorRef actorRef : indexes) {
-                            inbox.send(actorRef, bq);
-                            try {
-                                SearchResult result =
-                                    (SearchResult)inbox.receive
-                                    (Duration.ofSeconds(5l));
-                                results.add(result);
-                            }
-                            catch (TimeoutException ex) {
-                                Logger.error("Unable to receive result from "
-                                             +actorRef
-                                             +" within alloted time", ex);
-                            }
-                        }
-                        return PubMedIndex.merge
-                            (results.toArray(new SearchResult[0]));
+                        Logger.debug("Cache missed: "+bq.cacheKey());
+                        return getDocs (bq);
                     }
                 });
     }

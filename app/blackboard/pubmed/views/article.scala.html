@@ -3,6 +3,7 @@
 @import _root_.blackboard.semmed.Predication
 @import _root_.blackboard.pubmed.PubMedDoc
 @import _root_.blackboard.pubmed.index.PubMedIndex._
+@import _root_.blackboard.utils.Util
 @import org.apache.commons.lang3.text.WordUtils
 
 @(controller: _root_.blackboard.pubmed.controllers.Controller,
@@ -38,6 +39,12 @@
               <li class="nav-item">
                 <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
               </li>
+              @if(request.getQueryString("q") != null
+                || request.getQueryString("facet") != null){
+                <li class="nav-item">
+                  <a class="nav-link" href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(request.getQueryString("q")), request)">publications (<span id="pub-count">...</span>)</a>
+                </li>
+                }
             </ul>
             <form class="form-inline my-2 my-lg-0"
                   action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
@@ -51,6 +58,7 @@
       </div>
   </nav>
   <div class="container-fluid" style="margin-top:60px;">
+    <div id="content-panel" class="loader loader-default"></div>    
     <div class="row">
       @if(result != null){
         <div class="col-md-3">
@@ -77,7 +85,7 @@
   </div>
 }{
   <script src="@_root_.blackboard.pubmed.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
-  <script src='@controllers.routes.Assets.versioned("javascripts/meshtreefacets.js")' type="text/javascript"></script>  
+  <script src='@controllers.routes.Assets.versioned("javascripts/treefacets.js")' type="text/javascript"></script>  
 }{
   $(document).ready(function () {
       setupTreeFacets ();
@@ -99,6 +107,40 @@
           }).done(function () {
           });
       });
+
+      @if(request.getQueryString("q") != null
+          || request.getQueryString("facet") != null){      
+          var params = new URLSearchParams(window.location.search);
+          const query = params.get('q');
+          const facets = params.getAll('facet');
+          params = new URLSearchParams ();
+          for (var i in facets) {
+              params.append('facet', facets[i]);
+          }
+          params.set('path', '/total');
+
+          @** might be better off using scala template for this? **@
+          var route = pubmedRoutes.blackboard.pubmed
+              .controllers.Controller.search(query);
+          var url = route.url;
+          var pos = url.indexOf('/null');
+          if (pos > 0) {
+              url = url.substring(0, pos);
+          }
+          url += '?'+params.toString();
+          console.log("========> "+url);
+          $.ajax({
+              url: url,
+              success: function(data) {
+                  console.log('***** '+url+' '+data);
+                  $('#pub-count').html(''+data);
+              },
+              error: function() {
+                  console.log('***** '+url+' failed!');
+              }
+          }).done(function () {
+          });
+      }
       
       var tr;
       @for(tr <- doc.getTreeNumbers){

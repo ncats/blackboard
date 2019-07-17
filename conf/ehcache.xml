@@ -5,14 +5,14 @@
          dynamicConfig="true">
   <defaultCache
       maxEntriesLocalHeap="10000"
-      eternal="false"
+      eternal="true"
       timeToIdleSeconds="1200"
       timeToLiveSeconds="1200"
       maxBytesLocalHeap="500M">
   </defaultCache>
   <cache name="play"
          maxEntriesLocalHeap="10000"
-         eternal="false"
+         eternal="true"
          timeToLiveSeconds="1200"
          timeToIdleSeconds="1200">
   </cache>

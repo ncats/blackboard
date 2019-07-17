@@ -308,68 +308,85 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    public Result _field (Long pmid, String field) {
+        try {
+            MatchedDoc doc = pubmed.getDoc(pmid);
+            if (doc != null) {
+                ObjectNode obj = Json.newObject();
+                switch (field) {
+                case "title":
+                    obj.put(field, doc.title);
+                    break;
+                            
+                case "abstract":
+                    obj.put(field, mapper.valueToTree(doc.abstracts));
+                    break;
+                            
+                default:
+                    return notFound ("Unsupported field: "+field);
+                }
+                return ok (obj);
+            }
+            return notFound ("Can't find PMID "+pmid);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve doc: "+pmid, ex);
+            return internalServerError
+                ("Internal server error: "+ex.getMessage());
+        }
+    }
+    
     public CompletionStage<Result> field (Long pmid, String field) {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
-                try {
-                    MatchedDoc doc = pubmed.getDoc(pmid);
-                    if (doc != null) {
-                        ObjectNode obj = Json.newObject();
-                        switch (field) {
-                        case "title":
-                            obj.put(field, doc.title);
-                            break;
-                            
-                        case "abstract":
-                            obj.put(field, mapper.valueToTree(doc.abstracts));
-                            break;
-                            
-                        default:
-                            return notFound ("Unsupported field: "+field);
-                        }
-                        return ok (obj);
-                    }
-                    return notFound ("Can't find PMID "+pmid);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve doc: "+pmid, ex);
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
+                final String key = getClass()+"/field/"+pmid+"/"+field;
+                return cache.getOrElseUpdate(key, () -> {
+                        Logger.debug("Cache missed: "+key);
+                        return _field (pmid, field);
+                    });
             }, ec.current());
+    }
+
+    public Result _article (Long pmid) {
+        try {        
+            MatchedDoc doc = pubmed.getDoc(pmid);
+            if (doc != null) {
+                PubMedDoc pmdoc = PubMedDoc.getInstance
+                    (doc.doc, mesh.getMeshDb());
+                
+                String q = request().getQueryString("q");
+                SearchResult result = q != null
+                    || request().getQueryString("facet") != null
+                    ? doSearch (q, 0, 1) : pubmed.facets();
+                
+                result = result.clone();
+                String[] treeNumbers = pmdoc.getTreeNumbers();
+                for (Facet f : result.getFacets()) {
+                    if (f.name.startsWith(FACET_TR))
+                    f.filter(treeNumbers);
+                }
+                return ok (blackboard.pubmed.views.html.article.render
+                           (this, result, pmdoc));
+            }
+            
+            return ok (views.html.ui.error.render
+                       ("Unknown PubMed article: "+pmid, 400));
+        }
+        catch (Exception ex) {
+            Logger.error("** "+request().uri()+" failed", ex);
+            return ok (views.html.ui.error.render(ex.getMessage(), 500));
+        }
     }
 
     public CompletionStage<Result> article (Long pmid) {
         Logger.debug(">> "+request().uri());        
         return supplyAsync (() -> {
-                try {
-                    MatchedDoc doc = pubmed.getDoc(pmid);
-                    if (doc != null) {
-                        PubMedDoc pmdoc = PubMedDoc.getInstance
-                            (doc.doc, mesh.getMeshDb());
-
-                        String q = request().getQueryString("q");
-                        SearchResult result = q != null ? doSearch (q, 0, 1)
-                            : pubmed.facets();
-
-                        result = result.clone();
-                        String[] treeNumbers = pmdoc.getTreeNumbers();
-                        for (Facet f : result.getFacets()) {
-                            if (f.name.startsWith(FACET_TR))
-                                f.filter(treeNumbers);
-                        }
-                        
-                        return ok (blackboard.pubmed.views.html.article.render
-                                   (this, result, pmdoc));
-                    }
-                    return ok (views.html.ui.error.render
-                               ("Unknown PubMed article: "+pmid, 400));
-                }
-                catch (Exception ex) {
-                    Logger.error("** "+request().uri()+" failed", ex);
-                    return ok (views.html.ui.error.render
-                               (ex.getMessage(), 500));
-                }
+                final String key = getClass()+"/article/"+pmid
+                    +"/"+Util.sha1(request(), "q", "facet");
+                return cache.getOrElseUpdate(key, () -> {
+                        Logger.debug("Cache missed: "+key);
+                        return _article (pmid);
+                    });
             }, ec.current());
     }
     

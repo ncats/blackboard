@@ -1,6 +1,6 @@
 
-const MESH = {
-    trees: [
+const FACET = {
+    mesh_trees: [
         'tr-C',
         'tr-D',
         'tr-G',
@@ -10,25 +10,23 @@ const MESH = {
     selection: {}
 };
 
-// FIXME!!!
-const MESH_SEARCH_PREFIX = '/search?';
-const MESH_MAXCOUNT = 2019; // max facet count to allow 
+const FACET_MAXCOUNT = 2019; // max facet count to allow 
 
 function setupTreeFacets () {
     $.jstree.defaults.core.animation = 0;
     $.jstree.defaults.core.themes.icons = false;
     $.jstree.defaults.core.themes.stripes = false;  
     $.jstree.defaults.core.themes.responsive = true;
-    $.jstree.defaults.checkbox.cascade = "up";
+    //$.jstree.defaults.checkbox.cascade = "undetermined";
     //$.jstree.defaults.checkbox.whole_node = false;
     $.jstree.defaults.plugins = ["checkbox"];
     $.jstree.defaults.dnd.drag_selection = true;
     $.jstree.defaults.dnd.large_drop_target = true;
     
-    var params = new URLSearchParams (window.location.search);
-    var facets = params.getAll('facet');
-    for (var i in MESH.trees) {
-        const id = MESH.trees[i];
+    const params = new URLSearchParams (window.location.search);
+    const facets = params.getAll('facet');
+    for (var i in FACET.mesh_trees) {
+        const id = FACET.mesh_trees[i];
         $('#'+id).jstree({
             'core': {
                 'themes': {
@@ -38,24 +36,24 @@ function setupTreeFacets () {
             }
         }).on('select_node.jstree', function (ev, data) {
             console.log(data.node.id+' is selected');
-            MESH.selection[data.node.id] = id;
-            console.log(MESH.selection);
+            FACET.selection[data.node.id] = id;
+            console.log(FACET.selection);
             updateTreeHeader (id);
         }).on('deselect_node.jstree', function(ev, data) {
             console.log(data.node.id+' it deselected');
-            delete MESH.selection[data.node.id];
-            console.log(MESH.selection);
+            delete FACET.selection[data.node.id];
+            console.log(FACET.selection);
             updateTreeHeader (id);
         }).on('deselect_all.jstree', function () {
             updateTreeHeader (id);
-            MESH.selection = {};
+            FACET.selection = {};
         }).on('ready.jstree click', function (e, data) {
             // remove all non-custom icon
             $('i.jstree-themeicon').not('.jstree-themeicon-custom').remove();
             $('.pubmed-facetnode').each(function (index) {
                 var count = $(this).attr('data-facetcount');
                 console.log($(this).attr('id')+' '+count);
-                if (count > MESH_MAXCOUNT) {
+                if (count > FACET_MAXCOUNT) {
                     $.jstree.reference('#'+id).disable_node($(this));
                 }
             });
@@ -94,11 +92,11 @@ function updateTreeHeader (tree) {
 }
 
 function clearTreeSelections (el) {
-    var id = $(el).data("treeid");
-    var tr = $.jstree.reference('#'+id);
-    var params = new URLSearchParams (window.location.search);
-    var facets = params.getAll('facet');
-    var pruned = [];
+    const id = $(el).data("treeid");
+    const tr = $.jstree.reference('#'+id);
+    const params = new URLSearchParams (window.location.search);
+    const facets = params.getAll('facet');
+    const pruned = [];
     for (var i in facets) {
         var pos = facets[i].indexOf('/');
         var node = facets[i].substring(pos+1);
@@ -117,13 +115,13 @@ function clearTreeSelections (el) {
 
 function applyTreeSelections (el) {
     var paths = [];
-    for (var p in MESH.selection) {
+    for (var p in FACET.selection) {
         paths.push(p);
     }
     
     console.log('selected paths...'+paths);
-    var params = new URLSearchParams (window.location.search);
-    var facets = params.getAll('facet');
+    const params = new URLSearchParams (window.location.search);
+    const facets = params.getAll('facet');
     params.delete('facet');
     for (var i in facets) {
         var f = facets[i];
@@ -147,16 +145,25 @@ function applyTreeSelections (el) {
     applySearch (params);
 }
 
+function showloader () {
+    $('#content-panel').each(function (index) {
+        $(this).addClass('is-active');
+    });
+}
+
 function applySearch (params) {
-    //var url = window.location.pathname+'?'+params.toString();
-    var url = MESH_SEARCH_PREFIX+params.toString(); // FIXME!!!!!
+    const url = window.location.pathname+'?'+params.toString();
     console.log('=====> '+url);
+    
+    showloader ();
     $.ajax({
         'url': url,
         success: function () {
             window.location.href = url;
         }
     }).done(function () {
-        
-    });              
+        $('.loader').each(function (index) {
+            $(this).removeClass('is-active');
+        });
+    });
 }
