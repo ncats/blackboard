@@ -262,4 +262,20 @@ public class Util {
         }
         return url.toString();
     }
+
+    public static String format (int value) {
+        if (value > 1000000) {
+            double dv = value / 1000000.;
+            if (dv < 10.)
+                return String.format("%1$.1fm", dv);
+            return String.format("%1$.0fm", dv);
+        }
+        else if (value > 1000) {
+            double dv = value / 1000.;
+            if (dv < 10.)
+                return String.format("%1$.1fk", dv);
+            return String.format("%1$.0fk", dv);
+        }
+        return String.format("%1$d", value);
+    }
 }

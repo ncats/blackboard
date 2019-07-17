@@ -38,6 +38,7 @@ import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.semmed.SemMedDbKSource;
 import blackboard.pubmed.PubMedDoc;
+import blackboard.utils.Util;
 
 public class Controller extends play.mvc.Controller {
     public static final JsonNode EMPTY_JSON = Json.newObject();
@@ -468,7 +469,7 @@ public class Controller extends play.mvc.Controller {
         }
         html.append(">"+displayHtml (node, min));
         html.append(" <span class=\"badge badge-primary badge-pill\">"
-                    +node.count+"</span>");
+                    +Util.format(node.count)+"</span>");
         html.append("<ul>");
         for (FV child : node.children) {
             toHtml (html, min, child);

@@ -16,7 +16,7 @@
   }
 }
   
-@facettrees() = {
+@facet_mesh_trees() = {
     @jstree("Disease", "C")
     @jstree("Chemical", "D")
     @jstree("Phenomena", "G")
@@ -54,10 +54,19 @@
     <div class="row">
       @if(result != null){
         <div class="col-md-3">
-          @facettrees()
+          @facet_mesh_trees()
         </div>
-        <div class="col-md-9">
+        <div class="col-md-6">
           @articlemain(controller, doc)
+        </div>
+        <div class="col-md-3">
+          <div class="card" style="margin-top:10px;">
+            <div class="card-header" style="padding-bottom:0px">
+              <div class="alert alert-success" role="alert">
+                Similar Articles
+              </div>
+            </div>
+          </div>
         </div>
         }else{
         <div class="col-md-12">
