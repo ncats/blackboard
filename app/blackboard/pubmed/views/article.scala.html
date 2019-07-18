@@ -93,28 +93,8 @@
       $('#search-form').on('submit', function(e) {
           showloader();
       });
-@**  
-      $("a[data-pmid]").each(function (index) {
-          const pmid = $(this).data('pmid');
-          const route = pubmedRoutes.blackboard.pubmed
-                .controllers.Controller.field(pmid, 'title');
-          const link = $(this);
-          $.ajax({
-              url: route.url,
-              success: function(data) {
-                  console.log(pmid+': '+data['title']);
-                  link.html(data['title']);
-              },
-              error: function () {
-                  console.log('failed to retrieve title for '+pmid);
-                  link.html('publication title for '+pmid);
-              }
-          }).done(function () {
-          });
-      });
-      **@
 
-      const route = pubmedRoutes.blackboard.pubmed
+      var route = pubmedRoutes.blackboard.pubmed
             .controllers.Controller.field(@doc.pmid, 'references');
       $.ajax({
           url: route.url,
@@ -141,7 +121,7 @@
           params.set('path', '/total');
 
           @** might be better off using scala template for this? **@
-          var route = pubmedRoutes.blackboard.pubmed
+          route = pubmedRoutes.blackboard.pubmed
               .controllers.Controller.search(query);
           var url = route.url;
           var pos = url.indexOf('/null');
