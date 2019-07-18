@@ -5,7 +5,7 @@
 @refitem(doc: MatchedDoc) = {
   <li class="list-group-item d-flex justify-content-between align-items-center">
     <span class="font-bold">@doc.year
-      <a href="@_root_.blackboard.pubmed.controllers.routes.Controller.article(doc.pmid)">@doc.title</a></span>
+      <a href="@_root_.blackboard.pubmed.controllers.routes.Controller.article(doc.pmid)" onclick="showloader()">@doc.title</a></span>
   </li>
 }
   
@@ -27,6 +27,7 @@
       </ul> <!-- list-group -->
     </div>
     <div class="card-footer">
-      <a href='@routes.KnowledgeApp.references(request.getQueryString("q"))'>See more cited references...</a>
+      <a onclick="showloader()"
+         href='@routes.KnowledgeApp.references(request.getQueryString("q"))'>See more cited references...</a>
   </div>
 </div>

@@ -105,18 +105,28 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         public List<Concept> concepts = new ArrayList<>();
         public List<Concept> mesh = new ArrayList<>();
 
-        @JsonIgnore
-        public org.w3c.dom.Document doc;
+        @JsonIgnore public org.w3c.dom.Document doc;
+        @JsonIgnore private final MeshDb meshdb;
 
         protected MatchedDoc () {
+            this (null);
+        }
+        
+        protected MatchedDoc (MeshDb meshdb) {
+            this.meshdb = meshdb;
         }
         
         protected MatchedDoc (Long pmid, String title, Integer year) {
+            this (null);
             this.pmid = pmid;
             this.title = title;
             this.year = year;
         }
 
+        public PubMedDoc toDoc () {
+            return PubMedDoc.getInstance(doc, meshdb);
+        }
+        
         public String toXmlString () {
             if (doc != null) {
                 try {
@@ -426,7 +436,7 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         protected boolean process (IndexSearcher searcher,
                                    blackboard.index.Index.ResultDoc rdoc) {
             try {
-                MatchedDoc mdoc = toMatchedDoc (rdoc.doc);
+                MatchedDoc mdoc = toMatchedDoc (rdoc.doc, mesh);
                 String[] frags = rdoc.getFragments(FIELD_TEXT, 500, 10);
                 if (frags != null && frags.length > 0) {
                     for (String f : frags)
@@ -1151,7 +1161,12 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     }
 
     static MatchedDoc toMatchedDoc (Document doc) throws IOException {
-        return toMatchedDoc (new MatchedDoc (), doc);
+        return toMatchedDoc (doc, null);
+    }
+    
+    static MatchedDoc toMatchedDoc (Document doc, MeshDb mesh)
+        throws IOException {
+        return toMatchedDoc (new MatchedDoc (mesh), doc);
     }
     
     static MatchedDoc toMatchedDoc (MatchedDoc md, Document doc)

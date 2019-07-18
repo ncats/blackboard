@@ -407,13 +407,13 @@ public class PubMedIndexManager implements AutoCloseable {
     }
     
     public SearchResult getDocs (Long... pmids) {
+        if (pmids.length == 0)
+            return PubMedIndex.EMPTY_RESULT;
+        
         final PMIDBatchQuery bq = new PMIDBatchQuery (pmids);
-        return cache.getOrElseUpdate
-            (bq.cacheKey(), new Callable<SearchResult>() {
-                    public SearchResult call () {
-                        Logger.debug("Cache missed: "+bq.cacheKey());
-                        return getDocs (bq);
-                    }
-                });
+        return cache.getOrElseUpdate(bq.cacheKey(), () -> {
+                Logger.debug("Cache missed: "+bq.cacheKey());
+                return getDocs (bq);
+            });
     }
 }

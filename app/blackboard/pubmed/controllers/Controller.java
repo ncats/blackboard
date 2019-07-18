@@ -5,6 +5,7 @@ import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.stream.Collectors;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
@@ -308,6 +309,17 @@ public class Controller extends play.mvc.Controller {
             }, ec.current());
     }
 
+    SearchResult getReferences (MatchedDoc mdoc) {
+        final String key = getClass()+"/"+mdoc.pmid+"/references";
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                PubMedDoc doc = mdoc.toDoc();
+                List<Long> pmids = doc.references.stream()
+                    .map(r -> r.pmids[0]).collect(Collectors.toList());
+                return pubmed.getDocs(pmids.toArray(new Long[0]));
+            });
+    }
+    
     public Result _field (Long pmid, String field) {
         try {
             MatchedDoc doc = pubmed.getDoc(pmid);
@@ -320,6 +332,14 @@ public class Controller extends play.mvc.Controller {
                             
                 case "abstract":
                     obj.put(field, mapper.valueToTree(doc.abstracts));
+                    break;
+
+                case "references":
+                    { SearchResult result = getReferences (doc);
+                        for (MatchedDoc d : result.docs) {
+                            obj.put(String.valueOf(d.pmid), d.title);
+                        }
+                    }
                     break;
                             
                 default:

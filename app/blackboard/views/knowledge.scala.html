@@ -14,18 +14,20 @@
       @for(i <- pages) {
         @if(i == 0) {
           <li class="page-item disabled">
-            <a class="page-link" href="#" tabindex="-1">
+            <a class="page-link" href="#" tabindex="-1" onclick="showloader()">
               <span><i class="fa fa-ellipsis-h"></i></span>
             </a>
           </li>
         }else{
           @if(i == page) {
             <li class="page-item active">
-              <a class="page-link" tabindex="-1" href="#">@i
+              <a class="page-link" tabindex="-1"
+                 href="#" onclick="showloader()">@i
                 <span class="sr-only">(current)</span></a></li>
           }else{
             <li class="page-item">
-              <a class="page-link" href="@urls(i)">@i</a></li>
+              <a class="page-link" onclick="showloader()"
+                 href="@urls(i)">@i</a></li>
           }
         }
       }

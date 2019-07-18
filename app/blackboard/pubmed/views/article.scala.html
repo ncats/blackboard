@@ -42,11 +42,12 @@
               @if(request.getQueryString("q") != null
                 || request.getQueryString("facet") != null){
                 <li class="nav-item">
-                  <a class="nav-link" href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(request.getQueryString("q")), request)">publications (<span id="pub-count">...</span>)</a>
+                  <a class="nav-link" onclick="showloader()"
+                     href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(request.getQueryString("q")), request)">publications (<span id="pub-count">...</span>)</a>
                 </li>
                 }
             </ul>
-            <form class="form-inline my-2 my-lg-0"
+            <form id="search-form" class="form-inline my-2 my-lg-0"
                   action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
                   method="GET">
               <input class="form-control mr-sm-2" type="search" name="q"
@@ -71,7 +72,7 @@
           <div class="card" style="margin-top:10px;">
             <div class="card-header" style="padding-bottom:0px">
               <div class="alert alert-success" role="alert">
-                Similar Articles
+                Related Articles
               </div>
             </div>
           </div>
@@ -86,9 +87,13 @@
 }{
   <script src="@_root_.blackboard.pubmed.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>
   <script src='@controllers.routes.Assets.versioned("javascripts/treefacets.js")' type="text/javascript"></script>  
-}{
+  }{
   $(document).ready(function () {
       setupTreeFacets ();
+      $('#search-form').on('submit', function(e) {
+          showloader();
+      });
+@**  
       $("a[data-pmid]").each(function (index) {
           const pmid = $(this).data('pmid');
           const route = pubmedRoutes.blackboard.pubmed
@@ -107,7 +112,23 @@
           }).done(function () {
           });
       });
+      **@
 
+      const route = pubmedRoutes.blackboard.pubmed
+            .controllers.Controller.field(@doc.pmid, 'references');
+      $.ajax({
+          url: route.url,
+          success: function (data) {
+              console.log('===> '+route.url+' ' + data);
+              for (var id in data) {
+                  $('a[data-pmid='+id+']').html(data[id]);
+              }
+          },
+          error: function () {
+              console.log('====> '+route.url+' failed!');
+          }
+      });
+      
       @if(request.getQueryString("q") != null
           || request.getQueryString("facet") != null){      
           var params = new URLSearchParams(window.location.search);
