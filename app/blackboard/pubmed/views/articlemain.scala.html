@@ -58,7 +58,8 @@
         <div class="card">
           <div class="card-footer">
             @for(k <- doc.keywords){
-              <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@keyword/"+WordUtils.capitalize(k)}'>@k</a></span>
+              <span class="badge badge-pill badge-light">
+                <a onclick="showloader()" href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@keyword/"+WordUtils.capitalize(k)}'>@k</a></span>
               }
           </div>
         </div>
@@ -85,8 +86,10 @@
               @if(obj != null) {
                 <div class="card"> 
                 <div class="card-header">
-                <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.subcui}'>@sub.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)'><i class="fa fa-info-circle"></i></a> <b><span class="font-italic">@p.predicate</span></b>
-              <span class="badge badge-pill badge-light"><a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.objcui}'>@obj.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)'><i class="fa fa-info-circle"></i></a>
+                <span class="badge badge-pill badge-light">
+                   <a onclick="showloader()" href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.subcui}'>@sub.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.subcui)'><i class="fa fa-info-circle"></i></a> <b><span class="font-italic">@p.predicate</span></b>
+              <span class="badge badge-pill badge-light">
+                 <a onclick="showloader()" href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@cui/"+p.objcui}'>@obj.name</a></span> <a href='@_root_.blackboard.umls.controllers.routes.Controller.cui(p.objcui)'><i class="fa fa-info-circle"></i></a>
             </div>
             <div class="card-body">
             @for(e <- p.evidence) {
@@ -127,8 +130,8 @@
                             data-style="small_rectangle"> </span>
                     </td>
                     <td>
-                      <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.article(r.pmids(0))'
-                         data-pmid="@r.pmids(0)">...</a>
+                      <a onclick="showloader()" data-pmid="@r.pmids(0)"
+                         href='@_root_.blackboard.pubmed.controllers.routes.Controller.article(r.pmids(0))'>...</a>
                     </td>
                   </tr>
                 </table>
@@ -153,7 +156,8 @@
           @for(a <- doc.authors){
             <div class="card">
               <div class="card-header">
-                <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
+                <a onclick="showloader()"
+                   href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)+"?facet=@author/"+a.getName}'>@a.getName</a>
                 @if(a.identifier != null){
                   (<a href='@if(a.identifier.startsWith("http")){@a.identifier}else{@{"https://orcid.org/"+a.identifier}}'>@a.identifier</a> <span class="fa fa-external-link"></span>)
                 }
@@ -163,7 +167,8 @@
                   <ul>
                     @for(affl <- a.affiliations){
                       <li>
-                        <a href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
+                        <a onclick="showloader()"
+                           href='@{_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(affl)+"&field=affiliation"}'>@affl</a>
                       </li>
                       }
                   </ul>

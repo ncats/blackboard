@@ -149,6 +149,8 @@ public class PubMedIndexManager implements AutoCloseable {
     final int maxTimeout, maxTries, maxHits;
     final SyncCacheApi cache;
     final UMLSKSource umls;
+
+    SearchResult defaultAllFacets;
     
     @Inject
     public PubMedIndexManager (Configuration config, @PubMed IndexFactory ifac,
@@ -248,8 +250,11 @@ public class PubMedIndexManager implements AutoCloseable {
                 });
     }
 
-    public SearchResult facets () {
-        return facets (100);
+    public synchronized SearchResult facets () {
+        if (defaultAllFacets == null) {
+            defaultAllFacets = facets (100);
+        }
+        return defaultAllFacets;
     }
 
     public SearchResult facets (String facet, String value) {
@@ -296,12 +301,10 @@ public class PubMedIndexManager implements AutoCloseable {
         if (q.getQuery() != null) {
             final String key = q.cacheKey()+"/concepts";
             concepts = cache.getOrElseUpdate
-                (key, new Callable<List<Concept>> () {
-                        public List<Concept> call () {
-                            Logger.debug("Cache missed: "+key);
-                            return _getConcepts (q);
-                        }
-                    });
+                (key, () -> {
+                    Logger.debug("Cache missed: "+key);
+                    return _getConcepts (q);
+                });
             Logger.debug("#### "+concepts.size()
                          +" concept(s) found from query "+q);
         }
@@ -336,14 +339,11 @@ public class PubMedIndexManager implements AutoCloseable {
         Logger.debug("#### Query: "+q);
         q.getConcepts().addAll(getConcepts (q));
         final String key = q.cacheKey()+"/"+q.skip()+"/"+q.top();
-        return cache.getOrElseUpdate
-            (key, new Callable<SearchResult>() {
-                 public SearchResult call () {
-                     Logger.debug("Cache missed: "+key);
-                     SearchResult result = PubMedIndex.merge(getResults (q));
-                     return result.page(q.skip(), q.top());
-                 }
-             });
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                SearchResult result = PubMedIndex.merge(getResults (q));
+                return result.page(q.skip(), q.top());
+            });
     }
 
     public MatchedDoc getDoc (PMIDQuery q) {
@@ -376,13 +376,10 @@ public class PubMedIndexManager implements AutoCloseable {
     
     public MatchedDoc getDoc (Long pmid) {
         final PMIDQuery q = new PMIDQuery (pmid);
-        return cache.getOrElseUpdate
-            (q.cacheKey(), new Callable<MatchedDoc>() {
-                    public MatchedDoc call () {
-                        Logger.debug("Cache missed: "+q.cacheKey());
-                        return getDoc (q);
-                    }
-                });
+        return cache.getOrElseUpdate(q.cacheKey(), () -> {
+                Logger.debug("Cache missed: "+q.cacheKey());
+                return getDoc (q);
+            });
     }
 
     public SearchResult getDocs (PMIDBatchQuery bq) {
