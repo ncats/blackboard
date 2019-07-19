@@ -14,20 +14,19 @@
       @for(i <- pages) {
         @if(i == 0) {
           <li class="page-item disabled">
-            <a class="page-link" href="#" tabindex="-1" onclick="showloader()">
+            <a class="page-link" href="#" tabindex="-1">
               <span><i class="fa fa-ellipsis-h"></i></span>
             </a>
           </li>
         }else{
           @if(i == page) {
             <li class="page-item active">
-              <a class="page-link" tabindex="-1"
-                 href="#" onclick="showloader()">@i
+              <a class="page-link" tabindex="-1" href="#">@i
                 <span class="sr-only">(current)</span></a></li>
           }else{
             <li class="page-item">
-              <a class="page-link" onclick="showloader()"
-                 href="@urls(i)">@i</a></li>
+              <a class="page-link" href="@urls(i)"
+                 onclick="showloader()">@i</a></li>
           }
         }
       }
@@ -46,7 +45,7 @@
 
 @facettrees() = {
     @**facetcard(app, "MesH", result.getFacet("@ui"))**@
-    @jstree("Disease", "C")
+    @jstree("Disorder", "C")
     @jstree("Chemical", "D")
     @jstree("Phenomena", "G")
     @jstree("Anatomy", "A")
@@ -146,6 +145,9 @@
   <script src='@controllers.routes.Assets.versioned("javascripts/treefacets.js")' type="text/javascript"></script>
   }{
       $(document).ready(function() {
+          //window.addEventListener('unload', hideloader);
+          window.addEventListener('pageshow', hideloader);
+          
           console.log('@HtmlFormat.raw(request.uri)');
           $('#wrapper').toggleClass('toggled');
           $("#menu-toggle").click(function(e) {

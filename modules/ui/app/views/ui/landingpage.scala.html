@@ -126,11 +126,15 @@ function showloader () {
   });
 }
 
+function hideloader () {
+  $('#content-panel').removeClass('is-active');
+}
+
 $(document).ready(function() {
   //  $('body').bootstrapMaterialDesign();
-  $('#search-form').on('submit', function(e) {
-    showloader();
-  });
-
+  //window.addEventListener('unload', hideloader);
+  window.addEventListener('pageshow', hideloader);
+  
+  $('#search-form').on('submit', showloader);
 });
 </script>

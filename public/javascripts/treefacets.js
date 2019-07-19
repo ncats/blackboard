@@ -151,6 +151,10 @@ function showloader () {
     });
 }
 
+function hideloader () {
+    $('#content-panel').removeClass('is-active');
+}
+
 function applySearch (params) {
     const url = window.location.pathname+'?'+params.toString();
     console.log('=====> '+url);
