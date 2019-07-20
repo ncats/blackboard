@@ -633,7 +633,7 @@ public class Index implements AutoCloseable, Fields {
         public String cacheKey () {
             List<String> values = new ArrayList<>();
             if (field != null) values.add(field);
-            if (query != null) values.add(query);
+            if (query != null) values.add(query.toLowerCase());
             values.add(super.cacheKey());
             values.add("slop="+slop);
             return TextQuery.class.getName()

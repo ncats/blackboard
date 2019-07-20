@@ -347,9 +347,16 @@ public class PubMedIndexManager implements AutoCloseable {
         Logger.debug("#### Query: "+q);
         final String key = q.cacheKey()+"/"+q.skip()+"/"+q.top();
         return cache.getOrElseUpdate(key, () -> {
-                Logger.debug("Cache missed: "+key);                
-                getConcepts(q).thenApply(concepts ->
-                                         q.getConcepts().addAll(concepts));
+                Logger.debug("Cache missed: "+key);
+                try {
+                    getConcepts(q).thenAccept
+                        (concepts -> q.getConcepts().addAll(concepts))
+                        .toCompletableFuture().get(); // wait for completion
+                }
+                catch (Exception ex) {
+                    Logger.error("** can't determine concepts for query "+q,
+                                 ex);
+                }
                 return getResults(q)
                     .thenApply(results -> PubMedIndex.merge(results))
                     .thenApply(result -> result.page(q.skip(), q.top()));
