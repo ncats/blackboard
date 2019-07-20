@@ -20,6 +20,7 @@ import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
 import play.inject.ApplicationLifecycle;
 import play.cache.SyncCacheApi;
+import play.cache.AsyncCacheApi;
 
 import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndex;
@@ -41,7 +42,7 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
     
     @Inject
     public KnowledgeApp (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                         SyncCacheApi cache, Configuration config) {
+                         AsyncCacheApi cache, Configuration config) {
         super (ec, pubmed, cache);
     }
 
@@ -49,45 +50,57 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
         return ok (blackboard.views.html.index.render());
     }
     
-    SearchReferences searchAndFetchReferences (String q, int skip, int top)
-        throws Exception {
-        SearchResult result = doSearch (q, skip, top), refs = null;
-        Facet facet = result.getFacet("@reference");
-        if (facet != null) {
-            List<Long> pmids = new ArrayList<>();
-            for (int i = 0; i < Math.min(facet.size(), 50); ++i) {
-                String pmid = facet.values.get(i).label;
-                try {
-                    pmids.add(Long.parseLong(pmid));
+    CompletionStage<SearchReferences> searchAndFetchReferences
+        (String q, int skip, int top) throws Exception {
+        return doSearch (q, skip, top).thenApplyAsync(result -> {
+                Facet facet = result.getFacet("@reference");
+                List<Long> pmids = new ArrayList<>();                
+                if (facet != null) {
+                    for (int i = 0; i < Math.min(facet.size(), 50); ++i) {
+                        String pmid = facet.values.get(i).label;
+                        try {
+                            pmids.add(Long.parseLong(pmid));
+                        }
+                        catch (NumberFormatException ex) {
+                            Logger.warn
+                                ("Bogus PMID in facet @reference: "+pmid, ex);
+                        }
+                    }
                 }
-                catch (NumberFormatException ex) {
-                    Logger.warn("Bogus PMID in facet @reference: "+pmid, ex);
+
+                SearchResult srefs = null;
+                if (!pmids.isEmpty()) {
+                    try {
+                        CompletionStage<SearchResult> stage =
+                            pubmed.getDocs(pmids.toArray(new Long[0]));
+                        srefs = stage.toCompletableFuture().get();
+                    }
+                    catch (Exception ex) {
+                        Logger.error("failed to retrieve references!", ex);
+                    }
                 }
-            }
-            
-            if (!pmids.isEmpty()) {
-                refs = pubmed.getDocs(pmids.toArray(new Long[0]));
-            }
-        }
-        return new SearchReferences (result, refs);
+                return new SearchReferences (result, srefs);
+            }, ec.current());
     }
     
-    public Result _ksearch (String q, int skip, int top) throws Exception {
-        SearchReferences sref = searchAndFetchReferences (q, skip, top);
-        if (skip > sref.result.total)
-            return redirect (routes.KnowledgeApp.ksearch(q, 0, top));
+    public CompletionStage<Result> _ksearch (String q, int skip, int top)
+        throws Exception {
+        return searchAndFetchReferences (q, skip, top).thenApplyAsync(sref -> {
+                if (skip > sref.result.total)
+                    return redirect (routes.KnowledgeApp.ksearch(q, 0, top));
         
-        int page = skip / top + 1;
-        int[] pages = Util.paging(top, page, sref.result.total);
-        Map<Integer, String> urls = new TreeMap<>();
-        for (int i = 0; i < pages.length; ++i) {
-            Call call = routes.KnowledgeApp.ksearch
-                (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], Util.getURL(call, request ()));
-        }
+                int page = skip / top + 1;
+                int[] pages = Util.paging(top, page, sref.result.total);
+                Map<Integer, String> urls = new TreeMap<>();
+                for (int i = 0; i < pages.length; ++i) {
+                    Call call = routes.KnowledgeApp.ksearch
+                        (q, (pages[i]-1)*top, top);
+                    urls.put(pages[i], Util.getURL(call, request ()));
+                }
 
-        return ok (blackboard.views.html.knowledge.render
-                   (this, page, pages, urls, sref.result, sref.refs));
+                return ok (blackboard.views.html.knowledge.render
+                           (this, page, pages, urls, sref.result, sref.refs));
+            }, ec.current());
     }
     
     public CompletionStage<Result> ksearch (String q, int skip, int top) {
@@ -98,37 +111,37 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                     return redirect (routes.KnowledgeApp.index());
                 }, ec.current());
         }
-
-        return supplyAsync (() -> {
-                try {
-                    return _ksearch (q, skip, top);
-                }
-                catch (Exception ex) {
-                    Logger.error("** "+request().uri()+" failed", ex);
-                    // routes.KnowledgeApp.search(q, skip, top).url()
-                    return ok (views.html.ui.error.render
-                               (ex.getMessage(), 500));
-                }
-            }, ec.current());
+        
+        try {
+            return  _ksearch (q, skip, top);
+        }
+        catch (Exception ex) {
+            Logger.error("search failed: "+q, ex);
+            return supplyAsync (() -> ok (views.html.ui.error.render
+                                          (ex.getMessage(), 500)),
+                                ec.current());
+        }
     }
 
-    public Result _references (String q, int skip, int top) throws Exception {
-        SearchReferences sref = searchAndFetchReferences (q, 0, 1);
-        if (skip > sref.refs.size())
-            return redirect (routes.KnowledgeApp.references(q, 0, top));
+    public CompletionStage<Result> _references (String q, int skip, int top)
+        throws Exception {
+        return searchAndFetchReferences(q, 0, 1).thenApplyAsync(sref -> {
+                if (skip > sref.refs.size())
+                    return redirect (routes.KnowledgeApp.references(q, 0, top));
         
-        int page = skip / top + 1;
-        int[] pages = Util.paging(top, page, sref.refs.size());
-        Map<Integer, String> urls = new TreeMap<>();
-        for (int i = 0; i < pages.length; ++i) {
-            Call call = routes.KnowledgeApp.references
-                (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], Util.getURL(call, request ()));
-        }
-        
-        return ok (blackboard.views.html.knowledge.render
-                   (KnowledgeApp.this, page, pages, urls,
-                    sref.refs.page(skip, top), null));
+                int page = skip / top + 1;
+                int[] pages = Util.paging(top, page, sref.refs.size());
+                Map<Integer, String> urls = new TreeMap<>();
+                for (int i = 0; i < pages.length; ++i) {
+                    Call call = routes.KnowledgeApp.references
+                        (q, (pages[i]-1)*top, top);
+                    urls.put(pages[i], Util.getURL(call, request ()));
+                }
+                
+                return ok (blackboard.views.html.knowledge.render
+                           (KnowledgeApp.this, page, pages, urls,
+                            sref.refs.page(skip, top), null));
+            }, ec.current());
     }
     
     public CompletionStage<Result> references (String q, int skip, int top) {
@@ -139,15 +152,14 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                 }, ec.current());
         }
 
-        return supplyAsync (() -> {
-                try {
-                    return _references (q, skip, top);
-                }
-                catch (Exception ex) {
-                    Logger.error("** "+request().uri()+" failed", ex);
-                    return ok (views.html.ui.error.render
-                               (ex.getMessage(), 500));
-                }
-            }, ec.current());
+        try {
+            return _references (q, skip, top);
+        }
+        catch (Exception ex) {
+            Logger.error("** "+request().uri()+" failed", ex);
+            return supplyAsync (() -> ok (views.html.ui.error.render
+                                          (ex.getMessage(), 500)),
+                                ec.current());
+        }
     }
 }

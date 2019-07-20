@@ -21,6 +21,7 @@ import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
 import play.cache.SyncCacheApi;
+import play.cache.AsyncCacheApi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,7 +46,7 @@ public class Controller extends play.mvc.Controller {
     public static final JsonNode EMPTY_JSON = Json.newObject();
     final protected HttpExecutionContext ec;
     final protected ObjectMapper mapper = Json.mapper();
-    final protected SyncCacheApi cache;
+    final protected AsyncCacheApi cache;
     
     final public PubMedIndexManager pubmed;
     @Inject public SemMedDbKSource semmed;
@@ -53,7 +54,7 @@ public class Controller extends play.mvc.Controller {
 
     @Inject
     public Controller (HttpExecutionContext ec, PubMedIndexManager pubmed,
-                       SyncCacheApi cache) {
+                       AsyncCacheApi cache) {
         this.pubmed = pubmed;
         this.ec = ec;
         this.cache = cache;
@@ -66,9 +67,25 @@ public class Controller extends play.mvc.Controller {
         return ok (blackboard.pubmed.views.html.mock.index.render());
     }
 
+    public Http.Request req () {
+        return Http.Context.current().request();
+    }
+
+    public String getQueryString (String param) {
+        return Http.Context.current().request().getQueryString(param);
+    }
+
+    public Map<String, String[]> queryString () {
+        return Http.Context.current().request().queryString();
+    }
+    
+    public String[] queryString (String param) {
+        return queryString().get(param);
+    }
+
     Map<String, Object> parseFacets () {
         Map<String, Object> facets = null;
-        String[] params = request().queryString().get("facet");
+        String[] params = queryString ("facet");
         if (params != null) {
             facets = new TreeMap<>();
             for (String p : params) {
@@ -159,54 +176,55 @@ public class Controller extends play.mvc.Controller {
         return mapper.valueToTree(fmap);
     }
 
-    public JsonNode _filter (Map<String, Object> facets, int skip, int top) {
-        SearchResult result = pubmed.search(facets, skip, top);
-        final String key = result.query.cacheKey()+"/_filter";
-        return cache.getOrElseUpdate(key, new Callable<JsonNode>() {
-                public JsonNode call () {
-                    Logger.debug("Cache missed: "+key);
-                    ObjectNode json = Json.newObject();
-                    json.put("query", mapper.valueToTree(result.query));
-                    json.put("count", result.size());
-                    json.put("total", result.total);
-                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
-                    content.remove("query");
-                    content.remove("count");
-                    content.remove("total");
-                    json.put("content", content);
-                    return json;
-                }
+    public CompletionStage<JsonNode>
+        _filter (Map<String, Object> facets, int skip, int top) {
+        return pubmed.search(facets, skip, top).thenApply
+            (result -> {
+                //Logger.debug("Cache missed: "+key);
+                ObjectNode json = Json.newObject();
+                json.put("query", mapper.valueToTree(result.query));
+                json.put("count", result.size());
+                json.put("total", result.total);
+                ObjectNode content =
+                    (ObjectNode)mapper.valueToTree(result);
+                content.remove("query");
+                content.remove("count");
+                content.remove("total");
+                json.put("content", content);
+                return json;
             });
     }
 
     public CompletionStage<Result> filter (int skip, int top) {
-        Logger.debug(">> "+request().uri());
-        return supplyAsync (() -> {
-                try {
-                    Map<String, Object> facets = parseFacets ();
-                    if (facets == null || facets.isEmpty())
-                        return badRequest ("No facets specified!");
-                    JsonNode json = _filter (facets, skip, top);
-                    String path = request().getQueryString("path");
-                    if (path != null)
-                        json = json.at(path);
-                    
-                    return ok (json.isMissingNode() ? EMPTY_JSON : json);
-                }
-                catch (Exception ex) {
-                    Logger.error("Search failed", ex);
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
-            }, ec.current());
+        Logger.debug(">> "+req().uri());
+        try {
+            Map<String, Object> facets = parseFacets ();
+            if (facets == null || facets.isEmpty())
+                return supplyAsync (() -> badRequest ("No facets specified!"),
+                                    ec.current());
+            
+            return _filter (facets, skip, top)
+                .thenApplyAsync(json -> {
+                        String path = getQueryString ("path");
+                        if (path != null)
+                            json = json.at(path);
+                        return ok (json.isMissingNode() ? EMPTY_JSON : json);
+                    }, ec.current());
+        }
+        catch (Exception ex) {
+            Logger.error("Search failed", ex);
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()),
+                                ec.current());
+        }
     }
 
-    public SearchResult doSearch (String q, int skip, int top)
+    public CompletionStage<SearchResult> doSearch (String q, int skip, int top)
         throws Exception {
         Map<String, Object> facets = parseFacets ();
         int slop = 1;
         try {
-            String p = request().getQueryString("slop");
+            String p = getQueryString ("slop");
             if (p != null)
                 slop = Integer.parseInt(p);
         }
@@ -214,228 +232,255 @@ public class Controller extends play.mvc.Controller {
             Logger.error("Bogus slop parameter", ex);
         }
                     
-        return pubmed.search(request().getQueryString("field"), q,
+        return pubmed.search(getQueryString ("field"), q,
                              facets, skip, top, slop);
     }
     
-    public JsonNode _search (String q, int skip, int top) throws Exception {
-        SearchResult result = doSearch (q, skip, top);
-        final String key = result.query.cacheKey()+"/_search";
-        return cache.getOrElseUpdate(key, new Callable<JsonNode>() {
-                public JsonNode call () {
-                    Logger.debug("Cache missed: "+key);
-                    ObjectNode query =
-                        (ObjectNode) mapper.valueToTree(result.query);
-                    query.put("rewrite", result.query.rewrite().toString());
-                    ObjectNode json = Json.newObject();                    
-                    json.put("query", query);
-                    json.put("count", result.size());
-                    json.put("total", result.total);
-                    
-                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
-                    content.remove("query");
-                    content.remove("count");
-                    content.remove("total");
-                    json.put("content", content);
-        
-                    return json;
-                }
+    public CompletionStage<JsonNode> _search
+        (String q, int skip, int top) throws Exception {
+        return doSearch (q, skip, top).thenApply(result -> {
+                ObjectNode query =
+                    (ObjectNode) mapper.valueToTree(result.query);
+                query.put("rewrite", result.query.rewrite().toString());
+                ObjectNode json = Json.newObject();                    
+                json.put("query", query);
+                json.put("count", result.size());
+                json.put("total", result.total);
+                
+                ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                content.remove("query");
+                content.remove("count");
+                content.remove("total");
+                json.put("content", content);
+                
+                return json;
             });
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
-        Logger.debug(">> "+request().uri());
-        return supplyAsync (() -> {
-                try {
-                    JsonNode json = _search (q, skip, top);
-                    String path = request().getQueryString("path");
+        Logger.debug(">> "+req().uri());
+        try {
+            return _search(q, skip, top).thenApplyAsync(json -> {
+                    String path = getQueryString ("path");
                     if (path != null) {
                         json = json.at(path);
                     }
                     return ok (json.isMissingNode() ? EMPTY_JSON : json);
-                }
-                catch (Exception ex) {
-                    Logger.error("Search failed", ex);
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
-            }, ec.current());
+                }, ec.current());
+        }
+        catch (Exception ex) {
+            Logger.error("Search failed", ex);
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()),
+                                ec.current());
+        }
     }
 
     public CompletionStage<Result> facets (int fdim) {
-        Logger.debug(">> "+request().uri());        
-        return supplyAsync (() -> {
-                try {
-                    Map<String, Object> facets = parseFacets ();
-                    SearchResult result = facets == null || facets.isEmpty()
-                        ? pubmed.facets(fdim) : pubmed.facets(facets);
-                    
+        Logger.debug(">> "+req().uri());        
+        try {
+            Map<String, Object> facets = parseFacets ();
+            CompletionStage<SearchResult> result
+                = facets == null || facets.isEmpty()
+                ? pubmed.facets(fdim) : pubmed.facets(facets);
+            
+            return result.thenApplyAsync(r -> {
                     ObjectNode json = Json.newObject();
                     json.put("count", 0);
-                    json.put("total", result.total);
-                    ObjectNode content = (ObjectNode)mapper.valueToTree(result);
+                    json.put("total", r.total);
+                    ObjectNode content = (ObjectNode)mapper.valueToTree(r);
                     content.remove("query");
                     content.remove("count");
                     content.remove("total");
                     json.put("content", content);
-                    String path = request().getQueryString("path");
+                    String path = getQueryString ("path");
                     JsonNode n = json;
                     if (path != null)
                         n = n.at(path);
                     return ok (n.isMissingNode() ? EMPTY_JSON : n);
-                }
-                catch (Exception ex) {
-                    Logger.error("Search failed", ex);
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
-            }, ec.current());
+                }, ec.current());
+        }
+        catch (Exception ex) {
+            Logger.error("Search failed", ex);
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()),
+                                ec.current());
+        }
     }
     
     public CompletionStage<Result> pmid (Long pmid, String format) {
-        Logger.debug(">> "+request().uri());        
-        return supplyAsync (() -> {
-                try {
-                    MatchedDoc doc = pubmed.getDoc(pmid);
+        Logger.debug(">> "+req().uri());        
+        try {
+            CompletionStage<MatchedDoc> result = pubmed.getDoc(pmid);
+            return result.thenApplyAsync(doc -> {
                     if (doc != null)
                         return ok(doc.toXmlString()).as("application/xml");
                     return notFound ("Can't find PMID "+pmid);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve doc: "+pmid, ex);
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
-            }, ec.current());
+                }, ec.current());
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve doc: "+pmid, ex);
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()));
+        }
     }
 
-    SearchResult getReferences (MatchedDoc mdoc) {
+    CompletionStage<SearchResult> getReferences (MatchedDoc mdoc) {
         final String key = getClass()+"/"+mdoc.pmid+"/references";
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 PubMedDoc doc = mdoc.toDoc();
                 List<Long> pmids = doc.references.stream()
                     .map(r -> r.pmids[0]).collect(Collectors.toList());
+                Logger.debug("REFERENCES "+doc.pmid+"]: "+pmids);
                 return pubmed.getDocs(pmids.toArray(new Long[0]));
             });
     }
     
-    public Result _field (Long pmid, String field) {
+    public CompletionStage<Result> _field (Long pmid, String field) {
         try {
-            MatchedDoc doc = pubmed.getDoc(pmid);
-            if (doc != null) {
-                ObjectNode obj = Json.newObject();
-                switch (field) {
-                case "title":
-                    obj.put(field, doc.title);
-                    break;
+            CompletionStage<MatchedDoc> result = pubmed.getDoc(pmid);
+            return result.thenApplyAsync(doc -> {
+                    if (doc != null) {
+                        ObjectNode obj = Json.newObject();
+                        switch (field) {
+                        case "title":
+                            obj.put(field, doc.title);
+                            break;
                             
-                case "abstract":
-                    obj.put(field, mapper.valueToTree(doc.abstracts));
-                    break;
-
-                case "references":
-                    { SearchResult result = getReferences (doc);
-                        for (MatchedDoc d : result.docs) {
-                            obj.put(String.valueOf(d.pmid), d.title);
+                        case "abstract":
+                            obj.put(field, mapper.valueToTree(doc.abstracts));
+                            break;
+                            
+                        case "references":
+                            try {
+                                SearchResult r = getReferences(doc)
+                                    .toCompletableFuture().get();
+                                for (MatchedDoc d : r.docs) {
+                                    obj.put(String.valueOf(d.pmid),
+                                            d.title);
+                                }
+                            }
+                            catch (Exception ex) {
+                                return internalServerError (ex.getMessage());
+                            }
+                            break;
+                            
+                        default:
+                            return notFound ("Unsupported field: "+field);
                         }
+                        
+                        //Logger.debug(field+"["+pmid+"]"+ obj);
+                        return ok (obj);
                     }
-                    break;
-                            
-                default:
-                    return notFound ("Unsupported field: "+field);
-                }
-                return ok (obj);
-            }
-            return notFound ("Can't find PMID "+pmid);
+                    return notFound ("Can't find PMID "+pmid);
+                }, ec.current());
         }
         catch (Exception ex) {
             Logger.error("Can't retrieve doc: "+pmid, ex);
-            return internalServerError
-                ("Internal server error: "+ex.getMessage());
+            return supplyAsync (()->internalServerError
+                                ("Internal server error: "+ex.getMessage()));
         }
     }
     
     public CompletionStage<Result> field (Long pmid, String field) {
-        Logger.debug(">> "+request().uri());        
-        return supplyAsync (() -> {
-                final String key = getClass()+"/field/"+pmid+"/"+field;
-                return cache.getOrElseUpdate(key, () -> {
-                        Logger.debug("Cache missed: "+key);
-                        return _field (pmid, field);
-                    });
-            }, ec.current());
+        Logger.debug(">> "+req().uri());
+        final String key = getClass()+"/field/"+pmid+"/"+field;        
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                return _field (pmid, field);
+            });
     }
 
-    public Result _article (Long pmid) {
-        try {        
-            MatchedDoc doc = pubmed.getDoc(pmid);
-            if (doc != null) {
-                PubMedDoc pmdoc = PubMedDoc.getInstance
-                    (doc.doc, mesh.getMeshDb());
-                
-                String q = request().getQueryString("q");
-                SearchResult result = q != null
-                    || request().getQueryString("facet") != null
-                    ? doSearch (q, 0, 1) : pubmed.facets();
-                
-                result = result.clone();
-                String[] treeNumbers = pmdoc.getTreeNumbers();
-                for (Facet f : result.getFacets()) {
-                    if (f.name.startsWith(FACET_TR))
-                    f.filter(treeNumbers);
-                }
-                return ok (blackboard.pubmed.views.html.article.render
-                           (this, result, pmdoc));
-            }
+    public CompletionStage<Result> _article (Long pmid) {
+        final String q = getQueryString ("q");
+        final boolean hasFacets = getQueryString ("facet") != null;
+        final String uri = req().uri();
+        try {
+            return pubmed.getDoc(pmid).thenApplyAsync(doc -> {
+                    if (doc != null) {
+                        PubMedDoc pmdoc = PubMedDoc.getInstance
+                            (doc.doc, mesh.getMeshDb());
+                        try {
+                            CompletionStage<SearchResult> result =
+                                q != null || hasFacets
+                                ? doSearch (q, 0, 1) : pubmed.facets();
+                            SearchResult r =
+                                result.toCompletableFuture().get().clone();
+
+                            String[] treeNumbers = pmdoc.getTreeNumbers();
+                            for (Facet f : r.getFacets()) {
+                                if (f.name.startsWith(FACET_TR))
+                                    f.filter(treeNumbers);
+                            }
+                            return ok (blackboard.pubmed.views.html
+                                       .article.render(Controller.this,
+                                                       r, pmdoc));
+                        }
+                        catch (Exception ex) {
+                            Logger.error("** "+uri+" failed", ex);
+                            return internalServerError (ex.getMessage());
+                        }
+                    }
             
-            return ok (views.html.ui.error.render
-                       ("Unknown PubMed article: "+pmid, 400));
+                    return ok(views.html.ui.error.render
+                              ("Unknown PubMed article: "+pmid, 400));
+                }, ec.current());
         }
         catch (Exception ex) {
-            Logger.error("** "+request().uri()+" failed", ex);
-            return ok (views.html.ui.error.render(ex.getMessage(), 500));
+            Logger.error("** "+uri+" failed", ex);
+            return supplyAsync (() -> ok (views.html.ui.error.render
+                                          (ex.getMessage(), 500)),
+                                ec.current());
         }
     }
 
     public CompletionStage<Result> article (Long pmid) {
-        Logger.debug(">> "+request().uri());        
-        return supplyAsync (() -> {
-                final String key = getClass()+"/article/"+pmid
-                    +"/"+Util.sha1(request(), "q", "facet");
-                return cache.getOrElseUpdate(key, () -> {
-                        Logger.debug("Cache missed: "+key);
-                        return _article (pmid);
-                    });
-            }, ec.current());
+        Logger.debug(">> "+req().uri());
+        /*
+        final String key = getClass()+"/article/"+pmid
+            +"/"+Util.sha1(request(), "q", "facet");
+        final Http.Request req = request ();
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                return _article (pmid);
+            });
+        */
+        return _article (pmid);
     }
     
     @BodyParser.Of(value = BodyParser.Text.class)
     public CompletionStage<Result> batch (String format) {
-        return supplyAsync (() -> {
-                List<Long> pmids = new ArrayList<>();
-                for (String t : request().body().asText().split("[,;\\s]+")) {
+        List<Long> pmids = new ArrayList<>();
+        for (String t : req().body().asText().split("[,;\\s]+")) {
+            try {
+                pmids.add(Long.parseLong(t));
+            }
+            catch (NumberFormatException ex) {
+                Logger.warn("Bogus PMID: "+t);
+            }
+        }
+        try {
+            CompletionStage<SearchResult> result =
+                pubmed.getDocs(pmids.toArray(new Long[0]));
+            return result.thenApplyAsync
+                (r -> {
                     try {
-                        pmids.add(Long.parseLong(t));
+                        return ok(r.exportXML()).as("application/xml");
                     }
-                    catch (NumberFormatException ex) {
-                        Logger.warn("Bogus PMID: "+t);
+                    catch (Exception ex) {
+                        return internalServerError (ex.getMessage());
                     }
-                }
-                try {
-                    SearchResult result =
-                        pubmed.getDocs(pmids.toArray(new Long[0]));
-                    return ok(result.exportXML()).as("application/xml");
-                }
-                catch (Exception ex) {
-                    return internalServerError
-                        ("Internal server error: "+ex.getMessage());
-                }
-            }, ec.current());
+                }, ec.current());
+        }
+        catch (Exception ex) {
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()));
+        }
     }
 
     public boolean isFacetSelected (Facet facet, FV fv) {
-        String[] facets = request().queryString().get("facet");
+        String[] facets = queryString ("facet");
         if (facets != null) {
             for (String f : facets) {
                 if (f.startsWith(facet.name)) {
@@ -449,8 +494,8 @@ public class Controller extends play.mvc.Controller {
     }
 
     public String uri (String... exclude) {
-        StringBuilder uri = new StringBuilder (request().path());
-        Map<String, String[]> query = new TreeMap<>(request().queryString());
+        StringBuilder uri = new StringBuilder (req().path());
+        Map<String, String[]> query = new TreeMap<>(queryString ());
         for (String p : exclude) {
             query.remove(p);
         }

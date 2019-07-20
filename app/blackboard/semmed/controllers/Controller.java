@@ -16,6 +16,7 @@ import play.mvc.*;
 import play.libs.ws.WSResponse;
 import play.Logger;
 import play.cache.SyncCacheApi;
+import play.cache.AsyncCacheApi;
 import play.libs.Json;
 import play.libs.concurrent.HttpExecutionContext;
 import play.routing.JavaScriptReverseRouter;
@@ -40,14 +41,14 @@ import static blackboard.pubmed.index.PubMedIndex.*;
 public class Controller extends play.mvc.Controller {
     final HttpExecutionContext ec;
     final PubMedIndexManager pubmed;
-    final SyncCacheApi cache;
+    final AsyncCacheApi cache;
     final SemMedDbKSource semmed;
     final MeshDb mesh;
     final ObjectMapper mapper = Json.mapper();
 
     @Inject
     public Controller (PubMedIndexManager pubmed, SemMedDbKSource semmed,
-                       MeshKSource mesh, SyncCacheApi cache,
+                       MeshKSource mesh, AsyncCacheApi cache,
                        HttpExecutionContext ec) {
         this.pubmed = pubmed;
         this.ec = ec;
@@ -59,30 +60,37 @@ public class Controller extends play.mvc.Controller {
         Logger.debug("$$" +getClass().getName()+": "+pubmed);
     }
 
-    PubMedDoc getDoc (final Long pmid) {
+    CompletionStage<PubMedDoc> getDoc (final Long pmid) {
         return cache.getOrElseUpdate
-            (getClass().getName()+"/"+pmid, new Callable<PubMedDoc> () {
-                    public PubMedDoc call () {
-                        MatchedDoc doc = pubmed.getDoc(pmid);
+            (getClass().getName()+"/"+pmid, () -> {
+                return pubmed.getDoc(pmid).thenApplyAsync(doc -> {
                         if (doc != null) {
                             return PubMedDoc.getInstance(doc.doc, mesh);
                         }
                         return null;
-                    }
-                });
+                    }, ec.current());
+            });
     }
 
-    Result getPredicationsForPMID (Long pmid) throws Exception {
-        PubMedDoc doc = getDoc (pmid);
-        if (doc != null) {
-            List<Predication> preds = semmed.getPredicationsByPMID
-                (doc.getPMID().toString());
-            Logger.debug("Doc "+pmid+" has "
-                         +preds.size()+" predicates!");
-            return ok (blackboard.semmed.views.html.pubmed.render
-                       (semmed, doc, preds.toArray(new Predication[0])));
-        }
-        return notFound ("Can't find pubmed "+pmid);
+    CompletionStage<Result> getPredicationsForPMID (Long pmid)
+        throws Exception {
+        return getDoc(pmid).thenApplyAsync(doc -> {
+                if (doc != null) {
+                    try {
+                        List<Predication> preds = semmed.getPredicationsByPMID
+                            (doc.getPMID().toString());
+                        Logger.debug("Doc "+pmid+" has "
+                                     +preds.size()+" predicates!");
+                        return ok (blackboard.semmed.views.html.pubmed.render
+                                   (semmed, doc,
+                                    preds.toArray(new Predication[0])));
+                    }
+                    catch (Exception ex) {
+                        return internalServerError (ex.getMessage());
+                    }
+                }
+                return notFound ("Can't find pubmed "+pmid);
+            }, ec.current());
     }
 
     public Result cui (String cui) {
@@ -90,16 +98,15 @@ public class Controller extends play.mvc.Controller {
     }
     
     public CompletionStage<Result> pmid (final Long pmid) {
-        return supplyAsync (() -> {
-                try {
-                    return getPredicationsForPMID (pmid);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve PubMed for "+pmid, ex);
-                    return internalServerError
-                        ("Can't retrieve PubMed for "+pmid);
-                }
-            }, ec.current());
+        try {
+            return getPredicationsForPMID (pmid);
+        }
+        catch (Exception ex) {
+            Logger.error("Can't retrieve PubMed for "+pmid, ex);
+            return supplyAsync (() -> internalServerError
+                                ("Can't retrieve PubMed for "+pmid),
+                                ec.current());
+        }
     }
 
     Predication[] filter (final String cui, Predicate<Predication> pred) {

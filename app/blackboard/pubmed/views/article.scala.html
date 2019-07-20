@@ -39,15 +39,15 @@
           <li class="nav-item">
             <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
           </li>
-          @if(request.getQueryString("q") != null
-            || request.getQueryString("facet") != null){
+          @if(controller.getQueryString("q") != null
+            || controller.getQueryString("facet") != null){
             <li class="nav-item">
-              <a class="nav-link" href="@request.path"
+              <a class="nav-link" href="@controller.req.path"
                  onclick='showloader()'>Clear</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" onclick="showloader()"
-                 href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(request.getQueryString("q")), request)">publications (<span id="pub-count">...</span>)</a>
+                 href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(controller.getQueryString("q")), controller.req)">publications (<span id="pub-count">...</span>)</a>
             </li>
             }
         </ul>
@@ -115,6 +115,7 @@
           success: function (data) {
               console.log('===> '+route.url+' ' + data);
               for (var id in data) {
+                  console.log(id+': '+data[id]);
                   $('a[data-pmid='+id+']').html(data[id]);
               }
           },
@@ -123,8 +124,8 @@
           }
       });
       
-      @if(request.getQueryString("q") != null
-          || request.getQueryString("facet") != null){      
+      @if(controller.getQueryString("q") != null
+          || controller.getQueryString("facet") != null){      
           var params = new URLSearchParams(window.location.search);
           const query = params.get('q');
           const facets = params.getAll('facet');

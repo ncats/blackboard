@@ -71,23 +71,25 @@ public class PubMedIndexSearcher implements AutoCloseable, Fields {
                 }
             }
             
-            SearchResult result =
-                searcher.indexManager.search(argv[1], facets);
-            for (MatchedDoc d : result.docs) {
-                Logger.debug("################# "
-                             +d.pmid+": "+String.format("%1$.3f", d.score)
-                             +"\n"+d.title);
-                for (MatchedFragment f : d.fragments)
-                    Logger.debug("..."+f);
-                //System.out.println("=== XML ===\n"+d.toXmlString());
-            }
-            //Logger.debug("\n********* Full article set *********\n");
-            //result.exportXML(System.out);
+            searcher.indexManager.search(argv[1], facets)
+                .thenAccept(result -> {
+                        for (MatchedDoc d : result.docs) {
+                            Logger.debug("################# "
+                                         +d.pmid+": "
+                                         +String.format("%1$.3f", d.score)
+                                         +"\n"+d.title);
+                            for (MatchedFragment f : d.fragments)
+                                Logger.debug("..."+f);
+                            //System.out.println("=== XML ===\n"+d.toXmlString());
+                        }
+                        //Logger.debug("\n********* Full article set *********\n");
+                        //result.exportXML(System.out);
             
-            for (Index.Facet f : result.facets)
-                Logger.debug(f.toString());
+                        for (Index.Facet f : result.facets)
+                            Logger.debug(f.toString());
 
-            Logger.debug("####### "+result.size()+" matches!");
+                        Logger.debug("####### "+result.size()+" matches!");
+                    });
         }
     }
 }
