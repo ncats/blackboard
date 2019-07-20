@@ -18,6 +18,7 @@ import play.inject.ApplicationLifecycle;
 import play.cache.SyncCacheApi;
 import play.cache.AsyncCacheApi;
 import play.libs.ws.*;
+import play.libs.concurrent.CustomExecutionContext;
 
 import akka.actor.ActorSystem;
 import akka.actor.AbstractActor;
@@ -151,13 +152,14 @@ public class PubMedIndexManager implements AutoCloseable {
     final int maxTimeout, maxTries, maxHits;
     final AsyncCacheApi cache;
     final UMLSKSource umls;
-
+    final CustomExecutionContext pmec;
     SearchResult defaultAllFacets;
     
     @Inject
     public PubMedIndexManager (Configuration config, @PubMed IndexFactory ifac,
                                UMLSKSource umls, ActorSystem actorSystem,
                                AsyncCacheApi cache,
+                               PubMedExecutionContext pmec,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
         
@@ -175,13 +177,20 @@ public class PubMedIndexManager implements AutoCloseable {
             ? conf.getInt("max-timeout") : 10;
         maxTries = conf.hasPath("max-tries") ? conf.getInt("max-tries") : 5;
         maxHits = conf.hasPath("max-hits") ? conf.getInt("max-hits") : 20;
+
+        String dispatcher = conf.getString("dispatcher");
+        if (dispatcher == null)
+            dispatcher = "pubmed-dispatcher";
+        
+        this.pmec = pmec;
         
         List<String> indexes = conf.getStringList("indexes");
         for (String idx : indexes) {
             File db = new File (dir, idx);
             try {
                 ActorRef actorRef = actorSystem.actorOf
-                    (PubMedIndexActor.props(ifac, db),
+                    (PubMedIndexActor.props(ifac, db)
+                     .withDispatcher(dispatcher),
                      getClass().getName()+"-"+idx);
                 this.indexes.add(actorRef);
             }
@@ -190,7 +199,8 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
-        metamap = actorSystem.actorOf(MetaMapActor.props(umls));
+        metamap = actorSystem.actorOf
+            (MetaMapActor.props(umls).withDispatcher(dispatcher));
         lifecycle.addStopHook(() -> {
                 return CompletableFuture.runAsync
                     (() -> {
@@ -211,7 +221,8 @@ public class PubMedIndexManager implements AutoCloseable {
                      +": base="+dir
                      +" max-hits="+maxHits
                      +" max-timeout="+maxTimeout
-                     +" indexes="+indexes);
+                     +" indexes="+indexes
+                     +" dispatcher="+dispatcher);
     }
 
     public void close () throws Exception {
@@ -282,7 +293,8 @@ public class PubMedIndexManager implements AutoCloseable {
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 return getResults(q)
-                    .thenApply(results -> PubMedIndex.merge(results));
+                    .thenApplyAsync(results -> PubMedIndex.merge(results),
+                                    pmec);
             });
     }
     
@@ -301,7 +313,7 @@ public class PubMedIndexManager implements AutoCloseable {
         catch (TimeoutException ex) {
             Logger.warn("Unable to process query with MetMap: "+q);
         }
-        return supplyAsync (()->concepts);
+        return supplyAsync (()->concepts, pmec);
     }
     
     public CompletionStage<List<Concept>> getConcepts (SearchQuery q) {
@@ -340,7 +352,7 @@ public class PubMedIndexManager implements AutoCloseable {
                             +" within alloted time; retrying "+ntries);
             }
         }
-        return supplyAsync (()->results.toArray(new SearchResult[0]));
+        return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
     }
 
     public CompletionStage<SearchResult> search (SearchQuery q) {
@@ -358,8 +370,9 @@ public class PubMedIndexManager implements AutoCloseable {
                                  ex);
                 }
                 return getResults(q)
-                    .thenApply(results -> PubMedIndex.merge(results))
-                    .thenApply(result -> result.page(q.skip(), q.top()));
+                    .thenApplyAsync(results -> PubMedIndex.merge(results), pmec)
+                    .thenApplyAsync(result -> result.page(q.skip(), q.top()),
+                                    pmec);
             });
     }
 
@@ -388,7 +401,7 @@ public class PubMedIndexManager implements AutoCloseable {
             Collections.sort(docs);
         }
                         
-        return supplyAsync (() -> docs.isEmpty() ? null : docs.get(0));
+        return supplyAsync (() -> docs.isEmpty() ? null : docs.get(0), pmec);
     }
     
     public CompletionStage<MatchedDoc> getDoc (Long pmid) {
@@ -416,11 +429,8 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
         
-        SearchResult result = PubMedIndex.merge
-            (results.toArray(new SearchResult[0]));
-        //Logger.debug(bq.pmids+" ==> "+result.size());
-                     
-        return CompletableFuture.completedFuture(result);
+        return supplyAsync (() -> PubMedIndex.merge
+                            (results.toArray(new SearchResult[0])), pmec);
     }
     
     public CompletionStage<SearchResult> getDocs (Long... pmids) {
