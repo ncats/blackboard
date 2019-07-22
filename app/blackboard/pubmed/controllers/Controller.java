@@ -178,7 +178,7 @@ public class Controller extends play.mvc.Controller {
 
     public CompletionStage<JsonNode>
         _filter (Map<String, Object> facets, int skip, int top) {
-        return pubmed.search(facets, skip, top).thenApply
+        return pubmed.search(facets, skip, top).thenApplyAsync
             (result -> {
                 //Logger.debug("Cache missed: "+key);
                 ObjectNode json = Json.newObject();
@@ -192,7 +192,7 @@ public class Controller extends play.mvc.Controller {
                 content.remove("total");
                 json.put("content", content);
                 return json;
-            });
+            }, ec.current());
     }
 
     public CompletionStage<Result> filter (int skip, int top) {
@@ -238,7 +238,7 @@ public class Controller extends play.mvc.Controller {
     
     public CompletionStage<JsonNode> _search
         (String q, int skip, int top) throws Exception {
-        return doSearch (q, skip, top).thenApply(result -> {
+        return doSearch (q, skip, top).thenApplyAsync(result -> {
                 ObjectNode query =
                     (ObjectNode) mapper.valueToTree(result.query);
                 query.put("rewrite", result.query.rewrite().toString());
@@ -254,7 +254,7 @@ public class Controller extends play.mvc.Controller {
                 json.put("content", content);
                 
                 return json;
-            });
+            }, ec.current());
     }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
@@ -392,7 +392,7 @@ public class Controller extends play.mvc.Controller {
             });
     }
 
-    public CompletionStage<Result> _article (Long pmid) {
+    public CompletionStage<Result> article (Long pmid) {
         final String q = getQueryString ("q");
         final boolean hasFacets = getQueryString ("facet") != null;
         final String uri = req().uri();
@@ -412,6 +412,9 @@ public class Controller extends play.mvc.Controller {
                             for (Facet f : r.getFacets()) {
                                 if (f.name.startsWith(FACET_TR))
                                     f.filter(treeNumbers);
+                            }
+                            for (PubMedDoc.Grant g : pmdoc.grants) {
+                                Logger.debug("$$ "+g.id+" "+g.type);
                             }
                             return ok (blackboard.pubmed.views.html
                                        .article.render(Controller.this,
@@ -433,20 +436,6 @@ public class Controller extends play.mvc.Controller {
                                           (ex.getMessage(), 500)),
                                 ec.current());
         }
-    }
-
-    public CompletionStage<Result> article (Long pmid) {
-        Logger.debug(">> "+req().uri());
-        /*
-        final String key = getClass()+"/article/"+pmid
-            +"/"+Util.sha1(request(), "q", "facet");
-        final Http.Request req = request ();
-        return cache.getOrElseUpdate(key, () -> {
-                Logger.debug("Cache missed: "+key);
-                return _article (pmid);
-            });
-        */
-        return _article (pmid);
     }
     
     @BodyParser.Of(value = BodyParser.Text.class)

@@ -24,6 +24,14 @@
     <a href='@_root_.blackboard.pubmed.controllers.routes.Controller.pmid(doc.getPMID,"xml")'>XML</a>
     <span class="fa fa-download"></span>
   </p>
+  @if(!doc.pubtypes.isEmpty){
+    <p class="lead">
+      @for(e <- doc.pubtypes){
+        <span class="badge badge-pill badge-light">@e.name</span>
+      }
+    </p>
+  }
+  
 </div>
 <div class="row">
   <div class="col-md-12"

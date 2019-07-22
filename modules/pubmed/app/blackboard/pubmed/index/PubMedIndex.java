@@ -532,19 +532,15 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         } // postProcessing ()
 
         Concept getConcept (final IndexSearcher searcher, final String cui) {
-            return cache.getOrElseUpdate
-                (PubMedIndex.class.getName()+"/concept/"+cui,
-                 new Callable<Concept> () {
-                     public Concept call () {
-                         try {
-                             return _getConcept (searcher, cui);
-                         }
-                         catch (IOException ex) {
-                             Logger.error("Can't get concept: "+cui, ex);
-                         }
-                         return null;
-                     }
-                 });
+            return cache.getOrElseUpdate("PubMedIndex/concept/"+cui, () -> {
+                    try {
+                        return _getConcept (searcher, cui);
+                    }
+                    catch (IOException ex) {
+                        Logger.error("Can't get concept: "+cui, ex);
+                    }
+                    return null;
+                });
         }
         
         Concept _getConcept (IndexSearcher searcher, String cui)
@@ -1211,20 +1207,29 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         return docs.length == 0 ? EMPTY_DOC : docs[0];
     }
 
-    public SearchResult facets (SearchQuery query) throws Exception {
-        SearchResult result = createSearchResult (query);
-        facets (result);
-        return result;
+    public SearchResult facets (final SearchQuery query) throws Exception {
+        final String key = root.getName()+"/facets/"+query.cacheKey();
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                SearchResult result = createSearchResult (query);
+                facets (result);
+                return result;
+            });
     }
     
-    public SearchResult search (SearchQuery query) throws Exception {
-        if (query instanceof TextQuery) {
-            // we recast this to use PubMedTextQuery
-            query = new PubMedTextQuery ((TextQuery)query);
-        }
-        SearchResult result = createSearchResult (query);
-        search (result, query.max());
-        return result;
+    public SearchResult search (final SearchQuery query) throws Exception {
+        final String key = root.getName()+"/search/"+query.cacheKey();
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                SearchQuery q = query;
+                if (query instanceof TextQuery) {
+                    // we recast this to use PubMedTextQuery
+                    q = new PubMedTextQuery ((TextQuery)query);
+                }
+                SearchResult result = createSearchResult (q);
+                search (result, q.max());
+                return result;
+            });
     }
     
     public SearchResult search (String text,

@@ -134,7 +134,7 @@ public class PubMedDoc implements java.io.Serializable {
         }
 
         Grant (Element elm) {
-            NodeList nodes = elm.getElementsByTagName("GraphID");
+            NodeList nodes = elm.getElementsByTagName("GrantID");
             String grantId = nodes.getLength() > 0
                 ? getText (nodes.item(0)) : null;
             String[] tuple = parseGrantId (grantId);

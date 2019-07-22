@@ -499,7 +499,7 @@ public class Index implements AutoCloseable, Fields {
             return 10;
         }
         default int max () {
-            return 0;
+            return skip()+top();
         }
         default int fdim () {
             return 10;
@@ -559,6 +559,8 @@ public class Index implements AutoCloseable, Fields {
                     values.add((String)v);
                 }
             }
+            values.add(String.valueOf(skip()));
+            values.add(String.valueOf(top()));
             values.add(String.valueOf(fdim));
             return FacetQuery.class.getName()
                 +"/"+Util.sha1(values.toArray(new String[0]));
@@ -610,7 +612,7 @@ public class Index implements AutoCloseable, Fields {
         public String getQuery () { return query; }
         public int skip () { return skip; }
         public int top () { return top; }
-        public int max () { return top + skip; }
+        //public int max () { return top + skip; }
         public List<Concept> getConcepts () { return concepts; }
         // subclass should override for specific implementation
         public Query rewrite () {
@@ -650,6 +652,9 @@ public class Index implements AutoCloseable, Fields {
         public final SearchQuery query;
         public int total; // total matches
         public final List<Facet> facets = new ArrayList<>();
+
+        @JsonIgnore
+        protected ScoreDoc lastDoc;
         
         protected SearchResult () {
             this ((SearchQuery)null);
@@ -877,7 +882,14 @@ public class Index implements AutoCloseable, Fields {
             TopDocs docs;
             if (fmap == null || fmap.isEmpty()) {
                 FacetsCollector fc = new FacetsCollector ();
-                docs = FacetsCollector.search(searcher, query, max, fc);
+                if (result.lastDoc != null) {
+                    Logger.debug("** searchAfter: "+result.lastDoc);
+                    docs = FacetsCollector.searchAfter
+                        (searcher, result.lastDoc, query, max, fc);
+                }
+                else {
+                    docs = FacetsCollector.search(searcher, query, max, fc);
+                }
                 facets = new FastTaxonomyFacetCounts
                     (taxonReader, facetConfig, fc);
             }
@@ -917,8 +929,10 @@ public class Index implements AutoCloseable, Fields {
                 
                 DrillSideways sideway = new DrillSideways 
                     (searcher, facetConfig, taxonReader);
-                DrillSideways.DrillSidewaysResult swresults = 
-                    sideway.search(ddq, max);
+                DrillSideways.DrillSidewaysResult swresults =
+                    result.lastDoc != null
+                    ? sideway.search(result.lastDoc, ddq, max)
+                    : sideway.search(ddq, max);
 
                 facets = swresults.facets;
                 docs = swresults.hits;
@@ -928,7 +942,8 @@ public class Index implements AutoCloseable, Fields {
                 result.total = docs.totalHits;
                 // don't fetch the doc if the caller doesn't want to
                 if (maxHits > 0) {
-                    for (int nd = 0; nd < docs.scoreDocs.length; ++nd) {
+                    int nd = 0;
+                    for (; nd < docs.scoreDocs.length; ++nd) {
                         int docId = docs.scoreDocs[nd].doc;
                         ResultDoc rdoc = new ResultDoc
                             (searcher.doc(docId), docId, reader,
@@ -936,6 +951,9 @@ public class Index implements AutoCloseable, Fields {
                         if (!result.process(searcher, rdoc))
                             break;
                     }
+                    
+                    if (nd > 0)
+                        result.lastDoc = docs.scoreDocs[nd-1];
                 }
                 
                 result.facets.addAll(toFacets (facets, result.query.fdim()));

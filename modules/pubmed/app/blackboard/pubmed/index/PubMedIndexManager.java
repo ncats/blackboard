@@ -8,6 +8,7 @@ import javax.inject.Singleton;
 import java.io.*;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
@@ -28,7 +29,11 @@ import akka.actor.Props;
 import akka.actor.Terminated;
 import akka.actor.PoisonPill;
 import akka.actor.Inbox;
-
+import akka.pattern.Patterns;
+import akka.util.Timeout;
+import static akka.dispatch.Futures.sequence;
+import static scala.compat.java8.FutureConverters.*;
+    
 import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
 import blackboard.index.IndexFactory;
@@ -150,6 +155,7 @@ public class PubMedIndexManager implements AutoCloseable {
     final ActorRef metamap;
     final ActorSystem actorSystem;
     final int maxTimeout, maxTries, maxHits;
+    final Timeout timeout;
     final AsyncCacheApi cache;
     final UMLSKSource umls;
     final CustomExecutionContext pmec;
@@ -175,6 +181,7 @@ public class PubMedIndexManager implements AutoCloseable {
 
         maxTimeout = conf.hasPath("max-timeout")
             ? conf.getInt("max-timeout") : 10;
+        timeout = new Timeout (maxTimeout, TimeUnit.SECONDS);
         maxTries = conf.hasPath("max-tries") ? conf.getInt("max-tries") : 5;
         maxHits = conf.hasPath("max-hits") ? conf.getInt("max-hits") : 20;
 
@@ -255,7 +262,7 @@ public class PubMedIndexManager implements AutoCloseable {
         tq.skip = skip;
         tq.top = top;
         tq.slop = slop;
-        final String key = tq.cacheKey()+"/"+skip+"/"+top;
+        final String key = "PubMedIndexManager/search/"+tq.cacheKey();
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 return search (tq);
@@ -289,7 +296,7 @@ public class PubMedIndexManager implements AutoCloseable {
 
     public CompletionStage<SearchResult> facets (SearchQuery q) {
         Logger.debug("#### Facets: "+q);
-        final String key = q.cacheKey();
+        final String key = "PubMedIndexManager/facets/"+q.cacheKey();
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 return getResults(q)
@@ -319,7 +326,7 @@ public class PubMedIndexManager implements AutoCloseable {
     public CompletionStage<List<Concept>> getConcepts (SearchQuery q) {
         CompletionStage<List<Concept>> stage = null;
         if (q.getQuery() != null) {
-            final String key = q.cacheKey()+"/concepts";
+            final String key = "PubMedIndexManager/concepts/"+q.cacheKey();
             stage = cache.getOrElseUpdate(key, () -> {
                     Logger.debug("Cache missed: "+key);
                     return _getConcepts (q);
@@ -331,7 +338,7 @@ public class PubMedIndexManager implements AutoCloseable {
         return stage;
     }
 
-    public CompletionStage<SearchResult[]> getResults (SearchQuery q) {
+    public CompletionStage<SearchResult[]> __getResults (SearchQuery q) {
         // now do the search
         Inbox inbox = Inbox.create(actorSystem);
         for (ActorRef actorRef : indexes)
@@ -355,20 +362,44 @@ public class PubMedIndexManager implements AutoCloseable {
         return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
     }
 
+    public CompletionStage<SearchResult[]> getResults (SearchQuery q) {
+        List<CompletableFuture> futures = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            scala.concurrent.Future future = Patterns.ask(actorRef, q, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+
+        // wait for completion...
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+        List<SearchResult> results = futures.stream()
+            .map(f -> {
+                    try {
+                        return (SearchResult)f.get();
+                    }
+                    catch (Exception ex) {
+                        throw new RuntimeException (ex);
+                    }
+                }).collect(Collectors.toList());
+            
+        return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
+    }
+    
     public CompletionStage<SearchResult> search (SearchQuery q) {
         Logger.debug("#### Query: "+q);
-        final String key = q.cacheKey()+"/"+q.skip()+"/"+q.top();
+        final String key = "PubMedIndexManager/"+q.cacheKey();
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 try {
-                    getConcepts(q).thenAccept
-                        (concepts -> q.getConcepts().addAll(concepts))
-                        .toCompletableFuture().get(); // wait for completion
+                    getConcepts(q)
+                        .thenAccept(concepts -> q.getConcepts()
+                                    .addAll(concepts))
+                        .toCompletableFuture().get();
                 }
                 catch (Exception ex) {
-                    Logger.error("** can't determine concepts for query "+q,
-                                 ex);
+                    Logger.error("Can't retrieve concepts for query "+q, ex);
                 }
+
                 return getResults(q)
                     .thenApplyAsync(results -> PubMedIndex.merge(results), pmec)
                     .thenApplyAsync(result -> result.page(q.skip(), q.top()),
@@ -406,8 +437,9 @@ public class PubMedIndexManager implements AutoCloseable {
     
     public CompletionStage<MatchedDoc> getDoc (Long pmid) {
         final PMIDQuery q = new PMIDQuery (pmid);
-        return cache.getOrElseUpdate(q.cacheKey(), () -> {
-                Logger.debug("Cache missed: "+q.cacheKey());
+        final String key = "PubMedIndexManager/doc/"+pmid;
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
                 return getDoc (q);
             });
     }
@@ -438,8 +470,9 @@ public class PubMedIndexManager implements AutoCloseable {
             return supplyAsync (() -> PubMedIndex.EMPTY_RESULT);
         
         final PMIDBatchQuery bq = new PMIDBatchQuery (pmids);
-        return cache.getOrElseUpdate(bq.cacheKey(), () -> {
-                Logger.debug("Cache missed: "+bq.cacheKey());
+        final String key = "PubMedIndexManager/docs/"+bq.cacheKey();
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
                 return getDocs (bq);
             });
     }

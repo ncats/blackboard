@@ -11,9 +11,7 @@
       maxBytesLocalHeap="500M">
   </defaultCache>
   <cache name="play"
-         maxEntriesLocalHeap="10000"
-         eternal="true"
-         timeToLiveSeconds="1200"
-         timeToIdleSeconds="1200">
+         maxEntriesLocalHeap="50000"
+         eternal="true">
   </cache>
 </ehcache>
