@@ -33,6 +33,7 @@ import org.apache.lucene.search.suggest.document.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import com.google.inject.assistedinject.Assisted;
@@ -702,6 +703,94 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
+    public static class TermVector
+        implements org.apache.lucene.search.Collector {
+        final String field;
+        final Map<String, Integer> vector = new TreeMap<>();
+
+        protected TermVector (String field) {
+            if (field == null)
+                throw new IllegalArgumentException
+                    ("Term vector can't have null field!");
+            this.field = field;
+        }
+        
+        protected TermVector (IndexSearcher searcher,
+                              String field, Term... terms) throws IOException {
+            this.field = field;
+            Query query;
+            if (terms.length == 0) {
+                query = new MatchAllDocsQuery ();
+            }
+            else {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (Term t : terms) {
+                    builder = builder.add(new TermQuery (t),
+                                          BooleanClause.Occur.MUST);
+                }
+                query = builder.build();
+            }
+            //Logger.debug("#### TermVector: "+query);
+            searcher.search(query, this);
+        }
+
+        protected TermVector (IndexSearcher searcher,
+                              String field, Query query) throws IOException {
+            this.field = field;
+            if (query == null)
+                query = new MatchAllDocsQuery ();
+            searcher.search(query, this);
+        }
+
+        public void add (TermVector tv) {
+            if (!field.equals(tv.field))
+                throw new IllegalArgumentException
+                    ("Operational not supported between incompatible "
+                     +"term vectors!");
+            
+            for (Map.Entry<String, Integer> me : tv.vector.entrySet()) {
+                Integer cnt = vector.get(me.getKey());
+                if (cnt == null) cnt = 0;
+                vector.put(me.getKey(), cnt + me.getValue());
+            }
+        }
+        
+        public String getField () { return field; }
+        //@JsonAnyGetter
+        public Map<String, Integer> getVector () { return vector; }
+
+        @Override
+        public boolean needsScores () { return false; }
+        
+        public LeafCollector getLeafCollector (final LeafReaderContext ctx)
+            throws IOException {
+            final int docBase = ctx.docBase;
+            return new LeafCollector () {
+                @Override
+                public void collect (int doc) {
+                    try {
+                        Terms terms = ctx.reader().getTermVector(doc, field);
+                        if (terms != null) {
+                            TermsEnum en = terms.iterator();
+                            for (BytesRef bref; (bref = en.next()) != null; ) {
+                                String term = bref.utf8ToString();
+                                Integer cnt = vector.get(term);
+                                vector.put(term, cnt == null ? 1 : (cnt+1));
+                            }
+                        }
+                    }
+                    catch (IOException ex) {
+                        Logger.error("can't get term vector for field "
+                                     +field, ex);
+                    }
+                }
+                
+                public void setScorer (Scorer scorer) throws IOException {
+                }
+            };
+        }
+    }
+
     final protected FieldType tvFieldType;
     final protected File root;
     final protected Directory indexDir;
@@ -1060,6 +1149,24 @@ public class Index implements AutoCloseable, Fields {
             SuggestIndexSearcher searcher = new SuggestIndexSearcher (reader);
             TopSuggestDocs docs = searcher.suggest(query, n);
             return docs;
+        }
+    }
+
+    public static TermVector createTermVector (String field) {
+        return new TermVector (field);
+    }
+    
+    protected TermVector termVector (String field, Term... terms)
+        throws IOException {
+        try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+            return new TermVector (new IndexSearcher (reader), field, terms);
+        }
+    }
+
+    protected TermVector termVector (String field, Query query)
+        throws IOException {
+        try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+            return new TermVector (new IndexSearcher (reader), field, query);
         }
     }
 

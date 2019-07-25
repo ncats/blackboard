@@ -66,6 +66,8 @@ import com.google.inject.assistedinject.Assisted;
 
 public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public static final String VERSION = "PubMedIndex-v1";
+    protected static final Term ALL_DOCS_TERM =
+        new Term (FIELD_INDEXER, VERSION);
     
     /*
      * these are internal fields used for resolving concept cuis
@@ -1261,6 +1263,17 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         Logger.debug("## searching for "+field+":"+term+"..."
                      +result.size()+" hit(s)!");
         return result;
+    }
+
+    public TermVector termVector (String field) throws IOException {
+        return termVector (field, ALL_DOCS_TERM);
+    }
+
+    public TermVector termVector (String field, SearchQuery query)
+        throws IOException {
+        if (query != null)
+            return termVector (field, query.rewrite());
+        return termVector (field);
     }
     
     public static void main (String[] argv) throws Exception {

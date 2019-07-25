@@ -37,6 +37,8 @@ import static scala.compat.java8.FutureConverters.*;
 import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
 import blackboard.index.IndexFactory;
+import blackboard.index.Index;
+import static blackboard.index.Index.TermVector;
 import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.utils.Util;
 
@@ -92,6 +94,18 @@ public class PubMedIndexManager implements AutoCloseable {
         }
     }
 
+    static public class TermVectorQuery {
+        SearchQuery query;
+        final String field;
+        public TermVectorQuery (String field) {
+            this.field = field;
+        }
+        public TermVectorQuery (String field, SearchQuery query) {
+            this.field = field;
+            this.query = query;
+        }
+    }
+
     static class PubMedIndexActor extends AbstractActor {
         static Props props (IndexFactory pmif, File db) {
             return Props.create
@@ -120,6 +134,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 .match(PMIDQuery.class, this::doPMIDSearch)
                 .match(PMIDBatchQuery.class, this::doSearch)
                 .match(FacetQuery.class, this::doFacetSearch)
+                .match(TermVectorQuery.class, this::doTermVector)
                 .build();
         }
 
@@ -148,6 +163,16 @@ public class PubMedIndexManager implements AutoCloseable {
             Logger.debug(self()+": facets search completed in "+String.format
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             getSender().tell(result, getSelf ());
+        }
+
+        void doTermVector (TermVectorQuery tvq) throws Exception {
+            Logger.debug(self()+": term vector "+tvq.field);
+            long start = System.currentTimeMillis();
+            TermVector tv = pmi.termVector(tvq.field, tvq.query);
+            Logger.debug(self()+": term vector for \""+tvq.field
+                         +"\" completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+            getSender().tell(tv, getSelf ());
         }
     }
     
@@ -475,5 +500,47 @@ public class PubMedIndexManager implements AutoCloseable {
                 Logger.debug("Cache missed: "+key);
                 return getDocs (bq);
             });
+    }
+
+    public CompletionStage<TermVector> getTermVector (TermVectorQuery tvq) {
+        List<CompletableFuture> futures = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            scala.concurrent.Future future =
+                Patterns.ask(actorRef, tvq, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+
+        // wait for completion...
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+
+        return supplyAsync (() -> {
+                final TermVector vector = Index.createTermVector(tvq.field);
+                for (CompletableFuture f : futures) {
+                    try {
+                        TermVector tv = (TermVector)f.get();
+                        vector.add(tv);
+                    }
+                    catch (Exception ex) {
+                        throw new RuntimeException (ex);
+                    }
+                }
+                return vector;
+            }, pmec);
+    }
+    
+    public CompletionStage<TermVector> getTermVector (final String field,
+                                                      final SearchQuery query) {
+        final TermVectorQuery tvq = new TermVectorQuery (field, query);
+        final String key = "PubMedIndexManager/termVector/"+field
+            +(query != null ? "/"+query.cacheKey():"");
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                return getTermVector (tvq);
+            });
+    }
+    
+    public CompletionStage<TermVector> getTermVector (final String field) {
+        return getTermVector (field, null);
     }
 }

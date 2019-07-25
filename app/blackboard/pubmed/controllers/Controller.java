@@ -36,6 +36,7 @@ import blackboard.pubmed.index.PubMedIndex;
 import static blackboard.pubmed.index.PubMedIndex.*;
 import static blackboard.index.Index.Facet;
 import static blackboard.index.Index.FV;
+import static blackboard.index.Index.TermVector;
 import blackboard.mesh.MeshKSource;
 import blackboard.mesh.MeshDb;
 import blackboard.semmed.SemMedDbKSource;
@@ -72,11 +73,11 @@ public class Controller extends play.mvc.Controller {
     }
 
     public String getQueryString (String param) {
-        return Http.Context.current().request().getQueryString(param);
+        return request().getQueryString(param);
     }
 
     public Map<String, String[]> queryString () {
-        return Http.Context.current().request().queryString();
+        return request().queryString();
     }
     
     public String[] queryString (String param) {
@@ -547,6 +548,27 @@ public class Controller extends play.mvc.Controller {
         }
         html.append("</ul></li>");
     }
+
+    /*
+     * FIXME: facets doesn't yet work!
+     */
+    public CompletionStage<Result> termVector (String field, String q) {
+        try {
+            SearchQuery query = null;
+            Map<String, Object> facets = parseFacets ();
+            if (q != null || (facets != null && !facets.isEmpty()))
+                query = new TextQuery (q, facets);
+            CompletionStage<TermVector> result =
+                pubmed.getTermVector(field, query);
+            return result.thenApplyAsync
+                (tv -> ok (Json.toJson(tv)), ec.current());
+        }
+        catch (Exception ex) {
+            Logger.error("failed to retrieve term vector for "+field, ex);
+            return supplyAsync (() -> internalServerError
+                                ("Internal server error: "+ex.getMessage()));
+        }
+    }
     
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
@@ -554,7 +576,8 @@ public class Controller extends play.mvc.Controller {
                     routes.javascript.Controller.search(),
                     routes.javascript.Controller.facets(),
                     routes.javascript.Controller.pmid(),
-                    routes.javascript.Controller.field()
+                    routes.javascript.Controller.field(),
+                    routes.javascript.Controller.termVector()
                     )).as("text/javascript");
     }
 }

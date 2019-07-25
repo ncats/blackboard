@@ -1,7 +1,11 @@
 
 GET /   blackboard.pubmed.controllers.Controller.index
 GET /:pmid  blackboard.pubmed.controllers.Controller.article(pmid: Long)
+#
+# TODO: move these to kspubmed.routes
+#
 GET /api/facets blackboard.pubmed.controllers.Controller.facets(fdim: Int ?= 100)
+GET /api/termvec/:field  blackboard.pubmed.controllers.Controller.termVector(field: String, q: String ?= null)
 GET /api/search/:q blackboard.pubmed.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/search blackboard.pubmed.controllers.Controller.filter(skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/$pmid<[0-9]+>.$format<(xml|json)> blackboard.pubmed.controllers.Controller.pmid(pmid: Long, format: String)
