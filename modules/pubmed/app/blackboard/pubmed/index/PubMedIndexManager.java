@@ -11,6 +11,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 import com.typesafe.config.Config;
@@ -38,6 +41,9 @@ import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
 import blackboard.index.IndexFactory;
 import blackboard.index.Index;
+import blackboard.index.Fields;
+import blackboard.pubmed.*;
+import static blackboard.index.Index.TextQuery;
 import static blackboard.index.Index.TermVector;
 import static blackboard.pubmed.index.PubMedIndex.*;
 import blackboard.utils.Util;
@@ -46,7 +52,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 @Singleton
 public class PubMedIndexManager implements AutoCloseable {
-
+    static final int BATCH_SIZE = 2048;
+    
     static class MetaMapActor extends AbstractActor {
         static Props props (UMLSKSource umls) {
             return Props.create
@@ -71,11 +78,11 @@ public class PubMedIndexManager implements AutoCloseable {
         @Override
         public Receive createReceive () {
             return receiveBuilder()
-                .match(TextQuery.class, this::doMetaMap)
+                .match(FldQuery.class, this::doMetaMap)
                 .build();
         }
 
-        void doMetaMap (TextQuery q) throws Exception {
+        void doMetaMap (FldQuery q) throws Exception {
             Logger.debug(self()+": metamap "+q);
             try {
                 long start = System.currentTimeMillis();
@@ -90,6 +97,7 @@ public class PubMedIndexManager implements AutoCloseable {
             }
             catch (Exception ex) {
                 Logger.error("Can't execute MetaMap", ex);
+                getSender().tell(ex, getSelf ());
             }
         }
     }
@@ -106,6 +114,27 @@ public class PubMedIndexManager implements AutoCloseable {
         }
     }
 
+    static class Update {
+        final PubMedDoc[] docs;
+        Update (PubMedDoc... docs) {
+            this.docs = docs;
+        }
+    }
+
+    static class Delete {
+        final Long[] input;        
+        Delete (Long... input) {
+            this.input = input;
+        }
+    }
+
+    static class Insert {
+        final PubMedDoc doc;
+        Insert (PubMedDoc doc) {
+            this.doc = doc;
+        }
+    }
+    
     static class PubMedIndexActor extends AbstractActor {
         static Props props (IndexFactory pmif, File db) {
             return Props.create
@@ -115,6 +144,7 @@ public class PubMedIndexManager implements AutoCloseable {
         final PubMedIndex pmi;
         public PubMedIndexActor (IndexFactory pmif, File dir) {
             pmi = (PubMedIndex) pmif.get(dir);
+            Logger.debug("*** index loaded..."+dir+" "+pmi.size()+" doc(s)!");
         }
 
         @Override
@@ -133,8 +163,12 @@ public class PubMedIndexManager implements AutoCloseable {
                 .match(TextQuery.class, this::doSearch)
                 .match(PMIDQuery.class, this::doPMIDSearch)
                 .match(PMIDBatchQuery.class, this::doSearch)
+                .match(FldQuery.class, this::doSearch)
                 .match(FacetQuery.class, this::doFacetSearch)
                 .match(TermVectorQuery.class, this::doTermVector)
+                .match(Update.class, this::doUpdate)
+                .match(Delete.class, this::doDelete)
+                .match(Insert.class, this::doInsert)
                 .build();
         }
 
@@ -174,7 +208,81 @@ public class PubMedIndexManager implements AutoCloseable {
                          ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
             getSender().tell(tv, getSelf ());
         }
+
+        void doDelete (Delete del) {
+            try {
+                int dels = pmi.deleteDocs(del.input);
+                getSender().tell(dels, getSelf ());
+            }
+            catch (IOException ex) {
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't delete docs" , ex),
+                                 getSelf ());
+            }
+        }
+
+        void doUpdate (Update update) {
+            PubMedDoc[] docs = update.docs;
+            try {
+                int dels = pmi.deleteDocsIfOlderThan(docs);
+                PubMedDoc[] newDocs = pmi.checkDocsIfNewerThan(docs);
+                getSender().tell(newDocs, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't update docs", ex),
+                                 getSelf ());
+            }
+        }
+
+        void doInsert (Insert insert) {
+            PubMedDoc doc = insert.doc;
+            try {
+                pmi.add(doc);
+                getSender().tell(doc, getSelf ());
+            }
+            catch (IOException ex) {
+                getSender().tell
+                    (new Exception (getSelf()+": Can't insert doc "+doc.pmid,
+                                    ex), getSelf ());
+            }
+        }
     }
+
+    class IndexUpdate {
+        AtomicInteger count = new AtomicInteger ();
+        List<PubMedDoc> batch = new ArrayList<>(BATCH_SIZE);
+
+        IndexUpdate (File file, Integer max) throws Exception {
+            PubMedSax pms = createSaxParser (max);
+            pms.parse(file);
+            
+            if (!batch.isEmpty()) {
+                updateDocs (batch.toArray(new PubMedDoc[0]));
+            }
+            
+            List<Long> citations = pms.getDeleteCitations();
+            Logger.debug("## "+count+" doc(s) parsed; "
+                         +citations.size()+" delete citations!");
+            if (!citations.isEmpty()) {
+                deleteCitations (citations.toArray(new Long[0]));
+            }
+        }
+
+        PubMedSax createSaxParser (final Integer max) {
+            return new PubMedSax (pubmed.mesh, (s, d) -> {
+                    if (max == null || max == 0 || count.intValue() < max) {
+                        if (batch.size() == BATCH_SIZE) {
+                            updateDocs (batch.toArray(new PubMedDoc[0]));
+                            batch.clear();
+                        }
+                        batch.add(d);
+                    }
+                    count.incrementAndGet();
+                    return true;
+                });
+        }
+    } // IndexUpdate
     
     final List<ActorRef> indexes = new ArrayList<>();
     final ActorRef metamap;
@@ -183,13 +291,14 @@ public class PubMedIndexManager implements AutoCloseable {
     final Timeout timeout;
     final AsyncCacheApi cache;
     final UMLSKSource umls;
+    final PubMedKSource pubmed;
     final CustomExecutionContext pmec;
-    SearchResult defaultAllFacets;
+    protected SearchResult defaultAllFacets;
     
     @Inject
     public PubMedIndexManager (Configuration config, @PubMed IndexFactory ifac,
-                               UMLSKSource umls, ActorSystem actorSystem,
-                               AsyncCacheApi cache,
+                               UMLSKSource umls, PubMedKSource pubmed,
+                               ActorSystem actorSystem, AsyncCacheApi cache,
                                PubMedExecutionContext pmec,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
@@ -246,6 +355,7 @@ public class PubMedIndexManager implements AutoCloseable {
             });
 
         this.umls = umls;
+        this.pubmed = pubmed;
         this.actorSystem = actorSystem;
         this.cache = cache;
         
@@ -324,28 +434,10 @@ public class PubMedIndexManager implements AutoCloseable {
         final String key = "PubMedIndexManager/facets/"+q.cacheKey();
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
-                return getResults(q)
+                return getResultsAsync(q)
                     .thenApplyAsync(results -> PubMedIndex.merge(results),
                                     pmec);
             });
-    }
-    
-    public CompletionStage<List<Concept>> _getConcepts (SearchQuery q) {
-        Inbox inbox = Inbox.create(actorSystem);
-        // first pass this through metamap
-        inbox.send(metamap, q);
-        List<Concept> concepts = new ArrayList<>();
-        try {
-            List<Concept> c = (List<Concept>)
-                inbox.receive(Duration.ofSeconds(maxTimeout));
-            concepts.addAll(c);
-            Logger.debug("#### "+concepts.size()
-                         +" concept(s) found from query "+q);            
-        }
-        catch (TimeoutException ex) {
-            Logger.warn("Unable to process query with MetMap: "+q);
-        }
-        return supplyAsync (()->concepts, pmec);
     }
     
     public CompletionStage<List<Concept>> getConcepts (SearchQuery q) {
@@ -354,7 +446,9 @@ public class PubMedIndexManager implements AutoCloseable {
             final String key = "PubMedIndexManager/concepts/"+q.cacheKey();
             stage = cache.getOrElseUpdate(key, () -> {
                     Logger.debug("Cache missed: "+key);
-                    return _getConcepts (q);
+                    return toJava(Patterns.ask(metamap, q, timeout))
+                    .toCompletableFuture()
+                    .thenApplyAsync(concepts -> (List<Concept>)concepts, pmec);
                 });
         }
         else {
@@ -387,7 +481,7 @@ public class PubMedIndexManager implements AutoCloseable {
         return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
     }
 
-    public CompletionStage<SearchResult[]> getResults (SearchQuery q) {
+    public SearchResult[] getResults (SearchQuery q) {
         List<CompletableFuture> futures = new ArrayList<>();
         for (ActorRef actorRef : indexes) {
             scala.concurrent.Future future = Patterns.ask(actorRef, q, timeout);
@@ -407,7 +501,11 @@ public class PubMedIndexManager implements AutoCloseable {
                     }
                 }).collect(Collectors.toList());
             
-        return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
+        return results.toArray(new SearchResult[0]);
+    }
+
+    public CompletionStage<SearchResult[]> getResultsAsync (SearchQuery q) {
+        return supplyAsync (()->getResults (q), pmec);
     }
     
     public CompletionStage<SearchResult> search (SearchQuery q) {
@@ -415,17 +513,11 @@ public class PubMedIndexManager implements AutoCloseable {
         final String key = "PubMedIndexManager/"+q.cacheKey();
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
-                try {
-                    getConcepts(q)
-                        .thenAccept(concepts -> q.getConcepts()
-                                    .addAll(concepts))
-                        .toCompletableFuture().get();
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't retrieve concepts for query "+q, ex);
-                }
-
-                return getResults(q)
+                
+                return getConcepts(q)
+                    .thenAcceptAsync(concepts ->
+                                     q.getConcepts().addAll(concepts), pmec)
+                    .thenApplyAsync(none -> getResults(q), pmec)
                     .thenApplyAsync(results -> PubMedIndex.merge(results), pmec)
                     .thenApplyAsync(result -> result.page(q.skip(), q.top()),
                                     pmec);
@@ -542,5 +634,139 @@ public class PubMedIndexManager implements AutoCloseable {
     
     public CompletionStage<TermVector> getTermVector (final String field) {
         return getTermVector (field, null);
+    }
+
+    protected void updateDocs (PubMedDoc... docs) {
+        Update update = new Update (docs);
+        List<CompletableFuture> futures = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            scala.concurrent.Future future =
+                Patterns.ask(actorRef, update, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+        
+        // wait for completion...
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+
+        final Map<PubMedDoc, Integer> matched = new HashMap<>();
+        for (CompletableFuture f : futures) {
+            try {
+                Object res = f.get();
+                if (res instanceof Throwable) {
+                    Throwable t = (Throwable)res;
+                    Logger.error(t.getMessage(), t.getCause());
+                }
+                else {
+                    docs = (PubMedDoc[])res;
+                    for (PubMedDoc d : docs) {
+                        Integer c = matched.get(d);
+                        matched.put(d, c== null ? 1 : c+1);
+                    }
+                }
+            }
+            catch (Exception ex) {
+                Logger.error("Failed to update docs", ex);
+            }
+        }
+
+        // now add the new docs
+        Random rand = new Random ();
+        futures.clear();
+        for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
+            //Logger.debug(me.getKey().pmid+"="+me.getValue());
+            if (indexes.size() == me.getValue()) {
+                int pos = rand.nextInt(indexes.size());
+                ActorRef actorRef = indexes.get(pos);
+                PubMedDoc doc = me.getKey();
+                scala.concurrent.Future future =
+                    Patterns.ask(actorRef, new Insert (doc), timeout);
+                futures.add(toJava(future).toCompletableFuture());
+            }
+        }
+        
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+        for (CompletableFuture f : futures) {
+            try {
+                Object res = f.get();
+                if (res instanceof Throwable) {
+                    Throwable t = (Throwable) res;
+                    Logger.error(t.getMessage(), t.getCause());
+                }
+            }
+            catch (Exception ex) {
+                Logger.error("Unable to update documents!", ex);
+            }
+        }
+    }
+
+    protected void deleteCitations (Long... citations) {
+        Delete del = new Delete (citations);
+        List<CompletableFuture> futures = new ArrayList<>();        
+        for (ActorRef actorRef : indexes) {
+            scala.concurrent.Future future =
+                Patterns.ask(actorRef, del, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+        for (CompletableFuture f : futures) {
+            try {
+                Object res = f.get();
+                if (res instanceof Throwable) {
+                    Throwable t = (Throwable)res;
+                    Logger.error(t.getMessage(), t.getCause());
+                }
+                else {
+                    Logger.debug("** "+res+" doc(s) deleted!");
+                }
+            }
+            catch (Exception ex) {
+                Logger.error("Unable to delete citations!", ex);
+            }
+        }
+    }
+
+    public CompletionStage<Integer> update (File file) throws Exception {
+        return update (file, true, null);
+    }
+
+    public CompletionStage<Integer> update (File file, boolean checkfile)
+        throws Exception {
+        return update (file, checkfile, null);
+    }
+    
+    public CompletionStage<Integer> update (File file, boolean checkfile,
+                                            Integer max) throws Exception {
+        if (checkfile) {
+            // only load this file if it's not already loaded
+            String source = file.getName();
+            int pos = source.indexOf('.');
+            if (pos > 0)
+                source = source.substring(0, pos);
+            FldQuery tq = new FldQuery (FIELD_FILE, source);
+            tq.top = 1;
+            return search(tq).thenApplyAsync(result -> {
+                    try {
+                        if (result.total == 0)
+                            return new IndexUpdate(file, max).count.get();
+                    }
+                    catch (Exception ex) {
+                        throw new RuntimeException (ex);
+                    }
+                    Logger.warn(file.getName()+" is already indexed!");
+                    return 0;
+                }, pmec);
+        }
+        return supplyAsync (()->{
+                try {
+                    return new IndexUpdate(file, max).count.get();
+                }
+                catch (Exception ex) {
+                    throw new RuntimeException (ex);
+                }
+            }, pmec);
     }
 }

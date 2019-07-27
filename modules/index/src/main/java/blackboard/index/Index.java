@@ -531,7 +531,8 @@ public class Index implements AutoCloseable, Fields {
             facets.put(facet, value);
         }
         public FacetQuery (Map<String, Object> facets) {
-            this.facets.putAll(facets);
+            if (facets != null)
+                this.facets.putAll(facets);
         }
 
         public String cacheKey () {
@@ -573,34 +574,85 @@ public class Index implements AutoCloseable, Fields {
         }
     }
 
-    public static class TextQuery extends FacetQuery {
+    public static class FldQuery extends FacetQuery {
         public final String field;
         public final String query;
-        public final List<Concept> concepts = new ArrayList<>();
-        public int slop = 1; // phrase slop (see QueryBuilder.createPhraseQuery)
         public int skip = 0;
         public int top = 10;
 
-        public TextQuery () {
+        public FldQuery () {
             this (null, null, null);
             top = 0;
         }
+
+        public FldQuery (String field, String query) {
+            this (field, query, null);
+        }
+        
+        public FldQuery (String field, String query,
+                         Map<String, Object> facets) {
+            super (facets);
+            this.field = field;
+            this.query = query;
+        }
+
+        public FldQuery (FldQuery fq) {
+            this (fq.field, fq.query, fq.facets);
+            this.skip = fq.skip;
+            this.top = fq.top;
+        }
+
+        public String getField () { return field; }
+        public String getQuery () { return query; }
+        public int skip () { return skip; }
+        public int top () { return top; }
+
+        public Query rewrite () {
+            if (query != null && field != null)
+                return new TermQuery (new Term (field, query));
+            return null;
+        }
+        
+        public String cacheKey () {
+            List<String> values = new ArrayList<>();
+            values.add(super.cacheKey());
+            if (field != null) values.add(field);
+            if (query != null) values.add(query.toLowerCase());
+            return getClass().getName()
+                +"/"+Util.sha1(values.toArray(new String[0]));
+        }
+
+        public String toString () {
+            return getClass().getName()
+                +"{key="+cacheKey()+",field="+field+",query="
+                +query+",skip="+skip+",top="+top+",facets="+facets+"}";
+        }
+    }
+
+    public static class TextQuery extends FldQuery {
+        public int slop = 1; // phrase slop (see QueryBuilder.createPhraseQuery)
+        public final List<Concept> concepts = new ArrayList<>();
+        public TextQuery () {
+            this (null, null, null);
+        }
+        
         public TextQuery (Map<String, Object> facets) {
             this (null, null, facets);
         }
+        
         public TextQuery (String query) {
             this (null, query, null);
         }
+        
         public TextQuery (String query, Map<String, Object> facets) {
             this (null, query, facets);
         }
+        
         public TextQuery (String field, String query,
                           Map<String, Object> facets) {
-            this.field = field;
-            this.query = query;
-            if (facets != null)
-                this.facets.putAll(facets);
+            super (field, query, facets);
         }
+        
         public TextQuery (TextQuery tq) {
             this (tq.field, tq.query, tq.facets);
             concepts.addAll(tq.concepts);
@@ -609,43 +661,36 @@ public class Index implements AutoCloseable, Fields {
             top = tq.top;
         }
 
-        public String getField () { return field; }
-        public String getQuery () { return query; }
-        public int skip () { return skip; }
-        public int top () { return top; }
-        //public int max () { return top + skip; }
         public List<Concept> getConcepts () { return concepts; }
+        
         // subclass should override for specific implementation
         public Query rewrite () {
-            if (query != null && field != null)
-                return new TermQuery (new Term (field, query));
+            Query q = super.rewrite();
+            if (q != null)
+                ;
             else if (query != null) {
                 try {
                     QueryParser qp = new QueryParser
                         (FIELD_TEXT, new StandardAnalyzer ());
-                    return qp.parse(query);
+                    q = qp.parse(query);
                 }
                 catch (Exception ex) {
                     Logger.error("Can't parse query: "+query, ex);
-                    return new MatchNoDocsQuery ();
+                    q = new MatchNoDocsQuery ();
                 }
             }
-            return new MatchAllDocsQuery ();
+            else {
+                q = new MatchAllDocsQuery ();
+            }
+            return q;
         }
 
         public String cacheKey () {
             List<String> values = new ArrayList<>();
-            if (field != null) values.add(field);
-            if (query != null) values.add(query.toLowerCase());
             values.add(super.cacheKey());
             values.add("slop="+slop);
             return TextQuery.class.getName()
                 +"/"+Util.sha1(values.toArray(new String[0]));
-        }
-        
-        public String toString () {
-            return "TextQuery{key="+cacheKey()+",field="+field+",query="
-                +query+",skip="+skip+",top="+top+",facets="+facets+"}";
         }
     }
     
@@ -956,7 +1001,7 @@ public class Index implements AutoCloseable, Fields {
         long start = System.currentTimeMillis();
         Map<String, Object> fmap = result.query.getFacets();
         Query query = result.query.rewrite();
-        //Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
+        Logger.debug("### Query: "+query+" MaxHits: "+maxHits+" Facets: "+fmap);
         
         try (IndexReader reader = DirectoryReader.open(indexWriter);
              TaxonomyReader taxonReader =

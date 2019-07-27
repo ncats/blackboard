@@ -6,8 +6,6 @@
   <defaultCache
       maxEntriesLocalHeap="10000"
       eternal="true"
-      timeToIdleSeconds="1200"
-      timeToLiveSeconds="1200"
       maxBytesLocalHeap="500M">
   </defaultCache>
   <cache name="play"
