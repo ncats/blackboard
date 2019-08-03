@@ -1,0 +1,38 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.disease.Disease
+@(controller: _root_.blackboard.disease.controllers.Controller,
+  disease: Disease)
+
+@views.html.ui.main(disease.name){
+  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light"
+       style="z-index:9999">
+    <a class="navbar-brand" href="https://ncats.nih.gov">
+      <img src="/assets/images/ncats-logo.png" height="65%" width="65%"></a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
+          </li>
+        </ul>
+        <form id="search-form" class="form-inline my-2 my-lg-0"
+              action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
+              method="GET">
+          <input class="form-control mr-sm-2" type="search" name="q"
+                 placeholder="ENTER SEARCH TERMS..."
+                 aria-label="Search concepts" style="width:20em">
+          <button class="btn btn-primary my-2 my-sm-0"
+                  type="submit" style="border-radius:3rem">Search</button>
+        </form>
+      </div>
+  </nav>
+  <div class="container-fluid" style="margin-top:60px;margin-bottom:10px;">
+    <div id="content-panel" class="loader loader-default"></div>    
+    <div class="row">
+    </div>
+  </div>
+}(HtmlFormat.empty)(HtmlFormat.empty)
+  

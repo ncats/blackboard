@@ -2,10 +2,16 @@ package blackboard.disease;
 
 import java.util.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Disease {
+    public static final Disease NONE = new Disease ();
+    
     // different fields to retrieve disease name
     static final String[] NAME_FIELDS = {
         "name",
@@ -16,7 +22,8 @@ public class Disease {
     static final String[] ID_FIELDS = {
         "notation",
         "gard_id",
-        "id"
+        "id",
+        "P207"
     };
 
     static final String[] URL_FIELDS = {
@@ -58,11 +65,16 @@ public class Disease {
     @JsonIgnore public final List<Disease> parents = new ArrayList<>();
     @JsonIgnore public final List<Disease> children = new ArrayList<>();
 
+    protected Disease () {
+        this (null, null);
+    }
+
     protected Disease (Long id, String name) {
         this.id = id;
         this.name = name;
     }
 
+    public boolean isEmpty () { return name == null; }
     public static Disease getInstance (JsonNode json) {
         JsonNode payload = json.at("/payload/0");
         if (payload.isMissingNode())
@@ -124,6 +136,20 @@ public class Disease {
 
     @JsonAnyGetter
     public Map<String, Object> getProperties () {  return properties;  }
+
+    @JsonProperty(value="parents")
+    public JsonNode getParentsAsJson () {
+        ObjectMapper mapper = new ObjectMapper ();
+        ArrayNode json = mapper.createArrayNode();
+        for (Disease d : parents) {
+            ObjectNode dn = mapper.createObjectNode();
+            dn.put("id", d.id);
+            dn.put("name", d.name);
+            dn.put("labels", mapper.valueToTree(d.labels));
+            json.add(dn);
+        }
+        return json;
+    }
 
     @JsonIgnore
     public String getSummary () {

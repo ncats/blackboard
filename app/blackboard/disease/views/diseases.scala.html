@@ -126,8 +126,7 @@
         <div class="card" style="margin-top: 10px;">
           <div class="card-header">
             <h5><span class="badge badge-pill badge-primary">@d.source</span>
-              <a href="#" data-target="#disease-@d.id"
-                 data-toggle="collapse">@d.name</a>
+              <a href='@_root_.blackboard.disease.controllers.routes.Controller.disease(d.id)' data-target="#disease-@d.id">@d.name</a>
             </h5>
           </div>
           <div class="card-body collapse show" id="disease-@d.id">

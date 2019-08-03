@@ -27,60 +27,72 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import blackboard.disease.*;
 import blackboard.utils.Util;
+import blackboard.disease.views.html.*;
 
 public class Controller extends play.mvc.Controller {
     static final JsonNode EMPTY_JSON = Json.newObject();
     final protected HttpExecutionContext ec;
     final protected ObjectMapper mapper = Json.mapper();
     final protected SyncCacheApi cache;
-    final protected DiseaseKSource disease;
+    final protected DiseaseKSource dks;
 
     @Inject
-    public Controller (HttpExecutionContext ec, DiseaseKSource disease,
+    public Controller (HttpExecutionContext ec, DiseaseKSource dks,
                        Configuration config, SyncCacheApi cache) {
         this.ec = ec;
         this.cache = cache;
-        this.disease = disease;
+        this.dks = dks;
         
         Logger.debug("$$" +getClass().getName());
     }
+
+    public CompletionStage<Result> disease (Long id) {
+        Logger.debug(">> "+request().uri());
+        return dks.getDisease(id)
+            .thenApplyAsync(d -> ok (diseasepage.render(Controller.this, d)),
+                            ec.current());
+    }
+
+    public CompletionStage<Result> resolve (String name) {
+        CompletionStage<Disease> result = dks.resolve(name);
+        return result.thenApplyAsync(r -> {
+                if (!r.isEmpty()) {
+                    JsonNode json = mapper.valueToTree(r);
+                    String path = request().getQueryString("path");
+                    if (path != null)
+                        json = json.at(path);
+                    return ok (json.isMissingNode() ? EMPTY_JSON : json);
+                }
+                return ok (EMPTY_JSON);
+            }, ec.current());
+    }
     
     public CompletionStage<Result> search (String q, int skip, int top) {
-        Logger.debug(">> "+request().uri());
-        return supplyAsync (() -> {
-                try {
-                    return _search (q, skip, top);
-                }
-                catch (Exception ex) {
-                    Logger.error("** "+request().uri()+" failed", ex);
-                    return ok (views.html.ui.error.render
-                               (ex.getMessage(), 500));
-                }
+        CompletionStage<DiseaseResult> result = dks.search(q, skip, top);
+        return result.thenApplyAsync(r -> {
+                JsonNode json = mapper.valueToTree(r);
+                String path = request().getQueryString("path");
+                if (path != null)
+                    json = json.at(path);
+                return ok (json.isMissingNode() ? EMPTY_JSON : json);
             }, ec.current());
     }
 
-    public Result _search (String q, int skip, int top) {
-        DiseaseResult result = disease.search(q, skip, top);
-        JsonNode json = mapper.valueToTree(result);
-        String path = request().getQueryString("path");
-        if (path != null)
-            json = json.at(path);
-        return ok (json.isMissingNode() ? EMPTY_JSON : json);
-    }
-
-    public Result _diseases (String q, int skip, int top) {
-        DiseaseResult result = disease.search(q, skip, top);
-        int page = skip / top + 1;
-        int[] pages = Util.paging(top, page, result.total);
-        Map<Integer, String> urls = new TreeMap<>();
-        for (int i = 0; i < pages.length; ++i) {
-            Call call = routes.Controller.diseases
-                (q, (pages[i]-1)*top, top);
-            urls.put(pages[i], Util.getURL(call, request ()));
-        }
-        
-        return ok (blackboard.disease.views.html.diseases.render
-                   (page, pages, urls, result));
+    public CompletionStage<Result> _diseases (String q, int skip, int top) {
+        CompletionStage<DiseaseResult> result = dks.search(q, skip, top);
+        return result.thenApplyAsync(r -> {
+                int page = skip / top + 1;
+                int[] pages = Util.paging(top, page, r.total);
+                Map<Integer, String> urls = new TreeMap<>();
+                for (int i = 0; i < pages.length; ++i) {
+                    Call call = routes.Controller.diseases
+                        (q, (pages[i]-1)*top, top);
+                    urls.put(pages[i], Util.getURL(call, request ()));
+                }
+                
+                return ok (blackboard.disease.views.html.diseases.render
+                           (page, pages, urls, r));
+            }, ec.current());
     }
     
     public CompletionStage<Result> diseases (String q, int skip, int top) {
@@ -91,15 +103,15 @@ public class Controller extends play.mvc.Controller {
                         (blackboard.controllers.routes.KnowledgeApp.index());
                 }, ec.current());
         }
-        return supplyAsync (() -> {
-                return _diseases (q, skip, top);
-            }, ec.current());
+        return  _diseases (q, skip, top);
     }
 
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("diseaseRoutes",
-                    routes.javascript.Controller.search()
+                    routes.javascript.Controller.search(),
+                    routes.javascript.Controller.disease(),
+                    routes.javascript.Controller.resolve()
                     )).as("text/javascript");
     }
 }
