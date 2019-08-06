@@ -56,41 +56,18 @@
   <script>
   var filters = {}
   </script>
-  
-  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="https://ncats.nih.gov">
-      <img src='@controllers.routes.Assets.versioned("images/ncats-logo.png")'
-           height="65%" width="65%">
-    </a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse"
-            data-target="#navbarTogglerMenu"
-            aria-controls="navbarTogglerMenu"
-            aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarTogglerMenu">
-      <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
-        <li class="nav-item">
-          <a class="nav-link" href="@routes.KnowledgeApp.index">Home</a>
-        </li>
-        <li class="nav-item active">
-          <a class="nav-link" href="#">publications (@result.total)</a>
-        </li>
-        @if(result.query.getQuery != null) {
-          <li class="nav-item">
-            <a class="nav-link" href='@_root_.blackboard.disease.controllers.routes.Controller.diseases(request.getQueryString("q"))'>diseases (<span id="disease-count">...</span>)</a>
-          </li>
-        }
-      </ul>
-      <form id="search-form" class="form-inline my-2 my-lg-0"
-            method="GET" action="@routes.KnowledgeApp.ksearch(null)">
-        <input class="form-control mr-sm-2" type="search" name="q"
-               placeholder="ENTER SEARCH TERMS..." style="width:20em">
-        <button class="btn btn-primary my-2 my-sm-0"
-                type="submit" style="border-radius:3rem">Search</button>
-      </form>
-    </div>
-  </nav>  
+
+  @header(routes.KnowledgeApp.ksearch(null)){
+    <li class="nav-item active">
+      <a class="nav-link" href="#">publications (@result.total)</a>
+    </li>
+    @if(result.query.getQuery != null) {
+      <li class="nav-item">
+        <a class="nav-link" href='@_root_.blackboard.disease.controllers.routes.Controller.diseases(request.getQueryString("q"))'>diseases (<span id="disease-count">...</span>)</a>
+      </li>
+    }
+  }
+      
   <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
     <div id="content-panel" class="loader loader-default"></div>     
     <div class="row">

@@ -1,0 +1,14 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.controllers.routes
+@(url: String, status: Int)
+
+@views.html.ui.main("Error: "+url){
+  @header(routes.KnowledgeApp.ksearch(null))(HtmlFormat.empty)
+  <div class="container-fluid" style="margin-top:60px;">
+    <div class="jumbotron">
+      <h1 class="display">Status: @status</h1>
+      <p class="lead">Much like the mythical unicorn, the requested
+        resource <code>@url</code> has yet to be discovered.
+    </div>
+  </div>
+  }(HtmlFormat.empty)(HtmlFormat.empty)

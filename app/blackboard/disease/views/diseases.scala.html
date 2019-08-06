@@ -7,39 +7,14 @@
   result: DiseaseResult)
 
 @_root_.views.html.ui.main("NCATS Disease: "+result.query.getQuery){
-  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="https://ncats.nih.gov">
-      <img src='@_root_.controllers.routes.Assets.versioned("images/ncats-logo.png")'
-           height="65%" width="65%">
-    </a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse"
-            data-target="#navbarTogglerMenu"
-            aria-controls="navbarTogglerMenu"
-            aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarTogglerMenu">
-      <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
-        <li class="nav-item">
-          <a class="nav-link"
-             href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(result.query.getQuery)">publications (<span id="pub-count">...</span>)</a>
-        </li>
-        <li class="nav-item active">
-          <a class="nav-link" href="#">diseases (@result.total)</a>
-        </li>        
-      </ul>
-      <form class="form-inline my-2 my-lg-0" method="GET"
-            action="@routes.Controller.diseases(null)">
-        <input class="form-control mr-sm-2" type="search" name="q"
-               placeholder="ENTER SEARCH TERMS..." style="width:20em">
-        <button class="btn btn-primary my-2 my-sm-0"
-                type="submit" style="border-radius:3rem">Search</button>
-      </form>
-    </div>
-  </nav>  
+  @_root_.blackboard.views.html.header(routes.Controller.diseases(null)){
+    <li class="nav-item">
+      <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(result.query.getQuery)">publications (<span id="pub-count">...</span>)</a>
+    </li>
+    <li class="nav-item active">
+      <a class="nav-link" href="#">diseases (@result.total)</a>
+    </li>
+  }
   <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
     <div class="row">
       @defining(Math.min(5, result.size)){ rows =>
@@ -126,7 +101,7 @@
         <div class="card" style="margin-top: 10px;">
           <div class="card-header">
             <h5><span class="badge badge-pill badge-primary">@d.source</span>
-              <a href='@_root_.blackboard.disease.controllers.routes.Controller.disease(d.id)' data-target="#disease-@d.id">@d.name</a>
+              <a href='@_root_.blackboard.disease.controllers.routes.Controller.disease(d.getId, d.id)' data-target="#disease-@d.id">@d.name</a>
             </h5>
           </div>
           <div class="card-body collapse show" id="disease-@d.id">

@@ -569,7 +569,8 @@ public class UMLSKSource implements KSource {
 
     public SemanticType getSemanticType (String str) {
         for (SemanticType st : semanticTypes) {
-            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str))
+            if (st.abbr.equalsIgnoreCase(str) || st.id.equalsIgnoreCase(str)
+                || st.name.equalsIgnoreCase(str))
                 return st;
         }
         return null;

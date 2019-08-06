@@ -5,6 +5,8 @@
 @import _root_.blackboard.pubmed.index.PubMedIndex._
 @import _root_.blackboard.utils.Util
 @import org.apache.commons.lang3.text.WordUtils
+@import _root_.blackboard.views._
+@import _root_.blackboard.controllers._
 
 @(controller: _root_.blackboard.pubmed.controllers.Controller,
   result: SearchResult, doc: PubMedDoc)
@@ -26,42 +28,20 @@
 }
 
 @views.html.ui.main(doc.getPMID+": "+doc.getTitle){
-  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light"
-       style="z-index:9999">
-    <a class="navbar-brand" href="https://ncats.nih.gov">
-      <img src="/assets/images/ncats-logo.png" height="65%" width="65%"></a>
-      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        <ul class="navbar-nav mr-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="@_root_.blackboard.controllers.routes.KnowledgeApp.index">Home</a>
-          </li>
-          @if(controller.getQueryString("q") != null
-            || controller.getQueryString("facet") != null){
-            <li class="nav-item">
-              <a class="nav-link" href="@controller.req.path"
-                 onclick='showloader()'>Clear</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" onclick="showloader()"
-                 href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(controller.getQueryString("q")), controller.req)">publications (<span id="pub-count">...</span>)</a>
-            </li>
-            }
-        </ul>
-        <form id="search-form" class="form-inline my-2 my-lg-0"
-              action="@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)"
-              method="GET">
-          <input class="form-control mr-sm-2" type="search" name="q"
-                 placeholder="ENTER SEARCH TERMS..."
-                 aria-label="Search concepts" style="width:20em">
-          <button class="btn btn-primary my-2 my-sm-0"
-                  type="submit" style="border-radius:3rem">Search</button>
-        </form>
-      </div>
-  </nav>
+  @html.header(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(null)){
+    @if(controller.getQueryString("q") != null
+      || controller.getQueryString("facet") != null){
+      <li class="nav-item">
+        <a class="nav-link" href="@controller.req.path"
+           onclick='showloader()'>Clear</a>
+      </li>
+      <li class="nav-item">
+          <a class="nav-link" onclick="showloader()"
+             href="@Util.getURL(_root_.blackboard.controllers.routes.KnowledgeApp.ksearch(controller.getQueryString("q")), controller.req)">publications (<span id="pub-count">...</span>)</a>
+      </li>
+    }
+  }
+        
   <div class="container-fluid" style="margin-top:60px;margin-bottom:10px;">
     <div id="content-panel" class="loader loader-default"></div>    
     <div class="row">

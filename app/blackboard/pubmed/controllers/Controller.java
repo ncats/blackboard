@@ -367,6 +367,14 @@ public class Controller extends play.mvc.Controller {
                             }
                             break;
                             
+                        case "year":
+                            obj.put("year", doc.year);
+                            break;
+
+                        case "journal":
+                            obj.put("journal", doc.journal);
+                            break;
+                            
                         default:
                             return notFound ("Unsupported field: "+field);
                         }
@@ -427,7 +435,7 @@ public class Controller extends play.mvc.Controller {
                         }
                     }
             
-                    return ok(views.html.ui.error.render
+                    return ok(blackboard.views.html.error.render
                               ("Unknown PubMed article: "+pmid, 400));
                 }, ec.current());
         }

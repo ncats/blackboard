@@ -1,0 +1,13 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.controllers.routes
+@(mesg: String, status: String)
+
+@views.html.ui.main(status){
+  @header(routes.KnowledgeApp.ksearch(null))(HtmlFormat.empty)
+  <div class="container-fluid" style="margin-top:60px;">
+    <div class="jumbotron">
+      <h1 class="display">@status</h1>
+      <p class="lead">@HtmlFormat.raw(mesg)
+    </div>
+  </div>
+  }(HtmlFormat.empty)(HtmlFormat.empty)

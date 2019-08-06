@@ -1,0 +1,46 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.disease.Disease
+@import _root_.blackboard.disease.controllers.routes
+@(controller: _root_.blackboard.disease.controllers.Controller, d: Disease)
+<div class="row">
+  <div class="col-md-12">
+    @if(!d.getGenes.isEmpty){
+      <div class="card" style="margin-top:10px;">
+        <div class="card-header" style="padding-bottom:0px">
+          <div class="alert alert-success" role="alert">
+            <a href="#gene-card" class="alert-link"
+               data-toggle="collapse">Genes</a>
+          </div>
+        </div>
+        <div class="collapse show" id="gene-card">
+          <div class="card card-body">
+            <ul>
+              @for(gene <- d.getGenes){
+                <li>@gene</li>
+                }
+            </ul>
+          </div>
+        </div>
+      </div>
+      }
+      <div class="card" style="margin-top:10px;">
+        <div class="card-header" style="padding-bottom:0px">
+          <div class="alert alert-success" role="alert">
+            <a href="#" class="alert-link"
+               data-toggle="collapse" data-target='#synonym-card'>Synonyms</a>
+          </div>
+        </div>
+      </div>
+      <div class="collapse show" id="synonym-card">
+        <div class="card card-body">
+          <ul>
+            @defining(d.getSynonyms()){ synonyms =>
+              @for(s <- synonyms){
+                <li><a href='@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch("\""+s.trim+"\"~2")'>@s.trim</a></li>
+              }
+            }
+          </ul>
+        </div>
+      </div>
+  </div>
+</div>

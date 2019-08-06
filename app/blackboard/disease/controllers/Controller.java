@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import blackboard.disease.*;
 import blackboard.utils.Util;
 import blackboard.disease.views.html.*;
+import blackboard.umls.UMLSKSource;
+import blackboard.umls.SemanticType;
 
 public class Controller extends play.mvc.Controller {
     static final JsonNode EMPTY_JSON = Json.newObject();
@@ -35,29 +37,60 @@ public class Controller extends play.mvc.Controller {
     final protected ObjectMapper mapper = Json.mapper();
     final protected SyncCacheApi cache;
     final protected DiseaseKSource dks;
+    final protected UMLSKSource umls;
 
     @Inject
     public Controller (HttpExecutionContext ec, DiseaseKSource dks,
-                       Configuration config, SyncCacheApi cache) {
+                       UMLSKSource umls, SyncCacheApi cache) {
         this.ec = ec;
         this.cache = cache;
         this.dks = dks;
+        this.umls = umls;
         
         Logger.debug("$$" +getClass().getName());
     }
 
-    public CompletionStage<Result> disease (Long id) {
+    public CompletionStage<Result> disease (String id, Long node) {
         Logger.debug(">> "+request().uri());
-        return dks.getDisease(id)
-            .thenApplyAsync(d -> ok (diseasepage.render(Controller.this, d)),
-                            ec.current());
+        if (node != null && node > 0l) {
+            return dks.disease(node).thenApplyAsync
+                (d -> {
+                    if (!d.isEmpty() && id.equals(d.getId())) {
+                        return ok (diseasepage.render(Controller.this, d));
+                    }
+                    throw new RuntimeException
+                        ("Node "+node+" either is invalid or doesn't have id "
+                         +id);
+                }, ec.current()).exceptionally(ex -> {
+                        Logger.warn(ex.getMessage());
+                        try {
+                            Disease d = dks.resolve(id)
+                                .toCompletableFuture().get();
+                            return !d.isEmpty()
+                                ? ok (diseasepage.render(Controller.this, d))
+                                : ok (blackboard.views.html.notfound
+                                      .render("Unable to resolve "+id));
+                        }
+                        catch (Exception exx) {
+                            return ok(blackboard.views.html.status
+                                      .render(exx.getMessage(),
+                                              "Internal server error"));
+                        }
+                    });
+        }
+        return dks.resolve(id).thenApplyAsync
+            (d -> !d.isEmpty()
+             ? ok (diseasepage.render(Controller.this, d))
+             : ok (blackboard.views.html.notfound
+                   .render("Unable to resolve "+id)),
+             ec.current());
     }
 
-    public CompletionStage<Result> resolve (String name) {
-        CompletionStage<Disease> result = dks.resolve(name);
-        return result.thenApplyAsync(r -> {
-                if (!r.isEmpty()) {
-                    JsonNode json = mapper.valueToTree(r);
+    public CompletionStage<Result> resolve (String id) {
+        CompletionStage<Disease> result = dks.resolve(id);
+        return result.thenApplyAsync(d -> {
+                if (!d.isEmpty()) {
+                    JsonNode json = mapper.valueToTree(d);
                     String path = request().getQueryString("path");
                     if (path != null)
                         json = json.at(path);
@@ -104,6 +137,16 @@ public class Controller extends play.mvc.Controller {
                 }, ec.current());
         }
         return  _diseases (q, skip, top);
+    }
+
+    public List<SemanticType> getSemanticTypes (Disease d) {
+        List<SemanticType> semtypes = new ArrayList<>();
+        for (String t : d.getSemanticTypes()) {
+            SemanticType st = umls.getSemanticType(t);
+            if (st != null)
+                semtypes.add(st);
+        }
+        return semtypes;
     }
 
     public Result jsRoutes () {

@@ -1,0 +1,58 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.disease.Disease
+@import _root_.blackboard.disease.controllers.routes
+@import _root_.blackboard.umls.SemanticType
+@(controller: _root_.blackboard.disease.controllers.Controller, d: Disease)
+
+@text(section: String, name: String) = {
+  @if(d.properties.containsKey(name)){
+    <br>
+    <div class="row">
+      <div class="card">
+        <div class="card card-header">
+          <h5><a href='#@name' data-toggle="collapse">@section</a>
+        </div>
+        <div class="collapse show" id="@name">
+          <div class="card card-body">
+            @HtmlFormat.raw(d.properties.get(name).toString)
+          </div>
+        </div>
+      </div>
+    </div>
+   }
+}
+
+<div class="jumbotron" style="margin-top:10px">
+  <div class="row">
+    <div class="col-md-12">
+      <h1 class="display-5">@d.name</h1>
+      <p class="lead">
+        <span class="badge badge-pill badge-info">@d.source</span>
+        @defining(controller.getSemanticTypes(d)){semtypes =>
+          @for(st <- semtypes){
+            <span class="badge badge-pill badge-primary">@st.name</span>
+          }
+        }
+      </p>
+
+      @if(!d.labels.isEmpty){
+        @for(l <- d.labels){
+          <span class="badge badge-pill badge-light">@l</span>
+        }
+      }
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="card card-body">
+    @HtmlFormat.raw(d.getSummary)
+  </div>
+</div>
+
+@text("Causes", "causes")
+@text("Symptoms", "symtoms")
+@text("Diagnosis", "diagnosis")
+@text("Affected Population", "affected-population")
+@text("Standard Therapies", "standard-therapies")
+@text("Investigational Therapies", "investigational-therapies")
+@text("Related Disorders", "related-disorders")

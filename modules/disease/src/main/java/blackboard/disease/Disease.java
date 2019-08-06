@@ -1,6 +1,7 @@
 package blackboard.disease;
 
 import java.util.*;
+import java.lang.reflect.Array;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
@@ -13,26 +14,26 @@ public class Disease {
     public static final Disease NONE = new Disease ();
     
     // different fields to retrieve disease name
-    static final String[] NAME_FIELDS = {
+    static public final String[] NAME_FIELDS = {
         "name",
         "NAME",
         "label"
     };
 
-    static final String[] ID_FIELDS = {
+    static public final String[] ID_FIELDS = {
         "notation",
         "gard_id",
         "id",
         "P207"
     };
 
-    static final String[] URL_FIELDS = {
+    static public final String[] URL_FIELDS = {
         "uri",
         "url",
         "ghr-page"
     };
 
-    static final String[] DESC_FIELDS = {
+    static public final String[] DESC_FIELDS = {
         "Cause",
         "Diagnosis",
         "Inheritance",
@@ -46,7 +47,7 @@ public class Disease {
         "P97"
     };
 
-    static final String[] SYNONYM_FIELDS = {
+    static public final String[] SYNONYM_FIELDS = {
         "synonyms",
         "SYNONYMS",
         "altLabel",
@@ -56,14 +57,26 @@ public class Disease {
         "hasRelatedSynonym"
     };
 
+    static public final String[] SEMTYPE_FIELDS = {
+        "tui",
+        "TUI",
+        "P106"
+    };
+
+    static public final String[] GENE_FIELDS = {
+        "GENESYMBOL",
+        "genes"
+    };
+
     public final Long id; // internal id
     public final String name;
     public String source;
     public final List<String> labels = new ArrayList<>();
 
-    @JsonIgnore public final Map<String, Object> properties = new TreeMap<>();
+    public final Map<String, Object> properties = new TreeMap<>();
     @JsonIgnore public final List<Disease> parents = new ArrayList<>();
     @JsonIgnore public final List<Disease> children = new ArrayList<>();
+    @JsonIgnore public JsonNode node; // full json node
 
     protected Disease () {
         this (null, null);
@@ -74,7 +87,20 @@ public class Disease {
         this.name = name;
     }
 
+    @JsonIgnore
     public boolean isEmpty () { return name == null; }
+
+    public List<String> getGenes () {
+        List<String> genes = new ArrayList<>();
+        for (String f : GENE_FIELDS) {
+            Object value = properties.get(f);
+            if (value != null) {
+                genes.add(value.toString());
+            }
+        }
+        return genes;
+    }
+    
     public static Disease getInstance (JsonNode json) {
         JsonNode payload = json.at("/payload/0");
         if (payload.isMissingNode())
@@ -131,11 +157,10 @@ public class Disease {
                 d.labels.add(label);
             }
         }
+        d.node = json;
+        
         return d;
     }
-
-    @JsonAnyGetter
-    public Map<String, Object> getProperties () {  return properties;  }
 
     @JsonProperty(value="parents")
     public JsonNode getParentsAsJson () {
@@ -189,6 +214,24 @@ public class Disease {
         return null;
     }
 
+    public List<String> getSemanticTypes () {
+        List<String> semtypes = new ArrayList<>();
+        for (String f : SEMTYPE_FIELDS) {
+            Object value = properties.get(f);
+            if (value != null) {
+                if (value.getClass().isArray()) {
+                    int len = Array.getLength(value);
+                    for (int i = 0; i < len; ++i)
+                        semtypes.add(Array.get(value, i).toString());
+                }
+                else {
+                    semtypes.add(value.toString());
+                }
+            }
+        }
+        return semtypes;
+    }
+    
     @JsonIgnore
     public String getUrl () {
         if ("GARD".equalsIgnoreCase(source)) {

@@ -360,7 +360,7 @@ public class DiseaseKSource implements KSource, KType {
             (Util.sha1(q)+"/"+skip+"/"+top, () -> _search (q, skip, top));
     }
 
-    public CompletionStage<Disease> _getDisease (Long id) {
+    public CompletionStage<Disease> getDisease (Long id) {
         CompletableFuture future = toJava
             (Patterns.ask(apiActor, id, TIMEOUT)).toCompletableFuture();
         
@@ -369,20 +369,20 @@ public class DiseaseKSource implements KSource, KType {
              ? null : (Disease)((List)result).get(0), dec);
     }
 
-    public CompletionStage<Disease> getDisease (Long id) {
+    public CompletionStage<Disease> disease (Long id) {
         final String key = getClass().getName()+"/"+id;
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed... "+key);
-                return _getDisease (id);
+                return getDisease (id);
             });
     }
 
-    public CompletionStage<Disease> resolve (String name) {
-        final String key = getClass().getName()+"/"+name;
+    public CompletionStage<Disease> resolve (String id) {
+        final String key = getClass().getName()+"/"+id;
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed... "+key);
                 CompletableFuture future = toJava
-                    (Patterns.ask(apiActor, name, TIMEOUT))
+                    (Patterns.ask(apiActor, id, TIMEOUT))
                     .toCompletableFuture();
                 return future.thenApplyAsync(d -> (Disease)d, dec);
             });        
