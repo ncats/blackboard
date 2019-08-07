@@ -135,8 +135,8 @@ public class DiseaseKSource implements KSource, KType {
                 futures.add(f);
             }
             
-            CompletableFuture.allOf(futures
-                                    .toArray(new CompletableFuture[0])).join();
+            CompletableFuture.allOf
+                (futures.toArray(new CompletableFuture[0])).join();
             getSender().tell(diseases, getSelf ());
             
             Logger.debug(self()+": fetch executed in "+String.format
@@ -228,7 +228,6 @@ public class DiseaseKSource implements KSource, KType {
                             if (node.asText().indexOf(name) >= 0) {
                                 try {
                                     disease = Disease.getInstance(json);
-                                    //instrument (disease, json);
                                 }
                                 catch (Exception ex) {
                                     Logger.warn("Not a valid disease json: "
@@ -244,54 +243,13 @@ public class DiseaseKSource implements KSource, KType {
         }
 
         Disease parseDisease (JsonNode json) {
-            return parseDisease (json, false);
-        }
-        
-        Disease parseDisease (JsonNode json, boolean childrenAndParents) {
             try {
-                Disease d = Disease.getInstance(json);
-                if (childrenAndParents) {
-                    instrument (d, json);
-                }
-                return d;
+                return Disease.getInstance(json);
             }
             catch (Exception ex) {
                 Logger.error("Can't parse disease: "+json, ex);
             }
             return null;
-        }
-
-        void instrument (Disease d, JsonNode json) {
-            CompletableFuture f1 =
-                fetchDiseases(json.at("/parents")).thenApplyAsync
-                (parents -> d.parents.addAll(parents), dks.dec)
-                .toCompletableFuture();
-            CompletableFuture f2 =
-                fetchDiseases(json.at("/children")).thenApplyAsync
-                (children -> d.children.addAll(children), dks.dec)
-                .toCompletableFuture();
-            CompletableFuture.allOf(f1, f2).join();
-        }
-        
-        CompletionStage<List<Disease>> fetchDiseases (Long... ids) {
-            final String key = Util.sha1(ids);
-            return dks.cache.getOrElseUpdate(key, () -> {
-                    CompletableFuture future = toJava
-                        (Patterns.ask(dks.apiActor, ids, TIMEOUT))
-                        .toCompletableFuture();
-                    return future.thenApplyAsync
-                        (result -> ((Map)result)
-                         .values().stream().map(d -> (Disease)d)
-                         .collect(Collectors.toList()));
-            });
-        }
-        
-        CompletionStage<List<Disease>> fetchDiseases (JsonNode nodes) {
-            Long[] ids = new Long[nodes.size()];
-            for (int i = 0; i < ids.length; ++i) {
-                ids[i] = nodes.get(i).asLong();
-            }
-            return fetchDiseases (ids);
         }
     } // DiseaseActor
     
@@ -330,6 +288,55 @@ public class DiseaseKSource implements KSource, KType {
         Logger.debug("$"+ksp.getId()+": "+ksp.getName()
                      +" initialized; provider is "+ksp.getImplClass());
     }
+
+    protected void instrument (Disease d) {
+        List<CompletableFuture> futures = new ArrayList<>();
+        
+        JsonNode nodes = d.node.at("/parents");
+        if (nodes.size() > 0) {
+            CompletableFuture f =
+                fetchDiseases(nodes).thenApplyAsync
+                (parents -> d.parents.addAll(parents), dec)
+                .toCompletableFuture();
+            futures.add(f);
+        }
+
+        /*
+        nodes = d.node.at("/children");
+        if (nodes.size() > 0) {
+            CompletableFuture f =
+                fetchDiseases(nodes).thenApplyAsync
+                (children -> d.children.addAll(children), dec)
+                .toCompletableFuture();
+            futures.add(f);
+        }
+        */
+        
+        if (!futures.isEmpty()) {
+            CompletableFuture.allOf
+                (futures.toArray(new CompletableFuture[0])).join();
+        }
+    }
+    
+    CompletionStage<List<Disease>> fetchDiseases (Long... ids) {
+        final String key = Util.sha1(ids);
+        return cache.getOrElseUpdate(key, () -> {
+                CompletableFuture future = toJava
+                    (Patterns.ask(apiActor, ids, TIMEOUT))
+                    .toCompletableFuture();
+                return future.thenApplyAsync
+                    (result -> ((List)result).stream().map(d -> (Disease)d)
+                     .collect(Collectors.toList()));
+            });
+    }
+    
+    CompletionStage<List<Disease>> fetchDiseases (JsonNode nodes) {
+        Long[] ids = new Long[nodes.size()];
+        for (int i = 0; i < ids.length; ++i) {
+            ids[i] = nodes.get(i).asLong();
+        }
+        return fetchDiseases (ids);
+    }
     
     public void execute (KGraph kgraph, KNode... nodes) {
         Logger.debug("$"+ksp.getId()
@@ -366,7 +373,12 @@ public class DiseaseKSource implements KSource, KType {
         
         return future.thenApplyAsync
             (result -> ((List)result).isEmpty()
-             ? null : (Disease)((List)result).get(0), dec);
+             ? null : (Disease)((List)result).get(0), dec)
+            .thenApplyAsync(v -> {
+                    Disease d = (Disease)v;
+                    instrument (d);
+                    return d;
+                }, dec);
     }
 
     public CompletionStage<Disease> disease (Long id) {
@@ -384,7 +396,11 @@ public class DiseaseKSource implements KSource, KType {
                 CompletableFuture future = toJava
                     (Patterns.ask(apiActor, id, TIMEOUT))
                     .toCompletableFuture();
-                return future.thenApplyAsync(d -> (Disease)d, dec);
-            });        
+                return future.thenApplyAsync(v -> {
+                        Disease d = (Disease)v;
+                        instrument (d);
+                        return d;
+                    }, dec);
+            });
     }
 }

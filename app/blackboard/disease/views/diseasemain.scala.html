@@ -7,7 +7,6 @@
 @text(section: String, name: String) = {
   @if(d.properties.containsKey(name)){
     <br>
-    <div class="row">
       <div class="card">
         <div class="card card-header">
           <h5><a href='#@name' data-toggle="collapse">@section</a>
@@ -18,7 +17,6 @@
           </div>
         </div>
       </div>
-    </div>
    }
 }
 
@@ -34,6 +32,16 @@
           }
         }
       </p>
+                
+      @if(!d.parents.isEmpty){
+        <p class="lead"><em>@d.name <u><strong>is a</strong></u>...</em>
+          <ul>
+            @for(p <- d.parents){
+              <li><a onclick="showloader()" href="@_root_.blackboard.disease.controllers.routes.Controller.disease(p.getId, p.id)">@p.name</a></li>
+              }
+          </ul>
+        </p>
+        }
 
       @if(!d.labels.isEmpty){
         @for(l <- d.labels){
@@ -44,8 +52,10 @@
   </div>
 </div>
 <div class="row">
-  <div class="card card-body">
-    @HtmlFormat.raw(d.getSummary)
+  <div class="col-md-12">
+    <div class="card card-body">
+      @HtmlFormat.raw(d.getSummary)
+    </div>
   </div>
 </div>
 

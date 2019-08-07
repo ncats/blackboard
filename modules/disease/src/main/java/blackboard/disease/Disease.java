@@ -95,7 +95,14 @@ public class Disease {
         for (String f : GENE_FIELDS) {
             Object value = properties.get(f);
             if (value != null) {
-                genes.add(value.toString());
+                if (value.getClass().isArray()) {
+                    int len = Array.getLength(value);
+                    for (int i = 0; i < len; ++i)
+                        genes.add((String)Array.get(value, i));
+                }
+                else {
+                    genes.add(value.toString());
+                }
             }
         }
         return genes;
@@ -164,11 +171,21 @@ public class Disease {
 
     @JsonProperty(value="parents")
     public JsonNode getParentsAsJson () {
+        return getNodesAsJson (parents);
+    }
+
+    @JsonProperty(value="children")
+    public JsonNode getChildrenAsJson () {
+        return getNodesAsJson (children);
+    }
+    
+    JsonNode getNodesAsJson (List<Disease> nodes) {
         ObjectMapper mapper = new ObjectMapper ();
         ArrayNode json = mapper.createArrayNode();
-        for (Disease d : parents) {
+        for (Disease d : nodes) {
             ObjectNode dn = mapper.createObjectNode();
-            dn.put("id", d.id);
+            dn.put("id", d.getId());
+            dn.put("node", d.id);
             dn.put("name", d.name);
             dn.put("labels", mapper.valueToTree(d.labels));
             json.add(dn);
