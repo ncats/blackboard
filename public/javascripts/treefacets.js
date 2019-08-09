@@ -74,7 +74,8 @@ function setupTreeFacets () {
         else if (f.startsWith('@grantagency')) {
             var nid = f.substring(f.indexOf('/')+1);
             var tr = $.jstree.reference('#grantagency');
-            tr.select_node('#'+nid);            
+            if (tr != null)
+                tr.select_node('#'+nid);            
         }
     }
     
