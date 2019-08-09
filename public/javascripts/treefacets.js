@@ -68,8 +68,10 @@ function setupTreeFacets () {
             var nid = f.substring(f.indexOf('/')+1);
             var id = '#tr-'+nid.substring(0, 1);
             var tr = $.jstree.reference(id);
-            tr.select_node('#'+nid);
-            ++trcnt;
+            if (tr != null) {
+                tr.select_node('#'+nid);
+                ++trcnt;
+            }
         }
         else if (f.startsWith('@grantagency')) {
             var nid = f.substring(f.indexOf('/')+1);

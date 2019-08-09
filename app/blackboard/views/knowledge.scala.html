@@ -91,7 +91,7 @@
         @facetcard(app, "Semantic_Type", result.getFacet("@semtype"))
         @defining(result.getFacet("@grantagency")){facet =>
           @if(facet != null){
-            @facettreecard("Funding Agency", facet.values, "grantagency")
+            @facettreecard("Funding Agency", facet.values, "grantagency",false)
           }
         }
         @if(tr != null){
