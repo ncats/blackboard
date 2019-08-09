@@ -1,11 +1,12 @@
 
 const FACET = {
-    mesh_trees: [
+    trees: [
         'tr-C',
         'tr-D',
         'tr-G',
         'tr-A',
-        'tr-E'
+        'tr-E',
+        'grantagency'
     ],
     selection: {}
 };
@@ -25,8 +26,8 @@ function setupTreeFacets () {
     
     const params = new URLSearchParams (window.location.search);
     const facets = params.getAll('facet');
-    for (var i in FACET.mesh_trees) {
-        const id = FACET.mesh_trees[i];
+    for (var i in FACET.trees) {
+        const id = FACET.trees[i];
         $('#'+id).jstree({
             'core': {
                 'themes': {
@@ -69,6 +70,11 @@ function setupTreeFacets () {
             var tr = $.jstree.reference(id);
             tr.select_node('#'+nid);
             ++trcnt;
+        }
+        else if (f.startsWith('@grantagency')) {
+            var nid = f.substring(f.indexOf('/')+1);
+            var tr = $.jstree.reference('#grantagency');
+            tr.select_node('#'+nid);            
         }
     }
     
@@ -114,18 +120,12 @@ function clearTreeSelections (el) {
 }
 
 function applyTreeSelections (el) {
-    var paths = [];
-    for (var p in FACET.selection) {
-        paths.push(p);
-    }
-    
-    console.log('selected paths...'+paths);
     const params = new URLSearchParams (window.location.search);
     const facets = params.getAll('facet');
     params.delete('facet');
     for (var i in facets) {
         var f = facets[i];
-        if (f.startsWith('@tr')) {
+        if (f.startsWith('@tr') || f.startsWith('@grantagency')) {
             
         }
         else {
@@ -134,14 +134,17 @@ function applyTreeSelections (el) {
         }
     }
     
-    if (paths.length > 0) {
-        for (var i in paths) {
-            var fname = '@tr'+paths[i].substring(0,1)+'/';
-            params.append('facet', fname+paths[i]);
+    for (var p in FACET.selection) {
+        var f = FACET.selection[p];
+        if (f.startsWith('tr')) {
+            var fname = '@tr'+p.substring(0,1)+'/';
+            params.append('facet', fname+p);
         }
-        params.delete('skip');
+        else if (f == 'grantagency') {
+            params.append('facet', '@grantagency/'+p);
+        }
     }
-    
+    params.delete('skip');    
     applySearch (params);
 }
 

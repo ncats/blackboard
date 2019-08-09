@@ -2,17 +2,17 @@
 @import _root_.blackboard.index.Index._
 @import _root_.blackboard.utils.Util
 @import _root_.blackboard.pubmed.controllers.Controller
-@(name: String, values: List[FV], prefix: String)
+@(name: String, values: List[FV], id: String)
 @if(!values.isEmpty){
   <div class="card" style="margin-top:10px;">
     <div class="card-header" style="padding-bottom:0px">
       <div class="alert alert-info" role="alert">
-        <a href="#" class="alert-link" id="header-tr-@prefix"
+        <a href="#" class="alert-link" id="header-@id"
            data-name="@name" data-toggle="collapse"
-           data-target='#tr-@prefix'>@name</a>
+           data-target='#@id'>@name</a>
       </div>
     </div>
-    <div class="card-body show" id="tr-@prefix">
+    <div class="card-body show" id="@id">
       @for(v <- values) {
         <ul>@HtmlFormat.raw(Controller.toHtml(v))</ul>
         }
@@ -22,7 +22,7 @@
         <button class="btn btn-primary" onclick="applyTreeSelections(this);"
                 style="border-radius:3rem">Apply</button>
         <button class="btn btn-primary" onclick="clearTreeSelections(this);"
-                data-treeid="tr-@prefix"
+                data-treeid="@id"
                 style="border-radius:3rem">Clear</button>
       </span>
     </div>

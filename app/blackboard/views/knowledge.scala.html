@@ -4,8 +4,9 @@
 @import _root_.blackboard.pubmed.index.PubMedIndex._
 @import _root_.blackboard.controllers.routes
 @import _root_.blackboard.controllers.KnowledgeApp
+@import _root_.blackboard.pubmed.views.html._
 @(app: KnowledgeApp, page: Integer, pages: Array[Int],
-       urls: Map[Integer, String], result: SearchResult, refs: SearchResult)
+  urls: Map[Integer, String], result: SearchResult, refs: SearchResult)
 
 @paging() = {
   @if(pages.length > 0) {
@@ -38,7 +39,7 @@
 @jstree(name: String, prefix: String) = {
     @defining(result.getFacet("@tr"+prefix)){ tr =>
       @if(tr != null) {
-        @_root_.blackboard.pubmed.views.html.facettreecard(name, tr.getValuesWithPrefix(prefix), prefix)
+        @facettreecard(name, tr.getValuesWithPrefix(prefix), "tr-"+prefix)
       }
     }
 }
@@ -74,47 +75,52 @@
       @defining(result.getFacet("@tr")){ tr =>
         @if(tr != null){
           <div class="d-flex" id="wrapper">
-             <div class="border-left" id="sidebar-wrapper">
-             @facettrees()
-             </div>
+          <div class="border-left" id="sidebar-wrapper">
+          @facettrees()
+          </div>
         }
         
         <div class="col-md-3">
-          @** FILTERS **@
-          @facetcard(app, "Year_Published", result.getFacet("@year"))
-          @facetcard(app, "Author", result.getFacet("@author"))
-          @facetcard(app, "Article_Type", result.getFacet("@pubtype"))
-          @facetcard(app, "Journal", result.getFacet("@journal"))
-          @facetcard(app, "Keyword", result.getFacet("@keyword"))
-          @facetcard(app, "Concept", result.getFacet("@cui"))
-          @facetcard(app, "Semantic_Type", result.getFacet("@semtype"))
-          @if(tr != null){
-            <br><button class="btn btn-primary pull-right"
-                        id="menu-toggle">More...</button>
+        @** FILTERS **@
+        @facetcard(app, "Year_Published", result.getFacet("@year"))
+        @facetcard(app, "Author", result.getFacet("@author"))
+        @facetcard(app, "Article_Type", result.getFacet("@pubtype"))
+        @facetcard(app, "Journal", result.getFacet("@journal"))
+        @facetcard(app, "Keyword", result.getFacet("@keyword"))
+        @facetcard(app, "Concept", result.getFacet("@cui"))
+        @facetcard(app, "Semantic_Type", result.getFacet("@semtype"))
+        @defining(result.getFacet("@grantagency")){facet =>
+          @if(facet != null){
+            @facettreecard("Funding Agency", facet.values, "grantagency")
           }
+        }
+        @if(tr != null){
+          <br><button class="btn btn-primary pull-right"
+          id="menu-toggle">More...</button>
+        }
         </div>
         <div class="col-md-6">
           @** SEARCH CONTENTS **@
           @for(d <- result.docs) {
             @articlecard(d,"?"+Util.getQueryString(request, "q", "facet"))
-            }
-            <div class="alert fade show" role="alert">
-              @paging()
-            </div>
+          }
+          <div class="alert fade show" role="alert">
+            @paging()
+          </div>
         </div>
         <div class="col-md-3">
-          @** CONTEXT **@
+        @** CONTEXT **@
           @contextcard(result.query){
             @result.total document@if(result.total!=1){s} matched
-            }
-            @if(refs != null && refs.size > 0){
-              @refcard(refs)
-              }
-        </div>
-       @if(tr != null){
-       </div>
-       }
-    }
+          }
+          @if(refs != null && refs.size > 0){
+            @refcard(refs)
+          }
+          </div>
+          @if(tr != null){
+            </div>
+          }
+        }
     </div>
   </div>
   }{
