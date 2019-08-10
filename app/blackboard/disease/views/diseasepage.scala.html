@@ -4,6 +4,23 @@
 @(controller: _root_.blackboard.disease.controllers.Controller,
   d: Disease)
 
+@ontology(name: String) = {
+  <div class="card" style="margin-top:10px;">
+    <div class="card-header" style="padding-bottom:0px">
+      <div class="alert alert-info" role="alert">
+        <a href="#" class="alert-link" 
+           data-name="@name" data-toggle="collapse"
+           data-target='#ontology-collapse-@name'>@name</a>
+      </div>
+    </div>
+    <div class="collapse show" id="ontology-collapse-@name">
+      <div class="card-body" id="ontology-@name">
+        <div id="ontology-tree"></div>
+      </Div>
+    </div>
+  </div>
+}
+
 @views.html.ui.main(d.name){
   @_root_.blackboard.views.html.header(routes.Controller.diseases(null)){
     <li class="nav-item active">
@@ -15,28 +32,17 @@
   <div class="container-fluid" style="margin-top:60px;margin-bottom:10px;">
     <div id="content-panel" class="loader loader-default"></div>    
     <div class="row">
-      <div class="col-md-3">
-        <div class="card" style="margin-top:10px;">
-          <div class="card-header" style="padding-bottom:0px">
-            <div class="alert alert-info" role="alert">
-              MONDO Ontology
-            </div>
-          </div>
-        </div>
-        <div class="card" style="margin-top:10px;">
-          <div class="card-header" style="padding-bottom:0px">
-            <div class="alert alert-info" role="alert">
-              Orphanet Ontology
-            </div>
-          </div>
-        </div>
+      <div class="col-md-6">
+        @ontology("Ontology")
       </div>
       <div class="col-md-6">
         @diseasemain(controller, d)
-      </div>
+    </div>
+        @**
       <div class="col-md-3">
         @diseasecontext(controller, d)
-      </div>
+    </div>
+        **@
     </div>
   </div>
   }{
@@ -44,10 +50,23 @@
   <script src="@_root_.blackboard.disease.controllers.routes.Controller.jsRoutes" type="text/javascript"></script>  
   <script src='@controllers.routes.Assets.versioned("javascripts/treefacets.js")' type="text/javascript"></script>    
   }{
-  $(document).ready(function () {
-      window.addEventListener('pageshow', hideloader);
-      $('#search-form').on('submit', function(e) {
-          showloader();
+      $(document).ready(function () {
+          window.addEventListener('pageshow', hideloader);
+          $('#search-form').on('submit', function(e) {
+              showloader();
+          });
+
+          $('#ontology-tree').jstree({
+              'core': {
+                  'themes': {
+                      'name': 'proton',
+                      'responsive': true,
+                      'icons': false
+                  },
+                  'data' : {
+                      'url' : '@_root_.blackboard.disease.controllers.routes.Controller.tree(d.getId)'
+                  }
+              }
+          });
       });
-  });
   }

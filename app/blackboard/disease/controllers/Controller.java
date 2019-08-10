@@ -5,6 +5,7 @@ import java.util.*;
 import java.io.File;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
@@ -149,12 +150,54 @@ public class Controller extends play.mvc.Controller {
         return semtypes;
     }
 
+    static void map (AtomicInteger id,
+                     ObjectNode node, Map<String, String> fields) {
+        for (Map.Entry<String, String> me : fields.entrySet()) {
+            JsonNode value = node.remove(me.getKey());
+            if (value != null) {
+                node.put(me.getValue(), value);
+            }
+        }
+        node.put("id", id.incrementAndGet());
+        
+        ObjectNode state = Json.newObject();
+        state.put("opened", true);
+        node.put("state", state);
+        
+        JsonNode children = node.get("children");
+        if (children != null) {
+            for (int i = 0; i < children.size(); ++i)
+                map (id, (ObjectNode)children.get(i), fields);
+        }
+    }
+    
+    public CompletionStage<Result> tree (String id) {
+        return dks.tree(id).thenApplyAsync(json -> {
+                Map<String, String> fields = new TreeMap<>();
+                if (id.startsWith("GARD")) {
+                    fields.put("name", "text");
+                }
+                else if (id.startsWith("MONDO") || id.startsWith("Orphanet")) {
+                    fields.put("label", "text");
+                }
+                else {
+                    fields.put("label", "text");
+                }
+
+                AtomicInteger count = new AtomicInteger (0);
+                map (count, (ObjectNode)json, fields);
+                
+                return ok (json);
+            }, ec.current());
+    }
+
     public Result jsRoutes () {
         return ok (JavaScriptReverseRouter.create
                    ("diseaseRoutes",
                     routes.javascript.Controller.search(),
                     routes.javascript.Controller.disease(),
-                    routes.javascript.Controller.resolve()
+                    routes.javascript.Controller.resolve(),
+                    routes.javascript.Controller.tree()
                     )).as("text/javascript");
     }
 }

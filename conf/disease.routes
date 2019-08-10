@@ -2,5 +2,6 @@ GET /   blackboard.disease.controllers.Controller.diseases(q: String, skip: Inte
 GET /:id blackboard.disease.controllers.Controller.disease(id: String, node: Long ?= 0)
 GET /api/search/:q blackboard.disease.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/resolve/:id blackboard.disease.controllers.Controller.resolve(id: String)
+GET /api/tree/:id blackboard.disease.controllers.Controller.tree(id: String)
 
 GET /assets/js/routes  blackboard.disease.controllers.Controller.jsRoutes

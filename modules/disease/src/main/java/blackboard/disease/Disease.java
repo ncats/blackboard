@@ -68,15 +68,23 @@ public class Disease {
         "genes"
     };
 
+    static public final String[] XREF_FIELDS = {
+        "hasDbXref",
+        "XREFS",
+        "xrefs"
+    };
+
     public final Long id; // internal id
     public final String name;
     public String source;
     public final List<String> labels = new ArrayList<>();
-
+    
     public final Map<String, Object> properties = new TreeMap<>();
     @JsonIgnore public final List<Disease> parents = new ArrayList<>();
     @JsonIgnore public final List<Disease> children = new ArrayList<>();
+    
     @JsonIgnore public JsonNode node; // full json node
+    @JsonIgnore public final Map<String, JsonNode> trees = new TreeMap<>();
 
     protected Disease () {
         this (null, null);
@@ -94,18 +102,19 @@ public class Disease {
         List<String> genes = new ArrayList<>();
         for (String f : GENE_FIELDS) {
             Object value = properties.get(f);
-            if (value != null) {
-                if (value.getClass().isArray()) {
-                    int len = Array.getLength(value);
-                    for (int i = 0; i < len; ++i)
-                        genes.add((String)Array.get(value, i));
-                }
-                else {
-                    genes.add(value.toString());
-                }
-            }
+            getValues (genes, value);
         }
         return genes;
+    }
+
+    @JsonIgnore
+    public List<String> getXRefs () {
+        List<String> xrefs = new ArrayList<>();
+        for (String f : XREF_FIELDS) {
+            Object value = properties.get(f);
+            getValues (xrefs, value);
+        }
+        return xrefs;
     }
     
     public static Disease getInstance (JsonNode json) {
@@ -150,7 +159,7 @@ public class Disease {
                 d.properties.put(me.getKey(), value.asText());
             }
         }
-        
+
         JsonNode labels = json.at("/labels");
         for (int i = 0; i < labels.size(); ++i) {
             String label = labels.get(i).asText();
@@ -235,18 +244,22 @@ public class Disease {
         List<String> semtypes = new ArrayList<>();
         for (String f : SEMTYPE_FIELDS) {
             Object value = properties.get(f);
-            if (value != null) {
-                if (value.getClass().isArray()) {
-                    int len = Array.getLength(value);
-                    for (int i = 0; i < len; ++i)
-                        semtypes.add(Array.get(value, i).toString());
-                }
-                else {
-                    semtypes.add(value.toString());
-                }
-            }
+            getValues (semtypes, value);
         }
         return semtypes;
+    }
+
+    static void getValues (List<String> values, Object value) {
+        if (value != null) {
+            if (value.getClass().isArray()) {
+                int len = Array.getLength(value);
+                for (int i = 0; i < len; ++i)
+                    values.add(Array.get(value, i).toString());
+            }
+            else {
+                values.add(value.toString());
+            }
+        }
     }
     
     @JsonIgnore

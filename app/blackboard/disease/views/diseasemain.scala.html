@@ -43,14 +43,38 @@
         </p>
         }
 
-      @if(!d.labels.isEmpty){
-        @for(l <- d.labels){
-          <span class="badge badge-pill badge-light">@l</span>
+      @if(!d.getGenes.isEmpty){
+        <p class="lead">Relevant genes:
+          @for(g <- d.getGenes){
+            <span class="badge badge-pill badge-light">@g</span>
+            }
+        </p>
         }
-      }
     </div>
   </div>
 </div>
+<div class="row" style="margin-top:1em">
+  <div class="col-md-12">
+    <p class="lead">
+      <a class="btn btn-primary" data-toggle="collapse"
+         href="#synonym-card" role="button"
+         aria-expanded="false" aria-controls="author-card">
+        Synoyms (@d.getSynonyms.size)</a>
+    </p>
+    <div class="collapse" id="synonym-card">
+      <div class="card">
+        <div class="card-body">
+          <ul>
+            @for(s <- d.getSynonyms){
+              <li><a onclick="showloader()" href='@_root_.blackboard.controllers.routes.KnowledgeApp.ksearch("\""+s.trim+"\"~2")'>@s.trim</a></li>
+              }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<br>
 <div class="row">
   <div class="col-md-12">
     <div class="card card-body">

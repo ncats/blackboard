@@ -47,9 +47,22 @@ import blackboard.utils.Util;
 
 public class DiseaseKSource implements KSource, KType {
     static final Timeout TIMEOUT = new Timeout (60, TimeUnit.SECONDS);
+    static final JsonNode EMPTY_JSON = Json.newObject();
 
     static Props props (DiseaseKSource dks) {
         return Props.create(DiseaseActor.class, () -> new DiseaseActor (dks));
+    }
+
+    static class FetchTree {
+        final String id;
+        final List<String> fields = new ArrayList<>();
+
+        FetchTree (String id, String... fields) {
+            this.id = id;
+            if (fields != null)
+                for (String f : fields)
+                    this.fields.add(f);
+        }
     }
     
     static class DiseaseActor extends AbstractActor {
@@ -75,6 +88,7 @@ public class DiseaseKSource implements KSource, KType {
                 .match(String.class, this::doResolve)
                 .match(Long[].class, this::fetch)
                 .match(Long.class, this::fetch)
+                .match(FetchTree.class, this::fetchTree)
                 .match(Object.class, this::unknown)
                 .build();
         }
@@ -251,6 +265,32 @@ public class DiseaseKSource implements KSource, KType {
             }
             return null;
         }
+
+        void fetchTree (FetchTree fetch) {
+            Logger.debug(self()+": fetch tree for "+fetch.id);
+            long start = System.currentTimeMillis();
+            JsonNode json = EMPTY_JSON;
+            try {
+                WSRequest req = dks.wsclient.url(dks.api+"/tree/"+fetch.id);
+                for (String f : fetch.fields)
+                    req = req.setQueryParameter("field", f);
+
+                WSResponse res = req.get().toCompletableFuture().get();
+                Logger.debug(self()+"  ++++ "+req.getUrl()
+                             +"..."+res.getStatus());
+                if (200 == res.getStatus()) {
+                    json = res.asJson();
+                }
+                else {
+                    Logger.warn(getSelf()+": "+req.getUrl()
+                                +" status="+res.getStatus());
+                }
+            }
+            catch (Exception ex) {
+                Logger.error("Can't execute search", ex);
+            }
+            getSender().tell(json, getSelf ());
+        }
     } // DiseaseActor
     
     final AsyncCacheApi cache;
@@ -290,31 +330,24 @@ public class DiseaseKSource implements KSource, KType {
     }
 
     protected void instrument (Disease d) {
-        List<CompletableFuture> futures = new ArrayList<>();
+        if (d.node != null) {
+            List<CompletableFuture> futures = new ArrayList<>();
+            JsonNode nodes = d.node.at("/parents");
+            if (nodes.size() > 0) {
+                CompletableFuture f =
+                    fetchDiseases(nodes).thenApplyAsync
+                    (parents -> d.parents.addAll(parents), dec)
+                    .toCompletableFuture();
+                futures.add(f);
+            }
         
-        JsonNode nodes = d.node.at("/parents");
-        if (nodes.size() > 0) {
-            CompletableFuture f =
-                fetchDiseases(nodes).thenApplyAsync
-                (parents -> d.parents.addAll(parents), dec)
-                .toCompletableFuture();
-            futures.add(f);
+            if (!futures.isEmpty()) {
+                CompletableFuture.allOf
+                    (futures.toArray(new CompletableFuture[0])).join();
+            }
         }
-
-        /*
-        nodes = d.node.at("/children");
-        if (nodes.size() > 0) {
-            CompletableFuture f =
-                fetchDiseases(nodes).thenApplyAsync
-                (children -> d.children.addAll(children), dec)
-                .toCompletableFuture();
-            futures.add(f);
-        }
-        */
-        
-        if (!futures.isEmpty()) {
-            CompletableFuture.allOf
-                (futures.toArray(new CompletableFuture[0])).join();
+        else {
+            Logger.error("Disease "+d.id+" doesn't have JSON!");
         }
     }
     
@@ -359,6 +392,55 @@ public class DiseaseKSource implements KSource, KType {
         }
         
         return supplyAsync (() -> DiseaseResult.EMPTY, dec);
+    }
+
+    public CompletionStage<JsonNode> tree (String id) {
+        final String key = getClass().getName()+"/tree/"+id;
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed... "+key);
+                int pos = id.indexOf(':');
+                if (pos > 0) {
+                    String prefix = id.substring(0, pos);
+                    FetchTree fetch;
+                    switch (prefix) {
+                    case "GARD":
+                        fetch = new FetchTree (id, "name", "gard_id");
+                        break;
+                    case "MONDO": case "Orphanet":
+                        fetch = new FetchTree (id, "label", "id");
+                        break;
+                    default:
+                        fetch = new FetchTree (id, "label", "notation");
+                    }
+                    
+                    try {
+                        CompletableFuture future = toJava
+                            (Patterns.ask(apiActor, fetch, TIMEOUT))
+                            .toCompletableFuture();
+                        
+                        return future.thenApplyAsync(r -> (JsonNode)r, dec);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Unable to process query "
+                                     +"with disease api: "+id);
+                    }
+                }
+                else if (id.startsWith("C")) { // NCI?
+                    FetchTree fetch = new FetchTree (id, "label", "P207");
+                    try {
+                        CompletableFuture future = toJava
+                            (Patterns.ask(apiActor, fetch, TIMEOUT))
+                            .toCompletableFuture();
+                        
+                        return future.thenApplyAsync(r -> (JsonNode)r, dec);
+                    }
+                    catch (Exception ex) {
+                        Logger.error("Unable to process query "
+                                     +"with disease api: "+id);
+                    }
+                }
+                return supplyAsync (() -> EMPTY_JSON);
+            });
     }
     
     public CompletionStage<DiseaseResult> search
