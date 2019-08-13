@@ -48,11 +48,13 @@
       @if(result != null){
         <div class="col-md-3">
           @facet_mesh_trees()
+          @**
           @defining(result.getFacet("@grantagency")){facet =>
             @if(facet != null){
               @facettreecard("Funding Agency", facet.values, "grantagency")
             }
           }
+          **@
         </div>
         <div class="col-md-6">
           @articlemain(controller, doc)
