@@ -277,6 +277,25 @@ public class Controller extends play.mvc.Controller {
         }
     }
 
+    public CompletionStage<Result> commonDisconnectedNgrams () {
+        Logger.debug(">> "+req().uri());
+        return supplyAsync
+            (()-> ok ((JsonNode)mapper.valueToTree
+                      (pubmed.commonDisconnectedNgramsTest())),
+             ec.current());
+    }
+    
+    public CompletionStage<JsonNode> _ngrams (String q) {
+        Map<String, Object> facets = parseFacets ();
+        return pubmed.ngrams(getQueryString ("field"), q, facets)
+            .thenApplyAsync(ngrams -> mapper.valueToTree(ngrams), ec.current());
+    }
+    
+    public CompletionStage<Result> ngrams (String q) {
+        Logger.debug(">> "+req().uri());
+        return _ngrams(q).thenApplyAsync(json -> ok (json), ec.current());
+    }
+
     public CompletionStage<Result> facets (int fdim) {
         Logger.debug(">> "+req().uri());        
         try {

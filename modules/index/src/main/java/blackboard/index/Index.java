@@ -29,6 +29,12 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.suggest.document.*;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopFilter;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.shingle.ShingleFilter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -53,10 +59,11 @@ public class Index implements AutoCloseable, Fields {
         public Integer count;
         public final List<FV> children = new ArrayList<>();
 
-        protected FV (String label, Integer count) {
+        public FV (String label, Integer count) {
             this (label, count, false);
         }
-        protected FV (String label, Integer count, boolean specified) {
+        
+        public FV (String label, Integer count, boolean specified) {
             this.label = label;
             this.count = count;
             this.specified = specified;
@@ -567,10 +574,53 @@ public class Index implements AutoCloseable, Fields {
             return FacetQuery.class.getName()
                 +"/"+Util.sha1(values.toArray(new String[0]));
         }
+
         public Map<String, Object> getFacets () { return facets; }
         public int fdim () { return fdim; }
+        
+        @Override
         public Query rewrite () {
             return new MatchAllDocsQuery ();
+        }
+
+        public DrillDownQuery getFacetQuery (FacetsConfig facetsConfig,
+                                             Query query) {
+            DrillDownQuery ddq = null;
+            if (!facets.isEmpty()) {
+                ddq = new DrillDownQuery (facetsConfig, query);
+                for (Map.Entry<String, Object> me : facets.entrySet()) {
+                    FacetsConfig.DimConfig conf =
+                        facetsConfig.getDimConfig(me.getKey());
+                    if (conf != null) {
+                        Object value = me.getValue();
+                        if (value instanceof String[]) {
+                            String[] values = (String[])value;
+                            if (conf.hierarchical)
+                                ddq.add(me.getKey(), values);
+                            else {
+                                for (String v : values)
+                                    ddq.add(me.getKey(), v);
+                            }
+                        }
+                        else if (value instanceof Object[]) {
+                            Object[] values = (Object[])value;
+                            for (Object v : values) {
+                                if (v instanceof String[])
+                                    ddq.add(me.getKey(), (String[])v);
+                                else
+                                    ddq.add(me.getKey(), (String)v);
+                            }
+                        }
+                        else {
+                            ddq.add(me.getKey(), (String) value);
+                        }
+                    }
+                    else {
+                        Logger.warn("Unknown facet: "+me.getKey());
+                    }
+                }
+            }
+            return ddq;
         }
     }
 
@@ -607,10 +657,29 @@ public class Index implements AutoCloseable, Fields {
         public int skip () { return skip; }
         public int top () { return top; }
 
+        // subclass should override for specific implementation
+        @Override
         public Query rewrite () {
-            if (query != null && field != null)
-                return new TermQuery (new Term (field, query));
-            return null;
+            Query q = null;
+            if (query != null && field != null) {
+                q = new TermQuery (new Term (field, query));
+            }
+            else if (query != null) {
+                try {
+                    QueryParser qp = new QueryParser
+                        (FIELD_TEXT, new StandardAnalyzer ());
+                    q = qp.parse(query);
+                }
+                catch (Exception ex) {
+                    Logger.error("Can't parse query: "+query, ex);
+                    q = new MatchNoDocsQuery ();
+                }
+            }
+            else {
+                q = facets.isEmpty()
+                    ? new MatchNoDocsQuery () : new MatchAllDocsQuery ();
+            }
+            return q;
         }
         
         public String cacheKey () {
@@ -662,28 +731,6 @@ public class Index implements AutoCloseable, Fields {
         }
 
         public List<Concept> getConcepts () { return concepts; }
-        
-        // subclass should override for specific implementation
-        public Query rewrite () {
-            Query q = super.rewrite();
-            if (q != null)
-                ;
-            else if (query != null) {
-                try {
-                    QueryParser qp = new QueryParser
-                        (FIELD_TEXT, new StandardAnalyzer ());
-                    q = qp.parse(query);
-                }
-                catch (Exception ex) {
-                    Logger.error("Can't parse query: "+query, ex);
-                    q = new MatchNoDocsQuery ();
-                }
-            }
-            else {
-                q = new MatchAllDocsQuery ();
-            }
-            return q;
-        }
 
         public String cacheKey () {
             List<String> values = new ArrayList<>();
@@ -1028,39 +1075,8 @@ public class Index implements AutoCloseable, Fields {
                     (taxonReader, facetConfig, fc);
             }
             else {
-                DrillDownQuery ddq = new DrillDownQuery (facetConfig, query);
-                for (Map.Entry<String, Object> me : fmap.entrySet()) {
-                    FacetsConfig.DimConfig conf =
-                        facetConfig.getDimConfig(me.getKey());
-                    if (conf != null) {
-                        Object value = me.getValue();
-                        if (value instanceof String[]) {
-                            String[] values = (String[])value;
-                            if (conf.hierarchical)
-                                ddq.add(me.getKey(), values);
-                            else {
-                                for (String v : values)
-                                    ddq.add(me.getKey(), v);
-                            }
-                        }
-                        else if (value instanceof Object[]) {
-                            Object[] values = (Object[])value;
-                            for (Object v : values) {
-                                if (v instanceof String[])
-                                    ddq.add(me.getKey(), (String[])v);
-                                else
-                                    ddq.add(me.getKey(), (String)v);
-                            }
-                        }
-                        else {
-                            ddq.add(me.getKey(), (String) value);
-                        }
-                    }
-                    else {
-                        Logger.warn("Unknown facet: "+me.getKey());
-                    }
-                }
-                
+                DrillDownQuery ddq = ((FacetQuery)result.query)
+                    .getFacetQuery(facetConfig, query);
                 DrillSideways sideway = new DrillSideways 
                     (searcher, facetConfig, taxonReader);
                 DrillSideways.DrillSidewaysResult swresults =
@@ -1308,6 +1324,37 @@ public class Index implements AutoCloseable, Fields {
             }
         }
         return json.toArray(new JsonNode[0]);
+    }
+
+    public static String canonicalize (String text) throws IOException {
+        StandardTokenizer tokenizer = new StandardTokenizer ();
+        tokenizer.setReader(new StringReader (text.toLowerCase()));
+        StopFilter sf = new StopFilter
+            (tokenizer, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        CharTermAttribute token = sf.addAttribute(CharTermAttribute.class);
+        StringBuilder sb = new StringBuilder ();
+        sf.reset();
+        while (sf.incrementToken()) {
+            String t = token.toString();
+            sb.append(t+" ");
+        }
+        sf.close();
+        return sb.toString().trim();
+    }
+
+    public static Set<String> ngrams (String text, int min, int max)
+        throws IOException {
+        StandardTokenizer tokenizer = new StandardTokenizer ();
+        tokenizer.setReader(new StringReader (canonicalize (text)));
+        TokenStream ts = new ShingleFilter (tokenizer, min, max);
+        CharTermAttribute token = ts.addAttribute(CharTermAttribute.class);
+        ts.reset();
+        Set<String> ngrams = new LinkedHashSet<>();
+        while (ts.incrementToken()) {
+            ngrams.add(token.toString());
+        }
+        ts.close();
+        return ngrams;
     }
     
     public static void main (String[] argv) throws Exception {

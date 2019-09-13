@@ -41,8 +41,10 @@ import blackboard.umls.UMLSKSource;
 import static blackboard.index.Index.TextQuery;
 import blackboard.index.IndexFactory;
 import blackboard.index.Index;
+import static blackboard.index.Index.FV;
 import blackboard.index.Fields;
 import blackboard.pubmed.*;
+import static blackboard.index.Index.FacetQuery;
 import static blackboard.index.Index.TextQuery;
 import static blackboard.index.Index.TermVector;
 import static blackboard.pubmed.index.PubMedIndex.*;
@@ -134,6 +136,30 @@ public class PubMedIndexManager implements AutoCloseable {
             this.doc = doc;
         }
     }
+
+    static class NgramQuery {
+        final SearchQuery query;
+        NgramQuery (SearchQuery query) {
+            this.query = query;
+        }
+    }
+
+    /*
+     * simulate closed mode in literature based discovery
+     */
+    static class CommonDisconnectedNgramQuery {
+        final SearchQuery q;
+        final SearchQuery p;
+        final Map<String, Integer> qgrams = new TreeMap<>();
+        final Map<String, Integer> pgrams = new TreeMap<>();
+        final Map<String, Integer> pqgrams = new TreeMap<>();
+        final Map<Object, Integer> counts = new TreeMap<>();
+        
+        CommonDisconnectedNgramQuery (SearchQuery q, SearchQuery p) {
+            this.q = q;
+            this.p = p;
+        }
+    }
     
     static class PubMedIndexActor extends AbstractActor {
         static Props props (IndexFactory pmif, File db) {
@@ -169,44 +195,128 @@ public class PubMedIndexManager implements AutoCloseable {
                 .match(Update.class, this::doUpdate)
                 .match(Delete.class, this::doDelete)
                 .match(Insert.class, this::doInsert)
+                .match(NgramQuery.class, this::doNgrams)
+                .match(CommonDisconnectedNgramQuery.class,
+                       this::doCommonDisconnectedNgrams)
                 .build();
         }
 
-        void doSearch (SearchQuery q) throws Exception {
-            Logger.debug(self()+": searching "+q);
-            long start = System.currentTimeMillis();
-            SearchResult result = pmi.search(q);
-            Logger.debug(self()+": search completed in "+String.format
-                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-            getSender().tell(result, getSelf ());
+        void doSearch (SearchQuery q) {
+            try {
+                Logger.debug(self()+": searching "+q);
+                long start = System.currentTimeMillis();
+                SearchResult result = pmi.search(q);
+                Logger.debug
+                    (self()+": search completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(result, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't search docs: "+q, ex),
+                                 getSelf ());
+            }
         }
 
-        void doPMIDSearch (PMIDQuery q) throws Exception {
-            Logger.debug(self()+": fetching "+q.pmid);
-            long start = System.currentTimeMillis();
-            MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
-            Logger.debug(self()+": fetch completed in "+String.format
-                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-            getSender().tell(doc, getSelf ());
+        void doPMIDSearch (PMIDQuery q) {
+            try {
+                Logger.debug(self()+": fetching "+q.pmid);
+                long start = System.currentTimeMillis();
+                MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
+                Logger.debug
+                    (self()+": fetch completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(doc, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell(new Exception
+                                 (getSelf()+": Can't search docs: "+q , ex),
+                                 getSelf ());
+            }
         }
 
-        void doFacetSearch (FacetQuery fq) throws Exception {
-            Logger.debug(self()+": facets "+fq);
-            long start = System.currentTimeMillis();
-            SearchResult result = pmi.facets(fq);
-            Logger.debug(self()+": facets search completed in "+String.format
-                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-            getSender().tell(result, getSelf ());
+        void doFacetSearch (FacetQuery fq) {
+            try {
+                Logger.debug(self()+": facets "+fq);
+                long start = System.currentTimeMillis();
+                SearchResult result = pmi.facets(fq);
+                Logger.debug
+                    (self()+": facets search completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(result, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell
+                    (new Exception
+                     (getSelf()+": Can't facet search docs: "+fq , ex),
+                     getSelf ());                
+            }
         }
 
-        void doTermVector (TermVectorQuery tvq) throws Exception {
-            Logger.debug(self()+": term vector "+tvq.field);
-            long start = System.currentTimeMillis();
-            TermVector tv = pmi.termVector(tvq.field, tvq.query);
-            Logger.debug(self()+": term vector for \""+tvq.field
-                         +"\" completed in "+String.format
-                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-            getSender().tell(tv, getSelf ());
+        void doTermVector (TermVectorQuery tvq) {
+            try {
+                Logger.debug(self()+": term vector "+tvq.field);
+                long start = System.currentTimeMillis();
+                TermVector tv = pmi.termVector(tvq.field, tvq.query);
+                Logger.debug
+                    (self()+": term vector for \""+tvq.field
+                     +"\" completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(tv, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell
+                    (new Exception
+                     (getSelf()+": Can't get term vector: "+tvq , ex),
+                     getSelf ());                  
+            }
+        }
+
+        void doNgrams (NgramQuery nq) {
+            try {
+                Logger.debug(self()+": N-gram "+nq.query);
+                long start = System.currentTimeMillis();
+                List<FV> ngrams = pmi.getNgramFacetValues(nq.query);
+                Logger.debug
+                    (self()+": N-gram for "+nq.query
+                     +" completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(ngrams, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell
+                    (new Exception
+                     (getSelf()+": Can't get N-gram: "+nq , ex), getSelf ());
+            }
+        }
+
+        void doCommonDisconnectedNgrams (CommonDisconnectedNgramQuery cdnq) {
+            try {
+                Logger.debug(self()+": Common disconnected n-grams "+cdnq.q
+                             +" and "+cdnq.p);
+                long start = System.currentTimeMillis();
+                pmi.andNgrams(cdnq.pqgrams, cdnq.q, cdnq.p);
+                pmi.andNotNgrams(cdnq.qgrams, cdnq.q, cdnq.p);
+                pmi.andNotNgrams(cdnq.pgrams, cdnq.p, cdnq.q);
+
+                Set<String> ngrams = new TreeSet<>();
+                ngrams.addAll(cdnq.pgrams.keySet());
+                ngrams.addAll(cdnq.qgrams.keySet());
+                ngrams.addAll(cdnq.pqgrams.keySet());
+                pmi.getCountsForNgramValues(cdnq.counts, ngrams);
+                
+                Logger.debug
+                    (self()+": Common disconnected n-grams "
+                     +" completed in "+String.format
+                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                getSender().tell(cdnq, getSelf ());
+            }
+            catch (Exception ex) {
+                getSender().tell
+                    (new Exception
+                     (getSelf()+": Can't get common N-gram for "+cdnq.q
+                      +" and "+cdnq.p, ex), getSelf ());
+            }
         }
 
         void doDelete (Delete del) {
@@ -435,7 +545,7 @@ public class PubMedIndexManager implements AutoCloseable {
         return cache.getOrElseUpdate(key, () -> {
                 Logger.debug("Cache missed: "+key);
                 return getResultsAsync(q)
-                    .thenApplyAsync(results -> PubMedIndex.merge(results),
+                    .thenApplyAsync(results -> Analytics.merge(results),
                                     pmec);
             });
     }
@@ -455,30 +565,6 @@ public class PubMedIndexManager implements AutoCloseable {
             stage = supplyAsync (()->new ArrayList<>());
         }
         return stage;
-    }
-
-    public CompletionStage<SearchResult[]> __getResults (SearchQuery q) {
-        // now do the search
-        Inbox inbox = Inbox.create(actorSystem);
-        for (ActorRef actorRef : indexes)
-            inbox.send(actorRef, q);
-        
-        List<SearchResult> results = new ArrayList<>();
-        for (int i = 0, ntries = 0; i < indexes.size()
-                 && ntries < maxTries;) {
-            try {
-                SearchResult result = (SearchResult)inbox.receive
-                    (Duration.ofSeconds(maxTimeout));
-                results.add(result);
-                ++i;
-            }
-            catch (TimeoutException ex) {
-                ++ntries;
-                Logger.warn("Unable to receive result from Inbox"
-                            +" within alloted time; retrying "+ntries);
-            }
-        }
-        return supplyAsync (()->results.toArray(new SearchResult[0]), pmec);
     }
 
     public SearchResult[] getResults (SearchQuery q) {
@@ -504,6 +590,152 @@ public class PubMedIndexManager implements AutoCloseable {
         return results.toArray(new SearchResult[0]);
     }
 
+    static void sort (List<FV> values) {
+        Collections.sort(values, (a, b) -> {
+                int d = b.count - a.count;
+                if (d == 0)
+                    d = a.total - b.total;
+                if (d == 0)
+                    d = b.label.length() - a.label.length();
+                return d;
+            });
+    }
+    
+    public List<FV> commonDisconnectedNgrams (SearchQuery q, SearchQuery p) {
+        long start = System.currentTimeMillis();
+        
+        List<CompletableFuture> futures = new ArrayList<>();
+        for (ActorRef actorRef : indexes) {
+            CommonDisconnectedNgramQuery cdnq =
+                new CommonDisconnectedNgramQuery (q, p);
+            scala.concurrent.Future future =
+                Patterns.ask(actorRef, cdnq, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+        
+        // wait for completion...
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+
+        final Map<String, Integer> qgrams = new TreeMap<>();
+        final Map<String, Integer> pgrams = new TreeMap<>();
+        final Map<String, Integer> pqgrams = new TreeMap<>();
+        final Map<Object, Integer> counts = new TreeMap<>();
+        futures.stream().forEach(f -> {
+                try {
+                    Object value = f.get();
+                    if (value instanceof Throwable) {
+                        throw new RuntimeException ((Throwable)value);
+                    }
+                    
+                    CommonDisconnectedNgramQuery cdnq =
+                        (CommonDisconnectedNgramQuery) value;
+                    Util.add(qgrams, cdnq.qgrams);
+                    Util.add(pgrams, cdnq.pgrams);
+                    Util.add(pqgrams, cdnq.pqgrams);
+                    Util.add(counts, cdnq.counts);
+                }
+                catch (Exception ex) {
+                    throw new RuntimeException (ex);                    
+                }
+            });
+
+        // remove overlapping ngrams from qgrams and pgrams
+        for (Map.Entry<String, Integer> me : pqgrams.entrySet()) {
+            qgrams.remove(me.getKey());
+            pgrams.remove(me.getKey());
+        }
+
+        // now the overlap between qgrams and pgrams constitute common
+        // disconnected ngrams
+        List<FV> common = new ArrayList<>();
+        for (Map.Entry<String, Integer> me : qgrams.entrySet()) {
+            Integer pcnt = pgrams.get(me.getKey());
+            if (pcnt != null) {
+                // is this the right thing to do?
+                Integer total = counts.get(me.getKey());
+                if (total == null || total <= 0) {
+                    Logger.error("Bogus n-gram count for \""
+                                 +me.getKey()+"\": "+total);
+                }
+                else {
+                    FV fv = new FV (me.getKey(), pcnt+me.getValue());
+                    fv.total = total;
+                    common.add(fv);
+                }
+            }
+        }
+
+        sort (common);
+
+        Logger.debug("### Common disconnected n-grams completed in "
+                     +String.format
+                     ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
+                     +"..."+common.size());
+        
+        return common;
+    }
+
+    public List<FV> commonDisconnectedNgramsTest () {
+        FacetQuery fq1 = new FacetQuery ("@predicate", "TREATS");
+        FacetQuery fq2 = new FacetQuery ("@predicate", "CAUSES");
+        return commonDisconnectedNgrams (fq1, fq2);
+    }
+    
+    public CompletionStage<List<FV>> ngrams
+        (String field, String query, Map<String, Object> facets) {
+        final TextQuery tq = new TextQuery (field, query, facets);
+        final String key = "PubMedIndexManager/ngrams/"+tq.cacheKey();
+        return cache.getOrElseUpdate(key, () -> {
+                Logger.debug("Cache missed: "+key);
+                return supplyAsync (() -> ngrams (tq));
+            });
+    }
+    
+    public List<FV> ngrams (SearchQuery q) {
+        List<CompletableFuture> futures = new ArrayList<>();
+        NgramQuery nq = new NgramQuery (q);
+        for (ActorRef actorRef : indexes) {
+            scala.concurrent.Future future =
+                Patterns.ask(actorRef, nq, timeout);
+            futures.add(toJava(future).toCompletableFuture());
+        }
+
+        // wait for completion...
+        CompletableFuture.allOf
+            (futures.toArray(new CompletableFuture[0])).join();
+        
+        final Map<String, FV> ngrams = new TreeMap<>();
+        futures.stream().forEach(f -> {
+                try {
+                    Object value = f.get();
+                    if (value instanceof Throwable) {
+                        throw new RuntimeException ((Throwable)value);
+                    }
+                    
+                    List<FV> values = (List<FV>)value;
+                    for (FV _fv : values) {
+                        FV fv = ngrams.get(_fv.label);
+                        if (fv != null) {
+                            fv.count += _fv.count;
+                            fv.total += _fv.total;
+                        }
+                        else {
+                            ngrams.put(_fv.label, _fv);
+                        }
+                    }
+                }
+                catch (Exception ex) {
+                    throw new RuntimeException (ex);
+                }
+            });
+        
+        List<FV> list = new ArrayList<>(ngrams.values());
+        sort (list);
+        
+        return list;
+    }
+
     public CompletionStage<SearchResult[]> getResultsAsync (SearchQuery q) {
         return supplyAsync (()->getResults (q), pmec);
     }
@@ -518,7 +750,7 @@ public class PubMedIndexManager implements AutoCloseable {
                     .thenAcceptAsync(concepts ->
                                      q.getConcepts().addAll(concepts), pmec)
                     .thenApplyAsync(none -> getResults(q), pmec)
-                    .thenApplyAsync(results -> PubMedIndex.merge(results), pmec)
+                    .thenApplyAsync(results -> Analytics.merge(results), pmec)
                     .thenApplyAsync(result -> result.page(q.skip(), q.top()),
                                     pmec);
             });
@@ -578,7 +810,7 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
         
-        return supplyAsync (() -> PubMedIndex.merge
+        return supplyAsync (() -> Analytics.merge
                             (results.toArray(new SearchResult[0])), pmec);
     }
     

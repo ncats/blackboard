@@ -49,6 +49,11 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.suggest.document.*;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.shingle.ShingleAnalyzerWrapper;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopFilter;
 
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -68,13 +73,23 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public static final String VERSION = "PubMedIndex-v1";
     protected static final Term ALL_DOCS_TERM =
         new Term (FIELD_INDEXER, VERSION);
+
+    static final Query MATCH_ALL = new MatchAllDocsQuery ();
+
+    /*
+     * TODO: n-gram parameters; this should be configurable somewhere!
+     */
+    static final int NGRAM_MIN = 2;
+    static final int NGRAM_MAX = 4;
+    static final int NGRAM_SIZE = Integer.MAX_VALUE;
     
     /*
-     * these are internal fields used for resolving concept cuis
+     * these are internal fields
      */
-    static final String _FIELD_CUI = "_cui";
+    static final String _FIELD_CUI = "_cui";  // resolving concept cuis
     static final String _FIELD_CONCEPT = "_concept";
     static final String _FIELD_SEMTYPE = "_semtype";
+    static final String _FACET_NGRAM = "_ngram";
         
     static final String[] HIGHLIGHT_FIELDS = {
         FIELD_TITLE,
@@ -290,7 +305,13 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
                     
                 default:
                     try {
-                        query = textQuery (field, term);
+                        if ('_' == field.charAt(0)) {
+                            // internal field, so search as-is
+                            query = new TermQuery (new Term (field, term));
+                        }
+                        else {
+                            query = textQuery (field, term);
+                        }
                     }
                     catch (Exception ex) {
                         Logger.error("Bogus syntax: "+term
@@ -622,56 +643,6 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         TransformerFactory.newInstance().newTransformer()
             .transform(new DOMSource (container), out);
     }
-    
-    public static SearchResult merge (SearchResult... results) {
-        Map<String, List<Facet>> facets = new TreeMap<>();
-        List<MatchedDoc> docs = new ArrayList<>();
-        SearchResult merged = null;
-        if (results.length > 0) {
-            for (SearchResult r : results) {
-                docs.addAll(r.docs);
-                if (merged == null) {
-                    // this assumes that all SearchResults came from the same
-                    // SearchQuery!
-                    merged = new SearchResult (r.query);
-                }
-                merged.total += r.total;
-
-                for (Facet f : r.facets) {
-                    /*
-                      Logger.debug("#### "+f.toString());
-                      Facet c = clone (f);
-                      Logger.debug("**** "+c.toString());
-                    */
-                    List<Facet> fs = facets.get(f.name);
-                    if (fs == null)
-                        facets.put(f.name, fs = new ArrayList<>());
-                    fs.add(f);
-                }
-            }
-        }
-        else {
-            merged = new SearchResult ();
-        }
-
-        int thres = (int)(merged.total * .4+0.5);
-        for (List<Facet> fs : facets.values()) {
-            Facet f = merge (fs.toArray(new Facet[0]));
-            // only show facet values that are at most 40% of the total count
-            f.trim(thres, merged.query.fdim());
-            merged.facets.add(f);
-        }
-
-        /*
-        Logger.debug("$$$$$$ merged facets...");
-        for (Facet f : merged.facets)
-            Logger.debug(f.toString());
-        */
-        
-        Collections.sort(docs);
-        merged.docs.addAll(docs);
-        return merged;
-    }
 
     public static List<Concept> parseMetaMapConcepts (JsonNode result) {
         //Logger.debug("MetaMap ===> "+result);
@@ -743,6 +714,7 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         fc.setHierarchical(FACET_GRANTAGENCY, true);
         fc.setMultiValued(FACET_GRANTAGENCY, true);
         fc.setMultiValued(FACET_GRANTCOUNTRY, true);
+        fc.setMultiValued(_FACET_NGRAM, true);
         
         return fc;
     }
@@ -820,7 +792,7 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         }
         return newests.toArray(new PubMedDoc[0]);
     }
-
+    
     protected Document instrument (Document doc, PubMedDoc d)
         throws IOException {
         doc.add(new LongField (FIELD_PMID, d.getPMID(), Field.Store.YES));
@@ -837,6 +809,14 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         if (title != null && !"".equals(title)) {
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
             addTextField (doc, FIELD_TITLE, title);
+            Set<String> ngrams = ngrams (title, NGRAM_MIN, NGRAM_MAX);
+            for (String s : ngrams) {
+                if (s.length() > 2) {
+                    doc.add(new FacetField (_FACET_NGRAM, s));
+                    //Logger.debug("...\""+s+"\"");
+                }
+            }
+            Logger.debug("## N-Gram: "+title+"..."+ngrams.size());
         }
 
         // author
@@ -954,12 +934,13 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         }
 
         // mesh headings
+        Logger.debug("## MeSH headings...");
         for (MeshHeading mh : d.getMeshHeadings()) {
             Descriptor desc = (Descriptor)mh.descriptor;
             doc.add(new FacetField (FACET_UI, desc.ui));
             doc.add(new Field (FIELD_UI, desc.ui, tvFieldType));
             addTextField (doc, FIELD_UI, desc.ui);
-            
+
             for (String tr : desc.treeNumbers) {
                 Logger.debug("..."+tr);
                 String[] path = tr.split("\\.");
@@ -1274,6 +1255,197 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         if (query != null)
             return termVector (field, query.rewrite());
         return termVector (field);
+    }
+
+    Query toQuery (SearchQuery query) {
+        Query q = query.rewrite();
+        if (query instanceof FacetQuery) {
+            DrillDownQuery ddq = ((FacetQuery)query)
+                .getFacetQuery(facetConfig, q);
+            if (ddq != null) q = ddq;
+        }
+        return q;
+    }
+    
+    public Map<String, Integer> getNgrams (SearchQuery query)
+        throws IOException {
+        return getNgrams (toQuery (query));
+    }
+
+    public Map<String, Integer> getNgrams (Query query) throws IOException {
+        return getNgrams (new TreeMap<>(), query);
+    }
+    
+    public Map<String, Integer> getNgrams (Map<String, Integer> ngrams,
+                                           Query query) throws IOException {    
+        long start = System.currentTimeMillis();
+        try (IndexReader reader = DirectoryReader.open(indexWriter);
+             TaxonomyReader taxon = new DirectoryTaxonomyReader (taxonWriter)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
+            FacetsCollector fc = new FacetsCollector ();
+
+            // don't care about the returned documents..            
+            TopDocs hits = FacetsCollector.search(searcher, query, 1, fc);
+            Facets facets = new FastTaxonomyFacetCounts(taxon, facetConfig, fc);
+            
+            FacetResult fr = facets.getTopChildren(NGRAM_SIZE, _FACET_NGRAM);
+            if (fr != null) {
+                for (int i = 0; i < fr.labelValues.length; ++i) {
+                    LabelAndValue lv = fr.labelValues[i];
+                    int count = lv.value.intValue();
+                    Integer c = ngrams.get(lv.label);
+                    ngrams.put(lv.label, c == null ? count : (c+count));
+                }
+            }
+            Logger.debug("### N-grams "+query+" => "
+                         +hits.totalHits+" doc(s)..."+ngrams.size()+" in "
+                         +String.format
+                         ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3));
+        }
+        
+        return ngrams;
+    }
+
+    public Map<String, Integer> andNotNgrams (Map<String, Integer> ngrams,
+                                              SearchQuery q,
+                                              SearchQuery p)
+        throws IOException {
+        return andNotNgrams (ngrams, toQuery (q), toQuery (p));
+    }
+
+    public Map<String, Integer> andNotNgrams (SearchQuery q, SearchQuery p)
+        throws IOException {
+        return andNotNgrams (toQuery (q), toQuery (p));
+    }
+
+    public Map<String, Integer> andNotNgrams (Query q, Query p)
+        throws IOException {
+        return andNotNgrams (new TreeMap<>(), q, p);
+    }
+
+    public Map<String, Integer> andNotNgrams
+        (Map<String, Integer> ngrams, Query q, Query p) throws IOException {
+        Query andNot = new BooleanQuery.Builder()
+            .add(q, BooleanClause.Occur.MUST)
+            .add(p, BooleanClause.Occur.MUST_NOT)
+            .build();
+        return getNgrams (ngrams, andNot);
+    }
+
+    public Map<String, Integer> andNgrams (SearchQuery q, SearchQuery p)
+        throws IOException {
+        return andNgrams (new TreeMap<>(), toQuery (q), toQuery (p));
+    }
+    
+    public Map<String, Integer> andNgrams (Map<String, Integer> ngrams,
+                                           SearchQuery q, SearchQuery p)
+        throws IOException {
+        return andNgrams (ngrams, toQuery (q), toQuery (p));
+    }
+    
+    public Map<String, Integer> andNgrams (Query q, Query p)
+        throws IOException {
+        return andNgrams (new TreeMap<>(), q, p);
+    }
+    
+    public Map<String, Integer> andNgrams
+        (Map<String, Integer> ngrams, Query q, Query p) throws IOException {
+        Query and = new BooleanQuery.Builder()
+            .add(q, BooleanClause.Occur.MUST)
+            .add(p, BooleanClause.Occur.MUST)
+            .build();
+        return getNgrams (ngrams, and);
+    }
+    
+    public Map<String, Integer> getValuesForFacet
+        (Map<String, Integer> values, String facet) throws IOException {
+        long start = System.currentTimeMillis();
+        try (IndexReader reader = DirectoryReader.open(indexWriter);
+             TaxonomyReader taxon = new DirectoryTaxonomyReader (taxonWriter)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
+            FacetsCollector fc = new FacetsCollector ();
+            TopDocs hits = FacetsCollector.search(searcher, MATCH_ALL, 1, fc);
+            Facets facets = new FastTaxonomyFacetCounts(taxon, facetConfig, fc);
+            FacetResult fr = facets.getTopChildren(Integer.MAX_VALUE, facet);
+            if (fr != null) {
+                for (int i = 0; i < fr.labelValues.length; ++i) {
+                    LabelAndValue lv = fr.labelValues[i];
+                    int count = lv.value.intValue();
+                    Integer c = values.get(lv.label);
+                    values.put(lv.label, c == null ? count : (c+count));
+                }
+            }
+        }
+        Logger.debug("### Total facet["+facet+"] counts executed in "
+                     +String.format
+                     ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
+                     +"..."+values.size());
+        return values;
+    }
+
+    public List<FV> getNgramFacetValues (SearchQuery query) throws IOException {
+        Map<String, Integer> ngrams = getNgrams (query);
+        Map<Object, Integer> counts = getCountsForFacetValues
+            (new TreeMap<>(), _FACET_NGRAM, ngrams.keySet());
+        List<FV> values = new ArrayList<>();
+        for (Map.Entry<String, Integer> me : ngrams.entrySet()) {
+            Integer total = counts.get(me.getKey());
+            if (total != null) {
+                FV fv = new FV (me.getKey(), me.getValue());
+                fv.total = total;
+                values.add(fv);
+            }
+            else {
+                Logger.warn("Couldn't get total count for N-gram \""
+                            +me.getKey()+"\"!");
+            }
+        }
+        return values;
+    }
+
+    public Map<Object, Integer> getCountsForNgramValues
+        (Collection values) throws IOException {
+        return getCountsForNgramValues (new TreeMap<>(), values);
+    }
+    
+    public Map<Object, Integer> getCountsForNgramValues
+        (Map<Object, Integer> counts, Collection values) throws IOException {
+        return getCountsForFacetValues (counts, _FACET_NGRAM, values);
+    }
+    
+    public Map<Object, Integer> getCountsForFacetValues
+        (Map<Object, Integer> counts, String facet, Collection values)
+        throws IOException {
+        long start = System.currentTimeMillis();
+        try (IndexReader reader = DirectoryReader.open(indexWriter);
+             TaxonomyReader taxon = new DirectoryTaxonomyReader (taxonWriter)) {
+            IndexSearcher searcher = new IndexSearcher (reader);
+            FacetsCollector fc = new FacetsCollector ();
+            TopDocs hits = FacetsCollector.search(searcher, MATCH_ALL, 1, fc);
+            Facets facets = new FastTaxonomyFacetCounts(taxon, facetConfig, fc);
+            for (Object v : values) {
+                Number cnt = null;
+                if (v.getClass().isArray()) {
+                    cnt = facets.getSpecificValue(facet, (String[])v);
+                }
+                else if (v instanceof String) {
+                    cnt = facets.getSpecificValue(facet, (String)v);
+                }
+                else {
+                }
+
+                if (cnt != null) {
+                    Integer c = counts.get(v);
+                    counts.put(v, c == null
+                               ? cnt.intValue() : (c+cnt.intValue()));
+                }
+            }
+        }
+        Logger.debug("### Total facet["+facet+"] counts executed in "
+                     +String.format
+                     ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
+                     +"..."+counts.size());
+        return counts;
     }
     
     public static void main (String[] argv) throws Exception {

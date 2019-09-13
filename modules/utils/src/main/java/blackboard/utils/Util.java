@@ -278,4 +278,14 @@ public class Util {
         }
         return String.format("%1$d", value);
     }
+
+    public static <T> Map<T, Integer> add (Map<T, Integer> target,
+                                           Map<T, Integer> source) {
+        for (Map.Entry<T, Integer> me : source.entrySet()) {
+            Integer c = target.get(me.getKey());
+            target.put(me.getKey(), c == null
+                       ? me.getValue() : (c+me.getValue()));
+        }
+        return target;
+    }
 }
