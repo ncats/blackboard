@@ -809,14 +809,16 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         if (title != null && !"".equals(title)) {
             doc.add(new Field (FIELD_TITLE, title, tvFieldType));
             addTextField (doc, FIELD_TITLE, title);
-            Set<String> ngrams = ngrams (title, NGRAM_MIN, NGRAM_MAX);
-            for (String s : ngrams) {
-                if (s.length() > 2) {
-                    doc.add(new FacetField (_FACET_NGRAM, s));
-                    //Logger.debug("...\""+s+"\"");
+            if (title.length() < 1024) {
+                Set<String> ngrams = ngrams (title, NGRAM_MIN, NGRAM_MAX);
+                for (String s : ngrams) {
+                    if (s.length() > 2) {
+                        doc.add(new FacetField (_FACET_NGRAM, s));
+                        //Logger.debug("...\""+s+"\"");
+                    }
                 }
+                Logger.debug("## N-Gram: "+title+"..."+ngrams.size());
             }
-            Logger.debug("## N-Gram: "+title+"..."+ngrams.size());
         }
 
         // author
