@@ -38,10 +38,15 @@ public class PubMedIndexUpdater {
         
         List<File> files = new ArrayList<>();
         Integer max = null;
+        boolean checkfile = true;
         for (String a : argv) {
             if (a.startsWith("MAX=")) {
                 max = Integer.parseInt(a.substring(4));
                 Logger.debug("MAX: "+max);
+            }
+            else if (a.startsWith("CHECKFILE=")) {
+                checkfile = Boolean.parseBoolean(a.substring(10));
+                Logger.debug("CHECKFILE: "+checkfile);
             }
             else if (a.startsWith("INPUT=")) {
                 BufferedReader br = new BufferedReader
@@ -71,7 +76,7 @@ public class PubMedIndexUpdater {
             Logger.debug("##### "+String.format("%1$d of %2$d",
                                                 i+1, files.size())+": "+f);
             CompletableFuture<Integer> stage =
-                pubmed.update(f, true, max).toCompletableFuture();
+                pubmed.update(f, checkfile, max).toCompletableFuture();
             stage.thenAcceptAsync(count -> {
                     Logger.debug(f.getName()+": process..."+count);
                 });
