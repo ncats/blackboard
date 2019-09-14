@@ -70,20 +70,21 @@ public class PubMedIndexUpdater {
             usage ();
         }
 
-        List<CompletableFuture> futures = new ArrayList<>();
         for (int i = 0; i < files.size(); ++i) {
             final File f = files.get(i);
-            Logger.debug("##### "+String.format("%1$d of %2$d",
-                                                i+1, files.size())+": "+f);
-            CompletableFuture<Integer> stage =
-                pubmed.update(f, checkfile, max).toCompletableFuture();
-            stage.thenAcceptAsync(count -> {
-                    Logger.debug(f.getName()+": process..."+count);
-                });
-            futures.add(stage);
+            try {
+                Logger.debug("##### "+String.format("%1$d of %2$d",
+                                                    i+1, files.size())+": "+f);
+                // we have to process these files synchronously because of
+                // updates
+                CompletableFuture<Integer> stage =
+                    pubmed.update(f, checkfile, max).toCompletableFuture();
+                Logger.debug(f.getName()+": process..."+stage.get());
+            }
+            catch (Exception ex) {
+                Logger.error("Can't processing file: "+f, ex);
+            }
         }
-        CompletableFuture
-            .allOf(futures.toArray(new CompletableFuture[0])).join();
         
         play.api.Play.stop(app.getWrappedApplication());        
     }
