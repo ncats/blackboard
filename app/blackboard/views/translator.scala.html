@@ -1,0 +1,46 @@
+@import play.twirl.api.HtmlFormat
+@import _root_.blackboard.index.Index._
+@import _root_.blackboard.controllers.routes
+@import _root_.blackboard.controllers.KnowledgeApp
+@(app: KnowledgeApp, query: SearchQuery)
+
+@views.html.ui.main("Translator: "+query.getQuery){
+  @header(routes.KnowledgeApp.ksearch(null))(HtmlFormat.empty)
+  <div class="container-fluid" style="margin-top: 55px; margin-bottom:10px;">
+    <div id="content-panel" class="loader loader-default"></div>
+    <div class="row">
+      <div class="col-md-2"></div>
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-body">
+            Your query @if(query.getField != null){
+            <b>query.getField</b>:<code>@query.getQuery</code>
+            }else{
+            <code>@query.getQuery</code>
+            }
+            @if(query.getConcepts.size > 0){ 
+              mapped to @query.getConcepts.size concept(s):
+              @if(!query.getConcepts.isEmpty){
+              <ul>
+                @for(c <- query.getConcepts){
+                  <li><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> with the following semantic type(s):
+                    @for(t <- c.types){
+                      @defining(app.semmed.umls.getSemanticType(t)){st=>
+                        <code>@t</code> @if(st!=null){[@st.name]}
+                      }
+                    }
+                  </li>
+                  }
+              </ul>
+              }
+            }else{
+              does not map to any known concepts.
+              }
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2"></div>
+    </div>
+  </div>    
+  }(HtmlFormat.empty)(HtmlFormat.empty)
+  
