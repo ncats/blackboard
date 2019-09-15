@@ -24,6 +24,7 @@ import play.cache.AsyncCacheApi;
 
 import blackboard.pubmed.index.PubMedIndexManager;
 import blackboard.pubmed.index.PubMedIndex;
+import blackboard.index.Index.TextQuery;
 import blackboard.index.Index.FV;
 import blackboard.index.Index.Facet;
 import static blackboard.pubmed.index.PubMedIndex.*;
@@ -121,6 +122,18 @@ public class KnowledgeApp extends blackboard.pubmed.controllers.Controller {
                                           (ex.getMessage(), 500)),
                                 ec.current());
         }
+    }
+
+    public CompletionStage<Result> translator (String q, String field) {
+        Logger.debug(">> "+request().uri());
+        Map<String, Object> facets = parseFacets ();
+        final TextQuery tq = new TextQuery (field, q, facets);
+        return pubmed.getConcepts(tq)
+            .thenAcceptAsync(concepts -> tq.getConcepts().addAll(concepts),
+                             ec.current())
+            .thenApplyAsync(none -> ok (blackboard.views.html
+                                        .translator.render(this, tq)),
+                            ec.current());
     }
 
     public CompletionStage<Result> _references (String q, int skip, int top)

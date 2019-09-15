@@ -84,7 +84,7 @@ public class Controller extends play.mvc.Controller {
         return queryString().get(param);
     }
 
-    Map<String, Object> parseFacets () {
+    protected Map<String, Object> parseFacets () {
         Map<String, Object> facets = null;
         String[] params = queryString ("facet");
         if (params != null) {

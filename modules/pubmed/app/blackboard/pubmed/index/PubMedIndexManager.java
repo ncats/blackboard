@@ -580,7 +580,14 @@ public class PubMedIndexManager implements AutoCloseable {
         List<SearchResult> results = futures.stream()
             .map(f -> {
                     try {
-                        return (SearchResult)f.get();
+                        Object value = f.get();
+                        if (value instanceof SearchResult) {
+                            return (SearchResult)value;
+                        }
+                        
+                        Throwable ex = (Throwable)value;
+                        Logger.error("Can't process search query: "+q, ex);
+                        throw new RuntimeException (ex);
                     }
                     catch (Exception ex) {
                         throw new RuntimeException (ex);
