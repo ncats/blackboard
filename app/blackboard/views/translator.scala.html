@@ -13,17 +13,20 @@
       <div class="col-md-8">
         <div class="card">
           <div class="card-body">
-            Your query @if(query.getField != null){
-            <b>query.getField</b>:<code>@query.getQuery</code>
-            }else{
-            <code>@query.getQuery</code>
+            Your query <code>@query.getQuery</code>
+            @if(query.getField!=null){
+              (restricted to the field <b>@query.getField</b>)
             }
             @if(query.getConcepts.size > 0){ 
-              mapped to @query.getConcepts.size concept(s):
+              mapped to @query.getConcepts.size known concept(s):
               @if(!query.getConcepts.isEmpty){
-              <ul>
+              <ol>
                 @for(c <- query.getConcepts){
-                  <li><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a> with the following semantic type(s):
+                  <li><a href="@_root_.blackboard.umls.controllers.routes.Controller.cui(c.ui)">@c.name</a>
+                    @if(c.getTokens != null){
+                      [<code>@c.getTokens.mkString(" ")</code>]
+                    }
+                    with the following semantic type(s):
                     @for(t <- c.types){
                       @defining(app.semmed.umls.getSemanticType(t)){st=>
                         <code>@t</code> @if(st!=null){[@st.name]}
@@ -31,7 +34,7 @@
                     }
                   </li>
                   }
-              </ul>
+              </ol>
               }
             }else{
               does not map to any known concepts.

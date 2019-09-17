@@ -48,6 +48,7 @@ import static blackboard.index.Index.FacetQuery;
 import static blackboard.index.Index.TextQuery;
 import static blackboard.index.Index.TermVector;
 import static blackboard.pubmed.index.PubMedIndex.*;
+import blackboard.umls.index.MetaMapIndex;
 import blackboard.utils.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -93,8 +94,7 @@ public class PubMedIndexManager implements AutoCloseable {
                              ("%1$.3fs",
                               1e-3*(System.currentTimeMillis()-start)));
 
-                List<Concept> concepts =
-                    PubMedIndex.parseMetaMapConcepts(result);
+                List<Concept> concepts = MetaMapIndex.parseConcepts(result);
                 getSender().tell(concepts, getSelf ());
             }
             catch (Exception ex) {
@@ -173,9 +173,18 @@ public class PubMedIndexManager implements AutoCloseable {
             Logger.debug("*** index loaded..."+dir+" "+pmi.size()+" doc(s)!");
         }
 
+        /*
         @Override
         public void preStart () {
             Logger.debug("### "+self ()+ "...initialized!");
+        }
+        */
+
+        @Override
+        public void preRestart (Throwable reason, Optional<Object> message)
+            throws Exception {
+            Logger.error("** "+getSelf()+": restart due to "
+                         +message.get(), reason);
         }
 
         @Override
@@ -894,7 +903,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 Object res = f.get();
                 if (res instanceof Throwable) {
                     Throwable t = (Throwable)res;
-                    Logger.error(t.getMessage(), t.getCause());
+                    Logger.error("** [Update] "+t.getMessage(), t.getCause());
                 }
                 else {
                     docs = (PubMedDoc[])res;
@@ -910,33 +919,50 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         // now add the new docs
+        Inbox inbox = Inbox.create(actorSystem);
         Random rand = new Random ();
-        futures.clear();
+        int count = 0;
         for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
             //Logger.debug(me.getKey().pmid+"="+me.getValue());
             if (indexes.size() == me.getValue()) {
-                int pos = rand.nextInt(indexes.size());
-                ActorRef actorRef = indexes.get(pos);
+                ActorRef actorRef = null;
+                do {
+                    int pos = rand.nextInt(indexes.size());
+                    actorRef = indexes.get(pos);
+                }
+                while (actorRef.isTerminated());
+
+                assert actorRef != null: "ActorRef is null; not cool!";
                 PubMedDoc doc = me.getKey();
-                scala.concurrent.Future future =
-                    Patterns.ask(actorRef, new Insert (doc), timeout);
-                futures.add(toJava(future).toCompletableFuture());
+                inbox.send(actorRef, new Insert (doc));
+                ++count;
+            }
+        }
+
+        Logger.debug("+++++++ "+count+" doc(s) queued for insertion!");
+        int ntries = 0, n = count, nerr = 0;
+        while (n > 0 && ntries < 5) {
+            try {
+                Object res = inbox.receive(timeout.duration());
+                if (res instanceof Throwable) {
+                    Logger.error("** [Insert]", (Throwable)res);
+                    ++nerr;
+                }
+                --n;
+            }
+            catch (TimeoutException ex) {
+                Logger.error("** Insert timeout; "+ntries+" tries!", ex);
+                ++ntries;
             }
         }
         
-        CompletableFuture.allOf
-            (futures.toArray(new CompletableFuture[0])).join();
-        for (CompletableFuture f : futures) {
-            try {
-                Object res = f.get();
-                if (res instanceof Throwable) {
-                    Throwable t = (Throwable) res;
-                    Logger.error(t.getMessage(), t.getCause());
-                }
-            }
-            catch (Exception ex) {
-                Logger.error("Unable to update documents!", ex);
-            }
+        if (nerr > 0) {
+            Logger.warn("****** "+(count-nerr)+"/"+count+" entries inserted; "
+                        +nerr+" error(s)!");
+        }
+        else {
+            Logger.debug("+++++++ "+(count-nerr)
+                         +"/"+count+" entries inserted!");
         }
     }
 

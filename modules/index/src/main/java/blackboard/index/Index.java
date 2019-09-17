@@ -487,6 +487,12 @@ public class Index implements AutoCloseable, Fields {
         }
 
         public int hashCode () { return ui.hashCode(); }
+        public String[] getTokens () {
+            return null;
+        }
+        public String[] getSources () {
+            return null;
+        }
     }
 
     public interface CacheableContent {

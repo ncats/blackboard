@@ -35,6 +35,30 @@ import blackboard.umls.MetaMap;
 import blackboard.index.Index;
 
 public class MetaMapIndex extends Index implements UMLSFields {
+    public static class MMConcept extends Concept {
+        public MMConcept (String ui, String name) {
+            super (ui, name);
+        }
+        public MMConcept (String ui, String name, String type) {
+            super (ui, name, type);
+        }
+        
+        @Override
+        public String[] getTokens () {
+            if (context != null) {
+                JsonNode json = (JsonNode)context;
+                JsonNode nodes = json.get("matchedWords");
+                if (nodes != null) {
+                    String[] toks = new String[nodes.size()];
+                    for (int i = 0; i < toks.length; ++i)
+                        toks[i] = nodes.get(i).asText();
+                    return toks;
+                }
+            }
+            return super.getTokens();
+        }
+    }
+    
     protected ObjectMapper mapper = new ObjectMapper ();    
     protected MetaMap metamap;
 
@@ -94,5 +118,40 @@ public class MetaMapIndex extends Index implements UMLSFields {
             }
         }
         return json;
+    }
+
+    public static List<Concept> parseConcepts (JsonNode result) {
+        //Logger.debug("MetaMap ===> "+result);
+        JsonNode pcmList = result.at("/utteranceList/0/pcmlist");
+        Set<Concept> concepts = new LinkedHashSet<>();
+        for (int i = 0; i < pcmList.size(); ++i) {
+            JsonNode pcm = pcmList.get(i);
+            JsonNode evList = pcm.at("/mappingList/0/evList");
+            //Logger.debug("evList ===> "+evList);
+            if (!evList.isMissingNode()) {
+                JsonNode text = pcm.at("/phrase/phraseText");
+                for (int j = 0; j < evList.size(); ++j) {
+                    JsonNode n = evList.get(j);
+                    MMConcept c = new MMConcept
+                        (n.get("conceptId").asText(),
+                         n.get("preferredName").asText(),
+                         null);
+                    c.score = n.get("score").asInt();
+                    concepts.add(c);
+                
+                    JsonNode types = n.get("semanticTypes");
+                    for (int k = 0; k < types.size(); ++k)
+                        c.types.add(types.get(k).asText());
+
+                    ObjectNode ctx = Json.newObject();
+                    ctx.put("phraseText", text.asText());
+                    ctx.put("matchedWords", n.get("matchedWords"));
+                    ctx.put("sources", n.get("sources"));
+                    c.context = ctx;
+                    concepts.add(c);
+                }
+            }
+        }
+        return new ArrayList<>(concepts);
     }
 }

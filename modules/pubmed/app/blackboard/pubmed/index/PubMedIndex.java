@@ -644,40 +644,6 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
             .transform(new DOMSource (container), out);
     }
 
-    public static List<Concept> parseMetaMapConcepts (JsonNode result) {
-        //Logger.debug("MetaMap ===> "+result);
-        JsonNode pcmList = result.at("/utteranceList/0/pcmlist");
-        Set<Concept> concepts = new LinkedHashSet<>();
-        for (int i = 0; i < pcmList.size(); ++i) {
-            JsonNode pcm = pcmList.get(i);
-            JsonNode evList = pcm.at("/mappingList/0/evList");
-            //Logger.debug("evList ===> "+evList);
-            if (!evList.isMissingNode()) {
-                JsonNode text = pcm.at("/phrase/phraseText");
-                for (int j = 0; j < evList.size(); ++j) {
-                    JsonNode n = evList.get(j);
-                    Concept c = new Concept (n.get("conceptId").asText(),
-                                             n.get("preferredName").asText(),
-                                             null);
-                    c.score = n.get("score").asInt();
-                    concepts.add(c);
-                
-                    JsonNode types = n.get("semanticTypes");
-                    for (int k = 0; k < types.size(); ++k)
-                        c.types.add(types.get(k).asText());
-
-                    ObjectNode ctx = Json.newObject();
-                    ctx.put("phraseText", text.asText());
-                    ctx.put("matchedWords", n.get("matchedWords"));
-                    ctx.put("sources", n.get("sources"));
-                    c.context = ctx;
-                    concepts.add(c);
-                }
-            }
-        }
-        return new ArrayList<>(concepts);
-    }
-
     @Inject public SemMedDbKSource semmed;
     @Inject public MeshKSource mesh;
     @Inject public UMLSKSource umls;
