@@ -921,7 +921,7 @@ public class PubMedIndexManager implements AutoCloseable {
         // now add the new docs
         Inbox inbox = Inbox.create(actorSystem);
         Random rand = new Random ();
-        int count = 0;
+        Map<Long, ActorRef> actors = new TreeMap<>();
         for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
             //Logger.debug(me.getKey().pmid+"="+me.getValue());
             if (indexes.size() == me.getValue()) {
@@ -932,37 +932,45 @@ public class PubMedIndexManager implements AutoCloseable {
                 }
                 while (actorRef.isTerminated());
 
-                assert actorRef != null: "ActorRef is null; not cool!";
-                PubMedDoc doc = me.getKey();
-                inbox.send(actorRef, new Insert (doc));
-                ++count;
+                if (actorRef != null) {
+                    PubMedDoc doc = me.getKey();
+                    inbox.send(actorRef, new Insert (doc));
+                    actors.put(doc.getPMID(), actorRef);
+                }
+                else {
+                    Logger.warn("ActorRef is null; not cool!");
+                }
             }
         }
 
-        Logger.debug("+++++++ "+count+" doc(s) queued for insertion!");
-        int ntries = 0, n = count, nerr = 0;
-        while (n > 0 && ntries < 5) {
+        Logger.debug("+++++++ "+actors.size()+" doc(s) queued for insertion!");
+        int ntries = 0, total = actors.size(), nerr = 0;
+        while (!actors.isEmpty() && ntries < 5) {
             try {
                 Object res = inbox.receive(timeout.duration());
                 if (res instanceof Throwable) {
                     Logger.error("** [Insert]", (Throwable)res);
                     ++nerr;
                 }
-                --n;
+                else {
+                    PubMedDoc doc = (PubMedDoc) res;
+                    actors.remove(doc.getPMID());
+                }
             }
             catch (TimeoutException ex) {
-                Logger.error("** Insert timeout; "+ntries+" tries!", ex);
+                Logger.error("** Insert timeout; "+actors.size()+" docs, "
+                             +ntries+" tries!", ex);
                 ++ntries;
             }
         }
         
         if (nerr > 0) {
-            Logger.warn("****** "+(count-nerr)+"/"+count+" entries inserted; "
-                        +nerr+" error(s)!");
+            Logger.warn("****** "+(total-actors.size())+"/"+total
+                        +" entries inserted; "+nerr+" error(s)!");
         }
         else {
-            Logger.debug("+++++++ "+(count-nerr)
-                         +"/"+count+" entries inserted!");
+            Logger.debug("+++++++ "+(total-actors.size())
+                         +"/"+total+" entries inserted!");
         }
     }
 
