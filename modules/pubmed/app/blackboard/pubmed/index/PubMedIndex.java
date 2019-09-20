@@ -717,14 +717,14 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
     public int deleteDocsIfOlderThan (PubMedDoc... docs) throws IOException {
         int start = indexWriter.numDocs();
         for (PubMedDoc d : docs) {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(NumericRangeQuery.newLongRange
-                        (FIELD_PMID, d.pmid, d.pmid, true, true),
-                        BooleanClause.Occur.MUST);
             long revised = d.revised.getTime();
-            builder.add(NumericRangeQuery.newLongRange
-                        (FIELD_REVISED, 0l, revised, false, false),
-                        BooleanClause.Occur.MUST);
+            BooleanQuery.Builder builder = new BooleanQuery.Builder()
+                .add(NumericRangeQuery.newLongRange
+                     (FIELD_PMID, d.pmid, d.pmid, true, true),
+                     BooleanClause.Occur.MUST)
+                .add(NumericRangeQuery.newLongRange
+                     (FIELD_REVISED, 0l, revised, false, false),
+                     BooleanClause.Occur.MUST);
             indexWriter.deleteDocuments(builder.build());
         }
         indexWriter.commit();

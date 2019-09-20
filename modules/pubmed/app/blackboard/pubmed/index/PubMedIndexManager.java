@@ -337,6 +337,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 getSender().tell(new Exception
                                  (getSelf()+": Can't delete docs" , ex),
                                  getSelf ());
+                ex.printStackTrace();
             }
         }
 
@@ -351,6 +352,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 getSender().tell(new Exception
                                  (getSelf()+": Can't update docs", ex),
                                  getSelf ());
+                ex.printStackTrace();
             }
         }
 
@@ -364,6 +366,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 getSender().tell
                     (new Exception (getSelf()+": Can't insert doc "+doc.pmid,
                                     ex), getSelf ());
+                ex.printStackTrace();
             }
         }
     }
@@ -371,13 +374,16 @@ public class PubMedIndexManager implements AutoCloseable {
     class IndexUpdate {
         AtomicInteger count = new AtomicInteger ();
         List<PubMedDoc> batch = new ArrayList<>(BATCH_SIZE);
+        final File file;
 
         IndexUpdate (File file, Integer max) throws Exception {
+            this.file = file;
+            
             PubMedSax pms = createSaxParser (max);
             pms.parse(file);
             
             if (!batch.isEmpty()) {
-                updateDocs (batch.toArray(new PubMedDoc[0]));
+                updateDocs (file, batch.toArray(new PubMedDoc[0]));
             }
             
             List<Long> citations = pms.getDeleteCitations();
@@ -392,7 +398,7 @@ public class PubMedIndexManager implements AutoCloseable {
             return new PubMedSax (pubmed.mesh, (s, d) -> {
                     if (max == null || max == 0 || count.intValue() < max) {
                         if (batch.size() == BATCH_SIZE) {
-                            updateDocs (batch.toArray(new PubMedDoc[0]));
+                            updateDocs (file, batch.toArray(new PubMedDoc[0]));
                             batch.clear();
                         }
                         batch.add(d);
@@ -884,7 +890,7 @@ public class PubMedIndexManager implements AutoCloseable {
         return getTermVector (field, null);
     }
 
-    protected void updateDocs (PubMedDoc... docs) {
+    protected void updateDocs (File file, PubMedDoc... docs) {
         Update update = new Update (docs);
         List<CompletableFuture> futures = new ArrayList<>();
         for (ActorRef actorRef : indexes) {
@@ -945,11 +951,11 @@ public class PubMedIndexManager implements AutoCloseable {
 
         Logger.debug("+++++++ "+actors.size()+" doc(s) queued for insertion!");
         int ntries = 0, total = actors.size(), nerr = 0;
-        while (!actors.isEmpty() && ntries < 5) {
+        while (!actors.isEmpty() && ntries < 1) {
             try {
                 Object res = inbox.receive(timeout.duration());
                 if (res instanceof Throwable) {
-                    Logger.error("** [Insert]", (Throwable)res);
+                    Logger.error("** "+file+" [Insert]", (Throwable)res);
                     ++nerr;
                 }
                 else {
@@ -958,18 +964,18 @@ public class PubMedIndexManager implements AutoCloseable {
                 }
             }
             catch (TimeoutException ex) {
-                Logger.error("** Insert timeout; "+actors.size()+" docs, "
-                             +ntries+" tries!", ex);
+                Logger.error("** "+file+": Insert timeout; "+actors.keySet()
+                             +" docs, " +ntries+" tries!", ex);
                 ++ntries;
             }
         }
         
         if (nerr > 0) {
-            Logger.warn("****** "+(total-actors.size())+"/"+total
+            Logger.warn("****** "+file+" "+(total-actors.size())+"/"+total
                         +" entries inserted; "+nerr+" error(s)!");
         }
         else {
-            Logger.debug("+++++++ "+(total-actors.size())
+            Logger.debug("+++++++ "+file+" "+(total-actors.size())
                          +"/"+total+" entries inserted!");
         }
     }
