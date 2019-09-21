@@ -185,6 +185,7 @@ public class PubMedIndexManager implements AutoCloseable {
             throws Exception {
             Logger.error("** "+getSelf()+": restart due to "
                          +message.get(), reason);
+            reason.printStackTrace();
         }
 
         @Override
@@ -207,6 +208,9 @@ public class PubMedIndexManager implements AutoCloseable {
                 .match(NgramQuery.class, this::doNgrams)
                 .match(CommonDisconnectedNgramQuery.class,
                        this::doCommonDisconnectedNgrams)
+                .matchAny(mesg -> {
+                        Logger.warn("Unknown request: "+mesg);
+                    })
                 .build();
         }
 
@@ -362,7 +366,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 pmi.add(doc);
                 getSender().tell(doc, getSelf ());
             }
-            catch (IOException ex) {
+            catch (Exception ex) {
                 getSender().tell
                     (new Exception (getSelf()+": Can't insert doc "+doc.pmid,
                                     ex), getSelf ());
@@ -402,6 +406,9 @@ public class PubMedIndexManager implements AutoCloseable {
                             batch.clear();
                         }
                         batch.add(d);
+                    }
+                    else {
+                        return false;
                     }
                     count.incrementAndGet();
                     return true;
@@ -795,7 +802,8 @@ public class PubMedIndexManager implements AutoCloseable {
                              +" within alloted time", ex);
             }
         }
-                        
+        inbox.getRef().tell(PoisonPill.getInstance(), ActorRef.noSender());
+        
         if (docs.size() > 1) {
             Logger.warn(q.pmid+" has multiple ("
                         +docs.size()+") documents!");
@@ -831,6 +839,7 @@ public class PubMedIndexManager implements AutoCloseable {
                              +" within alloted time", ex);
             }
         }
+        inbox.getRef().tell(PoisonPill.getInstance(), ActorRef.noSender());
         
         return supplyAsync (() -> Analytics.merge
                             (results.toArray(new SearchResult[0])), pmec);
@@ -926,26 +935,19 @@ public class PubMedIndexManager implements AutoCloseable {
 
         // now add the new docs
         Inbox inbox = Inbox.create(actorSystem);
+        // select a random starting actor
         Random rand = new Random ();
+        int pos = rand.nextInt(indexes.size());
+        
         Map<Long, ActorRef> actors = new TreeMap<>();
         for (Map.Entry<PubMedDoc, Integer> me : matched.entrySet()) {
             //Logger.debug(me.getKey().pmid+"="+me.getValue());
             if (indexes.size() == me.getValue()) {
-                ActorRef actorRef = null;
-                do {
-                    int pos = rand.nextInt(indexes.size());
-                    actorRef = indexes.get(pos);
-                }
-                while (actorRef.isTerminated());
-
-                if (actorRef != null) {
-                    PubMedDoc doc = me.getKey();
-                    inbox.send(actorRef, new Insert (doc));
-                    actors.put(doc.getPMID(), actorRef);
-                }
-                else {
-                    Logger.warn("ActorRef is null; not cool!");
-                }
+                ActorRef actorRef = indexes.get(pos % indexes.size());
+                PubMedDoc doc = me.getKey();
+                inbox.send(actorRef, new Insert (doc));
+                actors.put(doc.getPMID(), actorRef);
+                ++pos;
             }
         }
 
@@ -964,11 +966,14 @@ public class PubMedIndexManager implements AutoCloseable {
                 }
             }
             catch (TimeoutException ex) {
-                Logger.error("** "+file+": Insert timeout; "+actors.keySet()
-                             +" docs, " +ntries+" tries!", ex);
+                Logger.error("** "+file+": Insert timeout; "+actors.size()
+                             +" docs, " +ntries+" tries!\n"+actors, ex);
                 ++ntries;
             }
         }
+        
+        // shutdown inbox
+        inbox.getRef().tell(PoisonPill.getInstance(), ActorRef.noSender());
         
         if (nerr > 0) {
             Logger.warn("****** "+file+" "+(total-actors.size())+"/"+total

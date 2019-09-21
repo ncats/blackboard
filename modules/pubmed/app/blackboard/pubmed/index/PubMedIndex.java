@@ -741,14 +741,14 @@ public class PubMedIndex extends MetaMapIndex implements PubMedFields {
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             IndexSearcher searcher = new IndexSearcher (reader);
             for (PubMedDoc d : docs) {
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                builder.add(NumericRangeQuery.newLongRange
-                            (FIELD_PMID, d.pmid, d.pmid, true, true),
-                            BooleanClause.Occur.MUST);
                 long revised = d.revised.getTime();
-                builder.add(NumericRangeQuery.newLongRange
-                            (FIELD_REVISED, revised, Long.MAX_VALUE,
-                             true, false), BooleanClause.Occur.MUST);
+                BooleanQuery.Builder builder = new BooleanQuery.Builder()
+                    .add(NumericRangeQuery.newLongRange
+                            (FIELD_PMID, d.pmid, d.pmid, true, true),
+                            BooleanClause.Occur.MUST)
+                    .add(NumericRangeQuery.newLongRange
+                         (FIELD_REVISED, revised, Long.MAX_VALUE,
+                          true, false), BooleanClause.Occur.MUST);
                 TopDocs hits = searcher.search(builder.build(), 1);
                 if (hits.totalHits == 0) {
                     //Logger.debug(d.pmid+"... to be added");
