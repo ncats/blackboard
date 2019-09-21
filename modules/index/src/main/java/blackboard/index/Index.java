@@ -20,6 +20,7 @@ import org.apache.lucene.document.*;
 import org.apache.lucene.facet.*;
 import org.apache.lucene.facet.taxonomy.directory.*;
 import org.apache.lucene.facet.taxonomy.*;
+import org.apache.lucene.facet.taxonomy.writercache.LruTaxonomyWriterCache;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.BytesRef;
@@ -35,6 +36,7 @@ import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -48,6 +50,7 @@ import blackboard.utils.Util;
 
 public class Index implements AutoCloseable, Fields {
     public static final int MAX_HITS = 1000;
+    static final int TAXON_CACHE_SIZE = 10000; // sigh.. config?
     
     public static class FV {
         @JsonIgnore
@@ -909,7 +912,9 @@ public class Index implements AutoCloseable, Fields {
         File taxon = new File (dir, "taxon");
         taxon.mkdirs();
         taxonDir = new NIOFSDirectory (taxon.toPath());
-        taxonWriter = new DirectoryTaxonomyWriter (taxonDir);
+        taxonWriter = new DirectoryTaxonomyWriter
+            (taxonDir, OpenMode.CREATE_OR_APPEND, new LruTaxonomyWriterCache
+             (TAXON_CACHE_SIZE, LruTaxonomyWriterCache.LRUType.LRU_STRING));
         facetConfig = configFacets ();
 
         tvFieldType = new FieldType (TextField.TYPE_STORED);

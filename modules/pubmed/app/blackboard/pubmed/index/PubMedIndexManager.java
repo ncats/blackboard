@@ -370,6 +370,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 getSender().tell
                     (new Exception (getSelf()+": Can't insert doc "+doc.pmid,
                                     ex), getSelf ());
+                System.err.println("*** Can't insert doc "+doc.pmid+" ***");
                 ex.printStackTrace();
             }
         }
