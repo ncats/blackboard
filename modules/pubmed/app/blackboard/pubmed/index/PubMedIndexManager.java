@@ -707,9 +707,9 @@ public class PubMedIndexManager implements AutoCloseable {
     }
 
     public List<FV> commonDisconnectedNgramsTest () {
-        FacetQuery fq1 = new FacetQuery ("@predicate", "TREATS");
-        FacetQuery fq2 = new FacetQuery ("@predicate", "CAUSES");
-        return commonDisconnectedNgrams (fq1, fq2);
+        SearchQuery sq1 = new TextQuery ("ribosomal biogenesis");
+        SearchQuery sq2 = new TextQuery ("EEF1A2");
+        return commonDisconnectedNgrams (sq1, sq2);
     }
     
     public CompletionStage<List<FV>> ngrams
