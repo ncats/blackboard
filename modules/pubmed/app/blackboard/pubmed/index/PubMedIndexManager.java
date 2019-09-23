@@ -222,7 +222,7 @@ public class PubMedIndexManager implements AutoCloseable {
         SearchResult search (SearchQuery q) throws Exception {
             final String key = Util.sha1(self()+"/search", q.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key+"[search]");
                     long start = System.currentTimeMillis();
                     SearchResult result = pmi.search(q);
                     Logger.debug(self()+": search completed in "
@@ -248,7 +248,8 @@ public class PubMedIndexManager implements AutoCloseable {
         MatchedDoc pmidSearch (PMIDQuery q) {
             final String key = Util.sha1(self()+"/pmidsearch/"+q.pmid);
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "
+                                 +key+"[pmid:"+q.pmid+"]");
                     long start = System.currentTimeMillis();
                     MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
                     Logger.debug(self()+": fetch completed in "
@@ -274,7 +275,7 @@ public class PubMedIndexManager implements AutoCloseable {
         SearchResult facetSearch (FacetQuery q) throws Exception {
             final String key = Util.sha1(self()+"/facetsearch", q.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key+"[facetsearch]");
                     long start = System.currentTimeMillis();
                     SearchResult result = pmi.facets(q);
                     Logger.debug
@@ -301,7 +302,7 @@ public class PubMedIndexManager implements AutoCloseable {
             final String key = Util.sha1(self()+"/termvector",
                                          tvq.field, tvq.query.cacheKey());
             return cache.getOrElseUpdate(key, ()-> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key+"[termvector]");
                     long start = System.currentTimeMillis();
                     TermVector tv = pmi.termVector(tvq.field, tvq.query);
                     Logger.debug
@@ -328,7 +329,7 @@ public class PubMedIndexManager implements AutoCloseable {
         List<FV> ngrams (NgramQuery nq) throws Exception {
             final String key = Util.sha1(self()+"/ngrams", nq.query.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key+"[ngrams]");
                     long start = System.currentTimeMillis();
                     List<FV> ngrams = pmi.getNgramFacetValues(nq.query);
                     Logger.debug
@@ -356,7 +357,7 @@ public class PubMedIndexManager implements AutoCloseable {
             final String key = Util.sha1
                 (self()+"/andngrams", q.cacheKey(), p.cacheKey());
             Map<String, Integer> counts = cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+": Cache missed: "+key);
+                    Logger.debug(self()+": Cache missed: "+key+"[andngrams]");
                     return pmi.andNgrams(q, p);
                 });
             Util.add(ngrams, counts);
@@ -367,10 +368,23 @@ public class PubMedIndexManager implements AutoCloseable {
             final String key = Util.sha1
                 (self()+"/andnotngrams", q.cacheKey(), p.cacheKey());
             Map<String, Integer> counts = cache.getOrElseUpdate(key, () -> {
-                    Logger.debug(self()+" Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key+"[andnotngrams]");
                     return pmi.andNotNgrams(q, p);
                 });
             Util.add(ngrams, counts);
+        }
+
+        void getCountsForNgramValues (Map<Object, Integer> counts,
+                                      Set<String> ngrams) {
+            List<String> values = new ArrayList<>();
+            values.add(self()+"/ngramcounts");
+            values.addAll(ngrams);
+            final String key = Util.sha1(values.toArray(new String[0]));
+            Map<Object, Integer> cnt = cache.getOrElseUpdate(key, () -> {
+                    Logger.debug(self()+" Cache missed: "+key+"[ngramcounts]");
+                    return pmi.getCountsForNgramValues(ngrams);
+                });
+            Util.add(counts, cnt);
         }
 
         void doCommonDisconnectedNgrams (CommonDisconnectedNgramQuery cdnq) {
@@ -386,7 +400,7 @@ public class PubMedIndexManager implements AutoCloseable {
                 ngrams.addAll(cdnq.pgrams.keySet());
                 ngrams.addAll(cdnq.qgrams.keySet());
                 ngrams.addAll(cdnq.pqgrams.keySet());
-                pmi.getCountsForNgramValues(cdnq.counts, ngrams);
+                getCountsForNgramValues (cdnq.counts, ngrams);
                 
                 Logger.debug
                     (self()+": Common disconnected n-grams "
@@ -782,7 +796,7 @@ public class PubMedIndexManager implements AutoCloseable {
         SearchQuery sq1 = new TextQuery (q1);
         SearchQuery sq2 = new TextQuery (q2);
         List<FV> common = commonDisconnectedNgrams (sq1, sq2).stream()
-            .filter(fv -> fv.count > mincount)
+            .filter(fv -> fv.count >= mincount)
             .collect(Collectors.toList());
         Collections.sort(common, (a, b) -> {
                 double r1 = (double)a.count/a.total;
