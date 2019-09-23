@@ -755,10 +755,20 @@ public class PubMedIndexManager implements AutoCloseable {
         return common;
     }
 
-    public List<FV> commonDisconnectedNgramsTest (int size) {
-        SearchQuery sq1 = new TextQuery ("\"ribosomal biogenesis\"~2");
-        SearchQuery sq2 = new TextQuery ("EEF1A2");
-        List<FV> common = commonDisconnectedNgrams (sq1, sq2);
+    public List<FV> commonDisconnectedNgramsTest
+        (String q1, String q2, int size) {
+        SearchQuery sq1 = new TextQuery (q1);
+        SearchQuery sq2 = new TextQuery (q2);
+        List<FV> common = commonDisconnectedNgrams (sq1, sq2).stream()
+            .filter(fv -> fv.total > 10)
+            .collect(Collectors.toList());
+        Collections.sort(common, (a, b) -> {
+                double r1 = (double)a.count/a.total;
+                double r2 = (double)b.count/b.total;
+                if (r2 > r1) return 1;
+                if (r2 < r1) return -1;
+                return 0;
+            });
         return common.size() <= size ? common : common.subList(0, size);
     }
     

@@ -277,11 +277,12 @@ public class Controller extends play.mvc.Controller {
         }
     }
 
-    public CompletionStage<Result> commonDisconnectedNgrams (int size) {
+    public CompletionStage<Result> commonDisconnectedNgrams
+        (String q1, String q2, int size) {
         Logger.debug(">> "+req().uri());
         return supplyAsync
             (()-> ok ((JsonNode)mapper.valueToTree
-                      (pubmed.commonDisconnectedNgramsTest(size))),
+                      (pubmed.commonDisconnectedNgramsTest(q1, q2, size))),
              ec.current());
     }
     
