@@ -220,9 +220,9 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         SearchResult search (SearchQuery q) throws Exception {
-            final String key = self()+"/search/"+q.cacheKey();
+            final String key = Util.sha1(self()+"/search", q.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug("Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key);
                     long start = System.currentTimeMillis();
                     SearchResult result = pmi.search(q);
                     Logger.debug(self()+": search completed in "
@@ -246,9 +246,9 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         MatchedDoc pmidSearch (PMIDQuery q) {
-            final String key = self()+"/pmidsearch/"+q.pmid;
+            final String key = Util.sha1(self()+"/pmidsearch/"+q.pmid);
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug("Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key);
                     long start = System.currentTimeMillis();
                     MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
                     Logger.debug(self()+": fetch completed in "
@@ -272,9 +272,9 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         SearchResult facetSearch (FacetQuery q) throws Exception {
-            final String key = self()+"/facetsearch/"+q.cacheKey();
+            final String key = Util.sha1(self()+"/facetsearch", q.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug("Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key);
                     long start = System.currentTimeMillis();
                     SearchResult result = pmi.facets(q);
                     Logger.debug
@@ -298,10 +298,10 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         TermVector termVector (TermVectorQuery tvq) throws Exception {
-            final String key = self()+"/termvector/"
-                +tvq.field+"/"+tvq.query.cacheKey();
+            final String key = Util.sha1(self()+"/termvector",
+                                         tvq.field, tvq.query.cacheKey());
             return cache.getOrElseUpdate(key, ()-> {
-                    Logger.debug("Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key);
                     long start = System.currentTimeMillis();
                     TermVector tv = pmi.termVector(tvq.field, tvq.query);
                     Logger.debug
@@ -326,9 +326,9 @@ public class PubMedIndexManager implements AutoCloseable {
         }
 
         List<FV> ngrams (NgramQuery nq) throws Exception {
-            final String key = self()+"/ngrams/"+nq.query.cacheKey();
+            final String key = Util.sha1(self()+"/ngrams", nq.query.cacheKey());
             return cache.getOrElseUpdate(key, () -> {
-                    Logger.debug("Cache missed: "+key);
+                    Logger.debug(self()+" Cache missed: "+key);
                     long start = System.currentTimeMillis();
                     List<FV> ngrams = pmi.getNgramFacetValues(nq.query);
                     Logger.debug
@@ -351,14 +351,36 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
+        void andNgrams (Map<String, Integer> ngrams,
+                        SearchQuery q, SearchQuery p) throws Exception {
+            final String key = Util.sha1
+                (self()+"/andngrams", q.cacheKey(), p.cacheKey());
+            Map<String, Integer> counts = cache.getOrElseUpdate(key, () -> {
+                    Logger.debug(self()+": Cache missed: "+key);
+                    return pmi.andNgrams(q, p);
+                });
+            Util.add(ngrams, counts);
+        }
+
+        void andNotNgrams (Map<String, Integer> ngrams, SearchQuery q,
+                           SearchQuery p) throws Exception {
+            final String key = Util.sha1
+                (self()+"/andnotngrams", q.cacheKey(), p.cacheKey());
+            Map<String, Integer> counts = cache.getOrElseUpdate(key, () -> {
+                    Logger.debug(self()+" Cache missed: "+key);
+                    return pmi.andNotNgrams(q, p);
+                });
+            Util.add(ngrams, counts);
+        }
+
         void doCommonDisconnectedNgrams (CommonDisconnectedNgramQuery cdnq) {
             try {
                 Logger.debug(self()+": Common disconnected n-grams "+cdnq.q
                              +" and "+cdnq.p);
                 long start = System.currentTimeMillis();
-                pmi.andNgrams(cdnq.pqgrams, cdnq.q, cdnq.p);
-                pmi.andNotNgrams(cdnq.qgrams, cdnq.q, cdnq.p);
-                pmi.andNotNgrams(cdnq.pgrams, cdnq.p, cdnq.q);
+                andNgrams (cdnq.pqgrams, cdnq.q, cdnq.p);
+                andNotNgrams (cdnq.qgrams, cdnq.q, cdnq.p);
+                andNotNgrams (cdnq.pgrams, cdnq.p, cdnq.q);
 
                 Set<String> ngrams = new TreeSet<>();
                 ngrams.addAll(cdnq.pgrams.keySet());
