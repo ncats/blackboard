@@ -162,14 +162,19 @@ public class PubMedIndexManager implements AutoCloseable {
     }
     
     static class PubMedIndexActor extends AbstractActor {
-        static Props props (IndexFactory pmif, File db) {
+        static Props props (IndexFactory pmif, File db, SyncCacheApi cache) {
             return Props.create
-                (PubMedIndexActor.class, () -> new PubMedIndexActor (pmif, db));
+                (PubMedIndexActor.class, ()
+                 -> new PubMedIndexActor (pmif, db, cache));
         }
         
         final PubMedIndex pmi;
-        public PubMedIndexActor (IndexFactory pmif, File dir) {
+        final SyncCacheApi cache;
+        
+        public PubMedIndexActor (IndexFactory pmif,
+                                 File dir, SyncCacheApi cache) {
             pmi = (PubMedIndex) pmif.get(dir);
+            this.cache = cache;
             Logger.debug("*** index loaded..."+dir+" "+pmi.size()+" doc(s)!");
         }
 
@@ -214,15 +219,24 @@ public class PubMedIndexManager implements AutoCloseable {
                 .build();
         }
 
+        SearchResult search (SearchQuery q) throws Exception {
+            final String key = self()+"/search/"+q.cacheKey();
+            return cache.getOrElseUpdate(key, () -> {
+                    Logger.debug("Cache missed: "+key);
+                    long start = System.currentTimeMillis();
+                    SearchResult result = pmi.search(q);
+                    Logger.debug(self()+": search completed in "
+                                 +String.format
+                                 ("%1$.3fs", 1e-3*(System.currentTimeMillis()
+                                                   -start)));
+                    return result;
+                });
+        }
+        
         void doSearch (SearchQuery q) {
             try {
                 Logger.debug(self()+": searching "+q);
-                long start = System.currentTimeMillis();
-                SearchResult result = pmi.search(q);
-                Logger.debug
-                    (self()+": search completed in "+String.format
-                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-                getSender().tell(result, getSelf ());
+                getSender().tell(search (q), getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell(new Exception
@@ -231,15 +245,24 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
+        MatchedDoc pmidSearch (PMIDQuery q) {
+            final String key = self()+"/pmidsearch/"+q.pmid;
+            return cache.getOrElseUpdate(key, () -> {
+                    Logger.debug("Cache missed: "+key);
+                    long start = System.currentTimeMillis();
+                    MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
+                    Logger.debug(self()+": fetch completed in "
+                                 +String.format
+                                 ("%1$.3fs", 1e-3*(System.currentTimeMillis()
+                                                   -start)));
+                    return doc;
+                });
+        }
+        
         void doPMIDSearch (PMIDQuery q) {
             try {
                 Logger.debug(self()+": fetching "+q.pmid);
-                long start = System.currentTimeMillis();
-                MatchedDoc doc = pmi.getMatchedDoc(q.pmid);
-                Logger.debug
-                    (self()+": fetch completed in "+String.format
-                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-                getSender().tell(doc, getSelf ());
+                getSender().tell(pmidSearch (q), getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell(new Exception
@@ -248,34 +271,51 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
+        SearchResult facetSearch (FacetQuery q) throws Exception {
+            final String key = self()+"/facetsearch/"+q.cacheKey();
+            return cache.getOrElseUpdate(key, () -> {
+                    Logger.debug("Cache missed: "+key);
+                    long start = System.currentTimeMillis();
+                    SearchResult result = pmi.facets(q);
+                    Logger.debug
+                        (self()+": facets search completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                    return result;
+                });
+        }
+        
         void doFacetSearch (FacetQuery fq) {
             try {
                 Logger.debug(self()+": facets "+fq);
-                long start = System.currentTimeMillis();
-                SearchResult result = pmi.facets(fq);
-                Logger.debug
-                    (self()+": facets search completed in "+String.format
-                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-                getSender().tell(result, getSelf ());
+                getSender().tell(facetSearch (fq), getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell
                     (new Exception
                      (getSelf()+": Can't facet search docs: "+fq , ex),
-                     getSelf ());                
+                     getSelf ());
             }
         }
 
+        TermVector termVector (TermVectorQuery tvq) throws Exception {
+            final String key = self()+"/termvector/"
+                +tvq.field+"/"+tvq.query.cacheKey();
+            return cache.getOrElseUpdate(key, ()-> {
+                    Logger.debug("Cache missed: "+key);
+                    long start = System.currentTimeMillis();
+                    TermVector tv = pmi.termVector(tvq.field, tvq.query);
+                    Logger.debug
+                        (self()+": term vector for \""+tvq.field
+                         +"\" completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                    return tv;
+                });
+        }
+        
         void doTermVector (TermVectorQuery tvq) {
             try {
                 Logger.debug(self()+": term vector "+tvq.field);
-                long start = System.currentTimeMillis();
-                TermVector tv = pmi.termVector(tvq.field, tvq.query);
-                Logger.debug
-                    (self()+": term vector for \""+tvq.field
-                     +"\" completed in "+String.format
-                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-                getSender().tell(tv, getSelf ());
+                getSender().tell(termVector (tvq), getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell
@@ -285,16 +325,24 @@ public class PubMedIndexManager implements AutoCloseable {
             }
         }
 
+        List<FV> ngrams (NgramQuery nq) throws Exception {
+            final String key = self()+"/ngrams/"+nq.query.cacheKey();
+            return cache.getOrElseUpdate(key, () -> {
+                    Logger.debug("Cache missed: "+key);
+                    long start = System.currentTimeMillis();
+                    List<FV> ngrams = pmi.getNgramFacetValues(nq.query);
+                    Logger.debug
+                        (self()+": N-gram for "+nq.query
+                         +" completed in "+String.format
+                         ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
+                    return ngrams;
+                });
+        }
+
         void doNgrams (NgramQuery nq) {
             try {
                 Logger.debug(self()+": N-gram "+nq.query);
-                long start = System.currentTimeMillis();
-                List<FV> ngrams = pmi.getNgramFacetValues(nq.query);
-                Logger.debug
-                    (self()+": N-gram for "+nq.query
-                     +" completed in "+String.format
-                     ("%1$.3fs", 1e-3*(System.currentTimeMillis()-start)));
-                getSender().tell(ngrams, getSelf ());
+                getSender().tell(ngrams (nq), getSelf ());
             }
             catch (Exception ex) {
                 getSender().tell
@@ -432,6 +480,7 @@ public class PubMedIndexManager implements AutoCloseable {
     public PubMedIndexManager (Configuration config, @PubMed IndexFactory ifac,
                                UMLSKSource umls, PubMedKSource pubmed,
                                ActorSystem actorSystem, AsyncCacheApi cache,
+                               SyncCacheApi actorCache,
                                PubMedExecutionContext pmec,
                                ApplicationLifecycle lifecycle) {
         Config conf = config.underlying().getConfig("app.pubmed");
@@ -463,7 +512,7 @@ public class PubMedIndexManager implements AutoCloseable {
             File db = new File (dir, idx);
             try {
                 ActorRef actorRef = actorSystem.actorOf
-                    (PubMedIndexActor.props(ifac, db)
+                    (PubMedIndexActor.props(ifac, db, actorCache)
                      .withDispatcher(dispatcher),
                      getClass().getName()+"-"+idx);
                 this.indexes.add(actorRef);
@@ -698,7 +747,7 @@ public class PubMedIndexManager implements AutoCloseable {
 
         sort (common);
 
-        Logger.debug("### Common disconnected n-grams completed in "
+        Logger.debug("######### Common disconnected n-grams completed in "
                      +String.format
                      ("%1$.3fs", (System.currentTimeMillis()-start)*1e-3)
                      +"..."+common.size());
@@ -706,10 +755,11 @@ public class PubMedIndexManager implements AutoCloseable {
         return common;
     }
 
-    public List<FV> commonDisconnectedNgramsTest () {
-        SearchQuery sq1 = new TextQuery ("ribosomal biogenesis");
+    public List<FV> commonDisconnectedNgramsTest (int size) {
+        SearchQuery sq1 = new TextQuery ("\"ribosomal biogenesis\"~2");
         SearchQuery sq2 = new TextQuery ("EEF1A2");
-        return commonDisconnectedNgrams (sq1, sq2);
+        List<FV> common = commonDisconnectedNgrams (sq1, sq2);
+        return common.size() <= size ? common : common.subList(0, size);
     }
     
     public CompletionStage<List<FV>> ngrams

@@ -7,7 +7,7 @@ GET /:pmid  blackboard.pubmed.controllers.Controller.article(pmid: Long)
 GET /api/facets blackboard.pubmed.controllers.Controller.facets(fdim: Int ?= 100)
 GET /api/termvec/:field  blackboard.pubmed.controllers.Controller.termVector(field: String, q: String ?= null)
 GET /api/ngrams blackboard.pubmed.controllers.Controller.ngrams(q: String ?= null)
-GET /api/ngramstest blackboard.pubmed.controllers.Controller.commonDisconnectedNgrams
+GET /api/ngramstest blackboard.pubmed.controllers.Controller.commonDisconnectedNgrams(size: Int ?= 100)
 GET /api/search/:q blackboard.pubmed.controllers.Controller.search(q: String, skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/search blackboard.pubmed.controllers.Controller.filter(skip: Integer ?= 0, top: Integer ?= 10)
 GET /api/$pmid<[0-9]+>.$format<(xml|json)> blackboard.pubmed.controllers.Controller.pmid(pmid: Long, format: String)
